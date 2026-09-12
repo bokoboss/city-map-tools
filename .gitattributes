@@ -1,0 +1,3 @@
+# The immutable R0 reference retains four original whitespace-only lines.
+# Keep its accepted blob intact while checking whitespace in production sources.
+legacy/r0-safe-prototype.html whitespace=-blank-at-eol

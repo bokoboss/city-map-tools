@@ -2,13 +2,23 @@
   "name": "city-map-tools",
   "version": "2.2.0",
   "private": true,
-  "description": "Static-first browser map annotation prototype with explicit analytical capability quarantine",
+  "description": "Static-first modular map shell with explicit provider and 3D capability state",
   "scripts": {
     "dev": "vite",
+    "typecheck": "tsc --noEmit",
     "build": "vite build",
     "preview": "vite preview"
   },
   "devDependencies": {
+    "@types/react": "19.3.0",
+    "@types/react-dom": "19.3.0",
+    "@vitejs/plugin-react": "4.7.0",
+    "typescript": "5.9.3",
     "vite": "^6.2.0"
+  },
+  "dependencies": {
+    "maplibre-gl": "6.9.0",
+    "react": "19.3.0",
+    "react-dom": "19.3.0"
   }
 }

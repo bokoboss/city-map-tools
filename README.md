@@ -1,62 +1,80 @@
-# City Map Tools
+﻿# City Map Tools
 
-> Static-first browser map annotation prototype. This README describes the current revision only; it is not a claim of production readiness or validated engineering analysis.
+Static-first map viewing foundation. This revision introduces the modular shell
+in Issue #18; it does not provide validated engineering analysis.
 
 Repository: <https://github.com/bokoboss/city-map-tools>
-Live application: <https://bokoboss.github.io/city-map-tools/>
+Intended Pages URL: <https://bokoboss.github.io/city-map-tools/>.
+Pages configuration remains a separate human-controlled deployment gate.
 
 ## Current scope
 
-The application is a single-file MapLibre/Turf prototype for local annotation work. It stores feature geometry as WGS84 longitude/latitude and keeps metric units and provider limitations explicit where they apply.
+- Vite 6, React, strict TypeScript, npm-managed MapLibre GL JS, and build-time CSS.
+- Map navigation and switching between accepted OpenStreetMap raster and CARTO
+  Voyager vector basemaps, with attribution, loading, and error states.
+- 3D Buildings is disabled for incompatible basemaps. Compatible vector building
+  sources support a visualization toggle at zoom 14+, using numeric provider
+  heights in metres where supplied. Missing heights are not fabricated. Coverage
+  and accuracy are provider-dependent; these are not surveyed engineering results.
+- Reload map creates a fresh map session. Basemap changes preserve location/zoom
+  and reset 3D. Provider failures disable 3D and remain visible until a new basemap
+  load or explicit reload; no fallback data is generated.
 
-Current working behavior includes:
+The accepted R0 annotation prototype is preserved unchanged at
+[`legacy/r0-safe-prototype.html`](legacy/r0-safe-prototype.html), with a
+[reference-only marker](legacy/README.md). It is not included in the production
+build. Its editor, search, GeoJSON, drawing, buffers, and history are not available
+in this shell. Later bounded Issues #19, #20, #5, and #21 own those migrations.
 
-- Displaying the map with OpenStreetMap, ESRI, OpenTopoMap, and CARTO basemap options. Providers are best-effort and attribution is shown by the map/provider style.
-- Drawing points, polylines, and polygons with client-side vertex/midpoint snapping.
-- Dragging markers, editing names/styles, toggling visibility, undoing changes, and creating Turf.js buffer geometry.
-- Creating a user-authored desire line between selected centroids when the user supplies a demand value. The demand is not validated and is not a traffic assignment result.
-- Best-effort Nominatim place search. External routing/accessibility preview is disabled until a pedestrian method and provider contract are validated; no fallback geometry is fabricated.
-- GeoJSON import/export. Exported features carry a validationStatus and provenance object so authored, imported, experimental, and unvalidated data cannot be mistaken for validated engineering results.
-- A 3D Buildings control that is enabled only when the selected vector basemap exposes a compatible building source. It is disabled on raster/incompatible basemaps.
+Space Syntax, routing/accessibility, synthetic isochrones, elevation, and OD
+analytics remain unavailable. No analytical engine is migrated or reactivated.
+There is no project storage, API-key input, or export in this slice.
 
-## Capability status
+## Development and verification
 
-| Status | Capability | Current truth |
-| --- | --- | --- |
-| Validated | Engineering analytics | None. No analytical method in this prototype is accepted as validated engineering analysis. |
-| Functional but unvalidated | Annotation, drawing, snapping, marker drag/undo, buffers, GeoJSON import/export | Useful prototype behavior; geometry and imported/user-authored values still require review for project use. |
-| Experimental | Basemap providers, Nominatim search, 3D buildings on compatible vector styles, user-authored desire lines | External services and outputs are best-effort or authored; attribution, provider policy, method, and limitations remain material. |
-| Disabled/Planned | Network centrality / Space Syntax, pedestrian routing and travel-time catchments, elevation/DEM profiles, all-pairs OD demand generation | Quarantined until separately validated methods, sources, and evidence are accepted. No pseudo or synthetic replacement is generated. |
+Use Node.js 22 (the CI version) and npm:
 
-Motor-vehicle routing, traffic-aware isochrones, real DEM analysis, persistence architecture, and the future modular React/TypeScript migration are outside this R0 remediation.
-
-## Development
-
-Prerequisites: Node.js 18+ and npm.
-
-~~~bash
-npm install
+```sh
+npm ci
 npm run dev
-~~~
+```
 
-The development server uses the Vite shell and serves the application under the /city-map-tools/ path. The production smoke check is:
+The app uses `/city-map-tools/`. Verify the production output with:
 
-~~~bash
+```sh
+npm run typecheck
 npm run build
-~~~
+npm run preview -- --host 127.0.0.1 --port 4173 --strictPort
+```
 
-The prototype intentionally does not yet define a full lint, typecheck, unit, or end-to-end test suite. Browser smoke evidence is run manually for behavior that crosses the DOM, MapLibre, and provider boundaries.
+Browse <http://127.0.0.1:4173/city-map-tools/>. Browser smoke must cover real map
+rendering, pan/zoom, both basemaps, provider error/recovery, incompatible 3D,
+compatible 3D on/off, and reload cleanup. CI's stable `build` check runs clean
+install, typecheck, and build on PR/main; deploy also typechecks before building
+and uploading only `dist/`. No lint/unit/E2E script is claimed.
 
-## Providers and attribution
+MapLibre v6's worker is bundled with
+`maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url` and `setWorkerUrl(...)`, per
+[official Vite integration guidance](https://maplibre.org/maplibre-gl-js/docs/#installation).
+The production shell needs no Tailwind Play CDN or UNPKG globals.
 
-- OpenStreetMap tiles and Nominatim search are community/open services with usage policies and best-effort availability.
-- ESRI, CARTO, and OpenTopoMap basemaps retain provider attribution where required by their styles/tiles.
-- Routing/accessibility provider integration is not active in this revision; a future provider must be pedestrian-scoped and separately validated.
-- Direct undocumented Google tile endpoints are not included. A supported Google Maps Platform integration, if ever added, must be separately designed with authentication, billing, attribution, and usage review.
-- Provider errors are surfaced in the UI; local annotations remain client-side.
+## Providers, coordinates, and limitations
+
+- OpenStreetMap community tiles require [OSM attribution](https://www.openstreetmap.org/copyright)
+  and compliance with the [tile usage policy](https://operations.osmfoundation.org/policies/tiles/).
+  No bulk downloading or offline prefetch is implemented.
+- CARTO Voyager retains the style's CARTO/OpenStreetMap attribution. Existing
+  [provider terms](https://carto.com/legal/) and coverage limitations apply.
+- These accepted providers are best-effort online capabilities. Requests go to
+  the selected provider; their availability is not guaranteed by the static app.
+  No new provider, credentials, paid backend, or direct Google tile endpoint is introduced.
+- Displayed coordinates are WGS84 longitude/latitude, map display uses Web Mercator,
+  and the metric scale is approximate. No engineering distance/area calculation is performed.
 
 ## Provenance and licensing
 
-See [ACKNOWLEDGEMENTS.md](ACKNOWLEDGEMENTS.md) for the bounded provenance findings and the distinction between conceptual inspiration, methodology research, and embedded material.
-
-A repository license has not been selected while the complete source lineage remains unresolved. No third-party source, dataset, or asset is intentionally redistributed by this revision.
+See [ACKNOWLEDGEMENTS.md](ACKNOWLEDGEMENTS.md) for the historical R0 provenance
+review. Its runtime inventory describes the preserved prototype. The current
+shell uses the npm libraries listed above; their licenses travel with their
+packages. No provider dataset is vendored. A repository license remains
+unselected pending the separate source-lineage review.

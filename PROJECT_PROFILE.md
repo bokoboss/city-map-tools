@@ -1,139 +1,123 @@
-# Project Profile
+﻿# Project Profile
 
 ## Identity
-- Project name: City Map Tools
-- Repository URL: https://github.com/bokoboss/city-map-tools
+- Project: City Map Tools
+- Repository: https://github.com/bokoboss/city-map-tools
 - Authoritative local path: `C:\MyRD\city-map-tools`
 - Primary branch: `main`
-- Package/application version: `2.2.0` (current package label; not a claim of production readiness)
+- Package version: `2.2.0` (package label, not a production-readiness claim)
 
 ## Current accepted baseline
-- Accepted branch: `main`
-- Accepted HEAD SHA: `b030483a14f640cdc0322697241950cd54122e02`
-- Accepted date: 2026-09-12 (commit authored in the project timezone, UTC+07:00)
-- Current phase/milestone: R0 productionization of prototype — post-#2 accepted; R0B truth/security/quarantine remediation in progress
-- Durable program record: GitHub Issue #1
-- Handoff checkpoint: GitHub Issue #23
+- Accepted pre-#18 main: `37417ff12c8adb5ec2de83da99aa3fdae720c09c`
+- Accepted date: 2026-09-12, project timezone UTC+07:00
+- #2 workflow baseline, #3 R0B truth/security/quarantine remediation (PR #25), and
+  #6 Phase A deterministic install/CI (PR #26) are accepted and merged.
+- Durable program record: Issue #1. Latest checkpoint: Issue #23.
+- Issue #18's execution packet and latest routing addendum authorize this first
+  modular shell. This branch's implementation is pending PR acceptance; it does
+  not change the accepted main SHA above.
 
-## Technology stack
-### Current implemented stack
-- Single-file HTML/CSS/JavaScript prototype in `index.html` (111,961 bytes at the accepted baseline)
-- Vite 6 development/build shell from `vite.config.ts`
-- Browser/CDN-loaded Tailwind CSS, MapLibre GL JS 5.1.1, Turf.js 7, and Lucide dependencies in the legacy prototype
-- No React application architecture or TypeScript application modules yet
-- No established persistent project storage
-- No established automated unit or end-to-end test suite
+## Current implemented stack
+- Vite 6 + React + strict TypeScript + npm/ESM MapLibre GL JS v6.
+- Minimal root `index.html`, React bootstrap, dedicated MapLibre lifecycle adapter,
+  small typed basemap config, and plain build-time CSS.
+- Production scope: map navigation, OSM raster/CARTO Voyager vector switching,
+  loading/error recovery, and explicit compatible/unavailable 3D state.
+- Accepted R0 monolithic prototype preserved unchanged as non-production reference
+  at `legacy/r0-safe-prototype.html`; excluded from `dist/`.
+- No production editor, GeoJSON workflow, persistence, history, or analytical engine.
+- No established automated unit/E2E suite. Production-preview browser smoke is
+  required for changes at the React/MapLibre/provider boundary.
 
-### Accepted target direction
-- Vite + React + TypeScript for modular UI/application structure
-- MapLibre for the map canvas
-- Pure TypeScript domain/analysis modules independent of React
-- Local-first IndexedDB persistence
-- Web Workers where bounded heavy client-side analysis needs them
-- Optional provider adapters only for concrete external capabilities
-- Static deployable artifact for GitHub Pages; Vercel Hobby is optional
+## Accepted target direction
+- Modular UI/application structure with pure TypeScript domain/analysis modules
+  independent of React, DOM, and MapLibre.
+- Local-first IndexedDB persistence and bounded workers for heavy analysis in
+  separately authorized future slices.
+- Optional provider adapters only for concrete needs; no speculative plugin platform.
+- Static GitHub Pages artifact; no mandatory paid backend. Vercel Hobby is optional.
 
-The target direction is planned architecture, not current implementation.
+Future direction is not a claim of implemented capability.
 
-## Package manager / dependency state
-- Package manager: npm
-- `package.json` currently contains Vite only as a development dependency.
-- No lockfile exists at the accepted baseline; reproducible install is not yet established. #6/#18 must create and verify a deterministic lockfile before `npm ci` becomes an accepted gate.
+## Package manager / commands
+- npm with a committed deterministic `package-lock.json`; `npm ci` is established.
+- Direct runtime dependencies: React, ReactDOM, MapLibre GL JS.
+- Tooling: Vite 6, compatible plugin-react 4, TypeScript, React types.
+- Exact installed versions are recorded by the lockfile.
+- Node 22 is the CI baseline.
 
-## Standard commands
-### Current local development
 ```text
+npm ci
 npm run dev
-```
-
-### Current build smoke
-```text
+npm run typecheck
 npm run build
+npm run preview -- --host 127.0.0.1 --port 4173 --strictPort
+git diff --check
 ```
 
-### Current preview
-```text
-npm run preview
-```
+Typecheck is a real strict `tsc --noEmit` gate. No lint/unit/E2E script exists.
+Production preview URL: `http://127.0.0.1:4173/city-map-tools/`.
 
-### Current fast/full validation
-No accepted lint, typecheck, unit, or E2E command exists yet. Do not invent one. #6 introduces staged CI and #18+ introduces TypeScript/test gates.
-
-## Architecture / invariants
-- The core app is personal/hobby, low-volume, static-first, and local-first.
-- Core functionality must not require a mandatory paid backend.
-- No synthetic or demo analytical value may be presented or exported as a validated engineering result.
-- `README.md` describes current capability; `PRD.md` and product-vision text may describe planned capability only when clearly labelled.
-- Canonical persisted geographic geometry direction is WGS84 longitude/latitude; metric-analysis method and CRS must be explicit.
-- Engineering/spatial results must carry method, source, units, parameters, version, status, and limitations appropriate to the claim.
-- External services are optional capabilities with attribution, failure behavior, policy/licensing, and credential handling explicit.
-- Browser API keys are not secrets; optional BYOK credentials are runtime-memory-only by default and are not persisted.
-- Current network-accessibility scope is pedestrian only. Do not implement motor-vehicle routing or traffic-aware isochrones in the current program.
-- Analytical/domain logic must remain independent of React/DOM state.
-- UX must remain extensible through bounded task-oriented surfaces without becoming a speculative plugin framework.
-
-## Protected behavior / product truth
-Changes must not:
-- re-enable quarantined pseudo Space Syntax, synthetic isochrone, synthetic elevation, or synthetic OD demand;
-- represent experimental or unvalidated results as validated;
-- silently guess CRS, units, provider capability, or missing engineering values;
-- persist secrets or API keys;
-- remove required attribution or provenance;
-- conflate geometry snapping, map matching, and routing;
-- make a polished export hide `Experimental`, `Stale`, or warning state.
+## Architecture / protected invariants
+- Personal/hobby, low-volume, static-first and local-first core.
+- Never present/export synthetic, demo, experimental, or unvalidated results as
+  validated engineering outputs. Quarantined analytics remain unavailable.
+- `README.md` describes the current shell; `PRD.md` describes planned capability.
+- Canonical geographic storage direction is WGS84 longitude/latitude. The current
+  map displays Web Mercator with approximate metric scale and performs no metric
+  analysis. Future calculations must state method, CRS, units, and transformations.
+- Engineering outputs must preserve source, method, parameters, units, version,
+  validation status, stale state, and limitations through review/export.
+- Authored/imported data must remain distinct from derived engineering results.
+- Optional services require attribution, failure behavior, usage/licensing notes,
+  and explicit capability state. Browser BYOK, if later authorized, stays in runtime
+  memory by default and must never enter storage, exports, logs, or analytics.
+- Never silently guess provider capability, CRS, units, or missing engineering values.
+- Current future network-accessibility scope is pedestrian only; no motor-vehicle
+  routing or traffic-aware isochrones. Snapping, map matching, and routing are distinct.
+- Space Syntax #10 is deferred research requiring a future explicit GO/GO WITH
+  CONDITIONS. Traffic overlay #16 and simulation replay #22 remain deferred.
+- Follow bounded migration Issues #18–#21; no big-bang rewrite or dead deferred controls.
 
 ## Important paths
-- Legacy prototype/application source: `index.html`
-- Vite config: `vite.config.ts`
-- Package metadata: `package.json`
-- Product vision: `PRD.md`
-- Current/user-facing documentation: `README.md`
-- Development history: `DEVELOPMENT_LOG.md`
-- Project workflow profile: `PROJECT_PROFILE.md`
-- Agent rules: `AGENTS.md`
-- GitHub issue templates: `.github/ISSUE_TEMPLATE/`
-- GitHub workflows: `.github/workflows/deploy.yml`
-- Installed/pinned workflow after #2: `.engineering-workflow/`
-- Workflow manifest: `.engineering-workflow.json`
-- Future modular source/tests (after #18+): `src/`, `tests/`
-- Local-only/sensitive/licensed data: none required for current development; do not commit secrets or proprietary inputs.
+- Production: `index.html`, `src/main.tsx`, `src/App.tsx`, `src/map/`, `src/styles.css`
+- Legacy reference: `legacy/r0-safe-prototype.html`, `legacy/README.md`
+- Build/dependencies: `vite.config.ts`, `tsconfig.json`, `package.json`, `package-lock.json`
+- Documentation: `README.md`, `PRD.md`, `ACKNOWLEDGEMENTS.md`, `DEVELOPMENT_LOG.md`
+- Workflow: `AGENTS.md`, `.engineering-workflow/` (pinned v1.7.4), `.engineering-workflow.json`
+- CI/deploy: `.github/workflows/ci.yml`, `.github/workflows/deploy.yml`
+- No sensitive/licensed local data is required; never commit secrets or proprietary inputs.
 
 ## Validation matrix
-| Gate | Command / Method | Required now? |
+| Gate | Method | Required |
 |---|---|---|
-| Workflow installer | v1.7.4 `setup_project.py inspect/upgrade/validate` | Yes for #2 |
-| Build smoke | `npm run build` | Yes when dependencies are available |
-| Static/diff hygiene | `git diff --check` | Yes for implementation PRs |
-| Unit / targeted | Not established yet | Added incrementally by #3/#18+ |
-| TypeScript | Not established yet | Added by #18 |
-| Browser/UI | Manual/browser smoke for the current prototype | Required where behavior changes |
-| Real-data/reference | Method-specific deterministic/open fixtures | Required for accepted analytical methods |
-| CI | Phase A in #6, expanded later | Required as established |
+| Deterministic install | `npm ci` | Yes |
+| Strict TypeScript | `npm run typecheck` | Yes |
+| Production artifact | `npm run build` | Yes |
+| Diff hygiene | `git diff --check` | Yes |
+| Browser | Production preview at configured base path; map/navigation/style/capability/error/cleanup | For runtime changes |
+| CI | Exact PR-head stable `build` check: install + typecheck + build on Node 22 | Yes |
+| Independent review | Actual diff/evidence according to applicable Issue/workflow risk | As required |
+| Analytical/reference data | Method-specific deterministic/open fixtures | Before any analytical acceptance |
 
-## Execution characteristics
-- Typical task ambiguity: medium; prototype claims and implementation may conflict, so inspect source before preserving behavior.
-- High-risk areas: geospatial units/CRS, analytical methodology, provider/licensing, DOM security, persistence/schema, and engineering-result/export truthfulness.
-- Safe to parallelize only when file and semantic ownership are clearly separated.
-- Architecture migration is intentionally split into Issues #18–#21; do not perform a big-bang rewrite.
-- Prefer fresh bounded execution contexts at phase or risk changes.
+Deploy typechecks/builds and uploads only `dist/`. Pages repository configuration
+is still a separate human-controlled blocker; do not alter it as part of #18.
 
-## Workspace / Git policy
-- Default writable boundary for Codex: `C:\MyRD\city-map-tools` only.
-- Do not modify the shared workflow checkout, another repository, global config, PATH/registry, credentials, or system state without explicit human approval.
-- Preserve unknown/untracked user work; no destructive reset/clean as convenience.
-- Work on focused task branches; review actual diff, tests, and CI before acceptance.
-- GitHub Issue/PR/commit/CI and project files are durable truth; chat history is not authoritative.
-- Use GitHub noreply identity; never expose the user's private email.
+## Workspace / execution policy
+- Default writable boundary: `C:\MyRD\city-map-tools` only.
+- Do not modify another repository, global/system configuration, PATH, registry,
+  credentials, or shared workflow checkout without explicit approval.
+- Preserve unknown/untracked work; no destructive reset/clean for convenience.
+- Use focused branches and GitHub noreply identity; never expose private email.
+- Reconstruct truth from Git/GitHub/project files, not prior chat history.
+- Parallelize only with separated file/semantic ownership.
+- Review actual diff and evidence. Do not claim completion with mandatory gates blocked.
+- Report external writes and global/system changes explicitly.
 
-## Current known limitations / risks
-- Pre-R0 application is a monolithic ~112 KB `index.html` prototype.
-- Current README/PRD overstate some implemented analytical capability.
-- Known pseudo/synthetic analytics and DOM-XSS/provider/dead-control defects are tracked in #3.
-- No persistence/autosave.
-- No deterministic lockfile at the accepted baseline.
-- Historical GitHub Actions runs `34681081318` and `34681441457` failed at the `Setup Pages` step because GitHub Pages was not enabled/configured for GitHub Actions at that time; `.github/workflows/deploy.yml` exists in this checkout.
-- Space Syntax #10 is deferred research and is not part of v1 implementation.
-- Future traffic-result overlay #16 and 3D simulation replay #22 are deferred.
+## Current objective and remaining limitations
+Complete/review #18, then reconstruct accepted main before #19.
+Sequence: #18 → #19 → #20 → (#5 + #6 Phase B) → #21.
 
-## Current next objective
-Complete and accept #3, then reconstruct the post-#3 state before #6 Phase A; #18 remains blocked.
+Provider availability/coverage is best-effort, 3D is visualization only, project
+storage is absent, and no engineering analytics are validated. The legacy reference
+retains prototype behavior and quarantine but is not the current production app.
