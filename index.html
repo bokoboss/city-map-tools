@@ -553,6 +553,108 @@
 
     let features = [];
 
+    const GEOJSON_EXPORT_FORMAT = 'city-map-tools.geojson';
+    const GEOJSON_EXPORT_VERSION = 1;
+    const DEFAULT_VALIDATION_STATUS = 'Functional but unvalidated';
+    const RECOGNIZED_VALIDATION_STATUSES = new Set([
+      'Validated',
+      DEFAULT_VALIDATION_STATUS,
+      'Experimental',
+      'Stale'
+    ]);
+
+    function isRecord(value) {
+      return value !== null && typeof value === 'object' && !Array.isArray(value);
+    }
+
+    function boundedString(value, maxLength = 500) {
+      return typeof value === 'string' && value.length > 0 ? value.slice(0, maxLength) : null;
+    }
+
+    function normalizeValidationStatus(value, { allowValidated = false } = {}) {
+      if (typeof value !== 'string' || !RECOGNIZED_VALIDATION_STATUSES.has(value)) {
+        return DEFAULT_VALIDATION_STATUS;
+      }
+      if (value === 'Validated' && !allowValidated) return DEFAULT_VALIDATION_STATUS;
+      return value;
+    }
+
+    function normalizeLineageIdentity(value, depth = 0) {
+      if (!isRecord(value) || depth > 2) return null;
+      const identity = {};
+      if (value.id !== undefined && value.id !== null) identity.id = String(value.id).slice(0, 120);
+      const name = boundedString(value.name);
+      if (name) identity.name = name;
+      if (typeof value.validationStatus === 'string' && RECOGNIZED_VALIDATION_STATUSES.has(value.validationStatus)) {
+        identity.validationStatus = value.validationStatus;
+      }
+      return Object.keys(identity).length > 0 ? identity : null;
+    }
+
+    function normalizeProvenance(value, depth = 0) {
+      if (!isRecord(value) || depth > 2) return null;
+      const normalized = {};
+      ['method', 'source', 'units', 'limitations', 'operation', 'importedValidationStatus'].forEach((field) => {
+        const text = boundedString(value[field]);
+        if (text) normalized[field] = text;
+      });
+
+      if (Array.isArray(value.importChain)) {
+        const chain = value.importChain
+          .filter((item) => typeof item === 'string')
+          .map((item) => item.slice(0, 160))
+          .slice(-20);
+        if (chain.length > 0) normalized.importChain = chain;
+      }
+
+      const parent = normalizeLineageIdentity(value.derivedFrom, depth + 1);
+      const parentProvenance = normalizeProvenance(value.derivedFrom?.provenance, depth + 1);
+      if (parent || parentProvenance) {
+        normalized.derivedFrom = { ...(parent || {}) };
+        if (parentProvenance) normalized.derivedFrom.provenance = parentProvenance;
+      }
+
+      return Object.keys(normalized).length > 0 ? normalized : null;
+    }
+
+    function defaultAnnotationProvenance() {
+      return {
+        method: 'User-authored annotation',
+        source: 'User input',
+        units: 'WGS84 longitude/latitude',
+        limitations: 'Not a validated engineering result'
+      };
+    }
+
+    function appendImportContext(provenance, isApplicationExport) {
+      const next = normalizeProvenance(provenance) || {
+        method: 'GeoJSON import',
+        source: 'Imported GeoJSON',
+        units: 'WGS84 longitude/latitude',
+        limitations: 'Imported values are not validated by this prototype'
+      };
+      const chain = Array.isArray(next.importChain) ? next.importChain.slice(-19) : [];
+      chain.push(isApplicationExport ? 'GeoJSON import from City Map Tools export' : 'GeoJSON import from external file');
+      next.importChain = chain;
+      const note = 'This prototype preserves imported lineage but does not independently validate it.';
+      const limitations = next.limitations || 'Imported values are not validated by this prototype';
+      if (!limitations.includes(note)) next.limitations = `${limitations}; ${note}`;
+      return next;
+    }
+
+    function normalizeImportedMetadata(properties, isApplicationExport) {
+      const rawStatus = properties?.validationStatus;
+      const rawProvenance = normalizeProvenance(properties?.provenance);
+      const validationStatus = normalizeValidationStatus(rawStatus);
+      const provenance = appendImportContext(rawProvenance, isApplicationExport);
+
+      if (typeof rawStatus === 'string' && rawStatus !== validationStatus) {
+        provenance.importedValidationStatus = rawStatus.slice(0, 120);
+      }
+
+      return { validationStatus, provenance };
+    }
+
     function cloneFeatures() {
       return JSON.parse(JSON.stringify(features));
     }
@@ -1019,15 +1121,8 @@
     });
 
     function ensureFeatureProvenance(feature) {
-      if (!feature.validationStatus) feature.validationStatus = 'Functional but unvalidated';
-      if (!feature.provenance) {
-        feature.provenance = {
-          method: 'User-authored annotation',
-          source: 'User input',
-          units: 'WGS84 longitude/latitude',
-          limitations: 'Not a validated engineering result'
-        };
-      }
+      feature.validationStatus = normalizeValidationStatus(feature.validationStatus);
+      feature.provenance = normalizeProvenance(feature.provenance) || defaultAnnotationProvenance();
       return feature;
     }
 
@@ -1423,6 +1518,11 @@
         else if (f.type === 'Polygon') geojson = turf.polygon(f.coordinates);
 
         const buffered = turf.buffer(geojson, meters / 1000, { units: 'kilometers' });
+        const sourceIdentity = normalizeLineageIdentity({ id: f.id, name: f.name, validationStatus: f.validationStatus });
+        const sourceProvenance = normalizeProvenance(f.provenance) || defaultAnnotationProvenance();
+        const sourceLabel = sourceIdentity?.name
+          ? `feature ${sourceIdentity.id} (${sourceIdentity.name})`
+          : `feature ${sourceIdentity?.id || 'without an id'}`;
         const newBufferFeature = {
           id: 'buffer-' + Date.now(),
           name: `Buffer ${meters}m ของ ${f.name}`,
@@ -1430,12 +1530,19 @@
           layerId: 'layer-analytics',
           visible: true,
           coordinates: buffered.geometry.coordinates,
-          validationStatus: 'Functional but unvalidated',
+          validationStatus: f.validationStatus === 'Stale' || f.validationStatus === 'Experimental'
+            ? f.validationStatus
+            : DEFAULT_VALIDATION_STATUS,
           provenance: {
             method: 'Turf.js geodesic buffer',
-            source: 'User-authored geometry',
+            source: `Derived from ${sourceLabel}`,
             units: 'metres; WGS84 longitude/latitude',
-            limitations: 'Prototype geometry operation; not a validated engineering setback or catchment result'
+            operation: 'Turf.js buffer',
+            limitations: 'Prototype geometry operation; not a validated engineering setback or catchment result',
+            derivedFrom: {
+              ...sourceIdentity,
+              provenance: sourceProvenance
+            }
           },
           style: { color: '#10b981', strokeWidth: 2, fillColor: '#10b981', fillOpacity: 0.25 }
         };
@@ -1773,6 +1880,11 @@
     document.getElementById('btn-export').onclick = () => {
       const geojson = {
         type: 'FeatureCollection',
+        metadata: {
+          format: GEOJSON_EXPORT_FORMAT,
+          version: GEOJSON_EXPORT_VERSION,
+          generator: 'City Map Tools'
+        },
         features: features.map(f => ({
           type: 'Feature',
           id: f.id,
@@ -1786,13 +1898,8 @@
             demand: f.demand,
             style: f.style,
             radiusConfig: f.radiusConfig,
-            validationStatus: f.validationStatus || 'Functional but unvalidated',
-            provenance: f.provenance || {
-              method: 'User-authored annotation',
-              source: 'User input',
-              units: 'WGS84 longitude/latitude',
-              limitations: 'Not a validated engineering result'
-            }
+            validationStatus: normalizeValidationStatus(f.validationStatus, { allowValidated: true }),
+            provenance: normalizeProvenance(f.provenance) || defaultAnnotationProvenance()
           }
         }))
       };
@@ -1815,6 +1922,9 @@
           if (!parsed || parsed.type !== 'FeatureCollection' || !Array.isArray(parsed.features)) {
             throw new Error('Expected a GeoJSON FeatureCollection');
           }
+          const isApplicationExport = parsed.metadata?.format === GEOJSON_EXPORT_FORMAT &&
+            parsed.metadata?.version === GEOJSON_EXPORT_VERSION &&
+            parsed.metadata?.generator === 'City Map Tools';
 
           const importedFeatures = parsed.features.flatMap((feature, index) => {
             const geometryType = feature?.geometry?.type;
@@ -1831,6 +1941,7 @@
             const radiusConfig = feature?.properties?.radiusConfig && typeof feature.properties.radiusConfig === 'object'
               ? feature.properties.radiusConfig
               : { enabled: false };
+            const importedMetadata = normalizeImportedMetadata(feature?.properties, isApplicationExport);
 
             return [{
               id: feature?.id !== undefined ? String(feature.id) : `f-${Date.now()}-${index}`,
@@ -1844,13 +1955,8 @@
               demand: Number.isFinite(feature?.properties?.demand) ? feature.properties.demand : undefined,
               style,
               radiusConfig,
-              validationStatus: 'Functional but unvalidated',
-              provenance: {
-                method: 'GeoJSON import',
-                source: 'Imported GeoJSON',
-                units: 'WGS84 longitude/latitude',
-                limitations: 'Imported values are not validated by this prototype'
-              }
+              validationStatus: importedMetadata.validationStatus,
+              provenance: importedMetadata.provenance
             }];
           });
 
