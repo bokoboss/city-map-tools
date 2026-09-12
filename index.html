@@ -1084,7 +1084,9 @@
             });
 
             marker.on('drag', () => {
-              f.coordinates = [marker.getLngLat().lng, marker.getLngLat().lat];
+              const currentFeature = features.find(item => item.id === f.id);
+              if (!currentFeature) return;
+              currentFeature.coordinates = [marker.getLngLat().lng, marker.getLngLat().lat];
               refreshMapData();
             });
 
