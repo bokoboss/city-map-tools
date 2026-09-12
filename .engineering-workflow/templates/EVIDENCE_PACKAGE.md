@@ -31,5 +31,17 @@
 ## Unverified claims
 -
 
+## Optional workflow-efficiency sample
+Use for pilots, tuning, or selected postmortems only.
+
+- Work mode:
+- Executor model / effort:
+- Execution attempts:
+- Validation reruns:
+- Mode escalation:
+- Approximate execution duration, if available:
+- Blocked / wasted attempt:
+- Reason for retry / wasted work:
+
 ## Known limitations / follow-up
 -

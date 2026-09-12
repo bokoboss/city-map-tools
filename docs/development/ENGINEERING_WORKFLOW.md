@@ -3,26 +3,29 @@
 This project adopts the shared Engineering Development Workflow.
 
 - Upstream: https://github.com/bokoboss/engineering-development-workflow
-- Installed workflow version: 1.4.1
+- Installed workflow version: 1.7.4
+- Project-local pinned workflow: `.engineering-workflow/`
 - Local project authority: `PROJECT_PROFILE.md` and project-specific `AGENTS.md`
 
 ## Operating rule
 
-Use the upstream repository as the normative workflow source. Keep project-specific facts,
-commands, invariants, protected behavior, approvals, and accepted-baseline state in this
-repository.
+ChatGPT/control-plane work should read the current upstream workflow. Coding agents executing in
+this repository should read the project-local pinned snapshot beginning at
+`.engineering-workflow/SKILL.md`.
 
-Default control loop:
+Before coding-agent execution:
+1. route the task with `.engineering-workflow/WORK_MODE_ROUTING.md`;
+2. apply `.engineering-workflow/WORKSPACE_SAFETY.md`;
+3. load only the additional policies/skills required by the selected mode/task;
+4. keep all unapproved writes inside this project root.
 
-`Understand -> Bound -> Route -> Execute -> Verify -> Audit -> Accept / Escalate`
+FAST / STANDARD / STRICT controls process intensity, not correctness. FAST uses a compact packet
+when eligible. STANDARD uses the normal bounded flow. STRICT applies the full evidence-first
+workflow for protected/high-impact work.
 
-For coding-agent work, prepare a bounded execution contract, choose the cheapest model that
-can reliably finish the task, prefer Luna for well-specified execution, diagnose failures
-before escalation, and require objective evidence before claiming completion. Focused skills
-remain upstream; ChatGPT/control-plane work should apply the relevant current skill and pass
-its conclusions into the local contract, gates, and coding-agent prompt.
+Do not silently mix incompatible upstream and local policy versions. If the local snapshot is
+missing or materially outdated for the current task, install/upgrade/validate it first.
 
 ## Local reusable templates
 
-See `docs/development/templates/`. These copies are installer-managed. Do not edit them
-directly; customize an instantiated work item instead.
+See `.engineering-workflow/templates/`. These are the single installer-managed template set. Do not edit them directly; customize an instantiated work item instead.

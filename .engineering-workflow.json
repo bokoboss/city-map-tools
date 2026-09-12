@@ -1,19 +1,41 @@
 {
+  "local_workflow_dir": ".engineering-workflow",
   "managed": {
-    ".github/ISSUE_TEMPLATE/engineering-workflow-task.md": "b78bf6905a643ba151ee9c9ca5bf6c8b8bed935c95d72fef33ccbca87768c253",
-    "docs/development/ENGINEERING_WORKFLOW.md": "c7299c9e02491abbabf851a622e25508b0ed160fa5f5beb610867bbb53587824",
-    "docs/development/templates/ACCEPTANCE_GATE.md": "1fc03f5f9fa5aad567bbc9a1eb597bacc12eb3b5457f626d4c402bb71fc26070",
-    "docs/development/templates/CODEX_PROMPT.md": "eb741b53e5fbd04369b0b25fd2c5c7908ad33aee9a619b13ddfbbbf78ce9e33f",
-    "docs/development/templates/EVIDENCE_PACKAGE.md": "eb9fa882a7ffe285b99312be2e12dcaa071155a7c4c451bda7798e170eeee6dd",
-    "docs/development/templates/EXECUTION_CONTRACT.md": "423ebe4ad971dbb2955d2954ff53aff19b17ff8726f4ab7f5ccd869ee643e3c4",
-    "docs/development/templates/HANDOFF.md": "a1b4f84034f1c5a451057746752ae52a381ec32f65a4b4cc3f517399aa2bd74e",
-    "docs/development/templates/POSTMORTEM.md": "3890aee6fc50966fb828c8a15c46f74a786b6ad6822acc2c04db6918bc0c96c4"
+    ".engineering-workflow/ACCEPTANCE_AND_EVIDENCE.md": "4eb37066a19f1f57e7eada2f8af537fc7bce41632778e303ac6509ef708cb7cc",
+    ".engineering-workflow/CONTEXT_MANAGEMENT.md": "0aa024fe875d91ea684a574a069ab83b43b51de643450a128026cead46bef668",
+    ".engineering-workflow/CONTINUOUS_OPERATIONS.md": "98e568336cf008cc29ebf703c69b3d0f4302793903f2c5c79886e7e709ec1a88",
+    ".engineering-workflow/ENGINEERING_DEV_WORKFLOW.md": "6bff62366a113174dfad03291f25324628e14ecda5b361dfa448cd10ce6ea286",
+    ".engineering-workflow/MODEL_ROUTING_POLICY.md": "9819cab615ff14e4486d5e909bcf2cc5009ad44b28a07ff64a776ecc5998044c",
+    ".engineering-workflow/PARALLEL_EXECUTION.md": "3141c4ad2f17d34a2b6be81adc9b2998ee3f36cac795f70298cbeb5ae5499628",
+    ".engineering-workflow/SECURITY_AND_GOVERNANCE.md": "fb49a2ce100b13080a00333c6315e6529fa0d9794ca81029ee0e1a2f65ea3456",
+    ".engineering-workflow/SKILL.md": "039cc84d2c3e62a2629294c0dc497756a3439d2efc4feb6abffb7c3828a2ca1e",
+    ".engineering-workflow/UX_UI_WORKFLOW.md": "30d5082bf2270a72e10c538aa09e031a38e5c9fbd2e2f13f44de1c5f8ab7b192",
+    ".engineering-workflow/WORKSPACE_SAFETY.md": "22d79fe2bf929abbe450dd0d511224d3ab10276f6f0e219fc6f5e83e9502b803",
+    ".engineering-workflow/WORK_MODE_ROUTING.md": "30693eef48aca39b5e7f1e0e13cd4b61d0ff9bf4ef387def50938821405df0f7",
+    ".engineering-workflow/skills/independent-review/SKILL.md": "e92b5d1a227d9010c437ee09d6b8a0e7b12cb9b871d1892b0288905e21a87259",
+    ".engineering-workflow/skills/long-task-guard/SKILL.md": "a1b4c5f297d60227ab107f6626cda851b125c360ad89f172d26075c79c05fb3b",
+    ".engineering-workflow/skills/loop-readiness/SKILL.md": "16e65241619535983c9998b14b2f9d5fec7dc62abc13cfae129ce0a851bc6bc6",
+    ".engineering-workflow/skills/postmortem/SKILL.md": "b82e05c705373bf41a7ca96d76941a0c990c3eaca9c7a1791402032949048427",
+    ".engineering-workflow/skills/research-gate/SKILL.md": "af53c4e8e0f4c594e47a5e2970aea8e29d3096c431fcb47b4a038020b23942de",
+    ".engineering-workflow/skills/scrutinize/SKILL.md": "aa1ca1027e5d6de4b3af66868b590e26eac7ceaf93e0add0acfae378a0827f6e",
+    ".engineering-workflow/skills/systematic-debug/SKILL.md": "722b4e59aec6317975294d103b25cab26946504b2e9b7f317da9d8158c52239c",
+    ".engineering-workflow/skills/technical-status/SKILL.md": "fe946c0974dc4464d6b5a8192526e720fae7ea199c04c1ff2171b45a02ac87eb",
+    ".engineering-workflow/templates/ACCEPTANCE_GATE.md": "548e98736effe835db33220ac52a91b8ba8cdb75092dfcba30d0d6858672e064",
+    ".engineering-workflow/templates/CODEX_PROMPT.md": "4a529b8488ba89f126cd079115ebaf58c79cfd20144a83af2a5c1a5d43498218",
+    ".engineering-workflow/templates/EVIDENCE_PACKAGE.md": "e46646050f6f3daf621cd53ae400ad22df34f337faff5bcfb3afb3687d1b49fb",
+    ".engineering-workflow/templates/EXECUTION_CONTRACT.md": "a062dec99a13f80fae547f73fdee8361d3e0f85bcfe37a08633271d536bf8ac7",
+    ".engineering-workflow/templates/FAST_EXECUTION_PACKET.md": "0a693540223f077a4ff85491fca7e7a06bb8824c1238e0ce04b37e02512b35f1",
+    ".engineering-workflow/templates/HANDOFF.md": "a1b4f84034f1c5a451057746752ae52a381ec32f65a4b4cc3f517399aa2bd74e",
+    ".engineering-workflow/templates/LOOP_CONTRACT.md": "1184d5f3f0b838f6a014d7e45f72c88e15cdab53a8261a630299d47808062425",
+    ".engineering-workflow/templates/POSTMORTEM.md": "7ddfbe6a493dc4261048ce497968ca5b26d56177662151a76ec6cef75c4cf6f7",
+    ".github/ISSUE_TEMPLATE/engineering-workflow-task.md": "152d893ad1238bcc367fcd4a358d2c5edd52e27015a672c3c7bca38e85cc311e",
+    "docs/development/ENGINEERING_WORKFLOW.md": "08c6825be6b576143de556cf7d72258ac019b741957500dbeb34fa30bd612666"
   },
   "project_owned_created": [
     "AGENTS.md",
     "PROJECT_PROFILE.md"
   ],
-  "schema_version": 1,
+  "schema_version": 2,
   "workflow_repo": "https://github.com/bokoboss/engineering-development-workflow",
-  "workflow_version": "1.4.1"
+  "workflow_version": "1.7.4"
 }
