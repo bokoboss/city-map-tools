@@ -1,0 +1,41 @@
+:root { font-family: system-ui, sans-serif; color: #1e3443; background: #edf1f3; font-synthesis: none; }
+* { box-sizing: border-box; }
+body { margin: 0; }
+button, select { font: inherit; color: inherit; border: 1px solid #afbec8; border-radius: 6px; background: #fff; padding: 9px 12px; }
+button { cursor: pointer; }
+button:hover:not(:disabled) { background: #edf4f8; }
+button:disabled { cursor: not-allowed; background: #eef1f3; color: #566570; }
+button[aria-pressed="true"] { background: #174b65; color: #fff; }
+button[aria-pressed="true"]:hover:not(:disabled) { background: #123c51; }
+:focus-visible { outline: 3px solid #237aa4; outline-offset: 3px; }
+a { color: #125e84; }
+p { margin: 6px 0 0; line-height: 1.5; }
+.app { height: 100dvh; min-height: 480px; display: flex; flex-direction: column; }
+.app-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 15px 22px; background: #fff; border-bottom: 1px solid #cbd5db; }
+h1 { font-size: 21px; margin: 0; letter-spacing: -0.4px; }
+.app-header p { font-size: 13px; color: #536775; }
+.map-workspace { flex: 1; min-height: 0; display: flex; }
+.map-controls { flex: 0 0 290px; background: #fff; border-right: 1px solid #cbd5db; padding: 20px; overflow-y: auto; }
+.map-controls label { display: block; font-size: 13px; font-weight: 650; margin-bottom: 8px; }
+.map-controls select { width: 100%; }
+.map-status { margin-top: 20px; padding: 12px; border-left: 3px solid #5786a1; background: #eef4f7; font-size: 13px; }
+.map-status.ready { border-color: #2f7963; background: #edf6f1; }
+.map-status.error { border-color: #a3452e; background: #fff0e9; }
+.building-control { margin: 20px 0; }
+.building-control button { width: 100%; text-align: left; }
+.building-control p, details { font-size: 12px; color: #526573; }
+summary { cursor: pointer; font-weight: 650; padding: 4px 0; }
+.map-position { display: block; margin-top: 20px; font-size: 11px; font-variant-numeric: tabular-nums; color: #526573; }
+.map-canvas { flex: 1; min-width: 0; background: #dde5e8; }
+.app-footer { padding: 9px 22px; font-size: 11px; line-height: 1.5; border-top: 1px solid #cbd5db; background: #fff; }
+@media (max-width: 640px) {
+  .app { min-height: 680px; }
+  .app-header { padding: 12px; }
+  .map-workspace { flex-direction: column; }
+  .map-controls { flex: 0 0 auto; max-height: 270px; padding: 12px; border-right: 0; border-bottom: 1px solid #cbd5db; }
+  .map-status { margin-top: 10px; padding: 8px; }
+  .building-control { margin: 10px 0; }
+  .map-position { margin-top: 8px; }
+  .map-canvas { min-height: 280px; }
+  .app-footer { padding: 8px 12px; }
+}

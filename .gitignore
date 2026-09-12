@@ -1,6 +1,9 @@
 node_modules/
 dist/
 build/
+.cache/
+output/playwright/
+.playwright-cli/
 
 .env
 .env.*

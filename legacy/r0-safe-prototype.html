@@ -1,0 +1,1991 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>City Map Tools v2.2 (Spatial Annotation Prototype)</title>
+  <link rel="icon" href="data:,">
+  
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            brand: { 500: '#6366f1', 600: '#4f46e5' }
+          }
+        }
+      }
+    }
+  </script>
+
+  <!-- MapLibre GL JS -->
+  <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@5.1.1/dist/maplibre-gl.css" />
+  <script src="https://unpkg.com/maplibre-gl@5.1.1/dist/maplibre-gl.js"></script>
+
+  <!-- Turf.js for Spatial Analytics -->
+  <script src="https://unpkg.com/@turf/turf@7/turf.min.js"></script>
+
+  <!-- Lucide Icons -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+
+  <style>
+    body {
+      font-family: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+      margin: 0;
+      padding: 0;
+      overflow: hidden;
+      user-select: none;
+    }
+    .maplibregl-popup-content {
+      background: #0f172a !important;
+      color: #f8fafc !important;
+      border-radius: 1rem !important;
+      padding: 1rem !important;
+      border: 1px solid rgba(255, 255, 255, 0.12) !important;
+      box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.6) !important;
+      min-width: 260px;
+    }
+    .maplibregl-popup-anchor-bottom .maplibregl-popup-tip {
+      border-top-color: #0f172a !important;
+    }
+    #snap-indicator {
+      pointer-events: none;
+      transition: transform 0.05s ease-out;
+      transform: translate(-50%, -50%);
+    }
+    .custom-marker {
+      cursor: grab;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      transition: transform 0.1s ease;
+    }
+    .custom-marker:active {
+      cursor: grabbing;
+      transform: scale(1.15);
+    }
+    .custom-marker-icon {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+      border: 2px solid white;
+      transition: all 0.2s;
+    }
+    .custom-marker-label {
+      background: rgba(15, 23, 42, 0.9);
+      color: #f8fafc;
+      font-size: 11px;
+      font-weight: 700;
+      padding: 2px 8px;
+      border-radius: 9999px;
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      margin-top: 4px;
+      white-space: nowrap;
+      box-shadow: 0 4px 10px rgba(0,0,0,0.5);
+      pointer-events: none;
+    }
+  </style>
+</head>
+<body class="bg-slate-950 text-slate-100">
+
+  <!-- CAD Magnetic Snapping Cursor Indicator -->
+  <div id="snap-indicator" class="hidden absolute z-50 pointer-events-none">
+    <div id="snap-ring" class="w-6 h-6 rounded-full border-2 border-emerald-400 bg-emerald-400/20 animate-ping absolute -top-3 -left-3"></div>
+    <div id="snap-core" class="w-3 h-3 rounded-full bg-emerald-400 border-2 border-white shadow-lg relative"></div>
+    <span id="snap-label" class="absolute left-4 -top-2 bg-slate-900/90 text-emerald-300 text-[10px] font-mono px-1.5 py-0.5 rounded border border-emerald-500/40 whitespace-nowrap shadow">SNAP: VERTEX</span>
+  </div>
+
+  <!-- Top Search & Navigation Bar (Location Search / Geocoding) -->
+  <div class="absolute top-5 left-5 z-40 flex items-center gap-3">
+    <!-- Place Search Form -->
+    <div class="relative w-72 bg-slate-900/95 border border-slate-700/80 rounded-2xl shadow-2xl backdrop-blur-xl flex items-center px-3 py-1.5 focus-within:border-indigo-500 transition-colors">
+      <i data-lucide="search" class="w-4 h-4 text-slate-400 mr-2 shrink-0"></i>
+      <input type="text" id="search-input" placeholder="ค้นหาชื่อสถานที่, พิกัด หรือที่อยู่..." class="w-full bg-transparent text-xs text-white placeholder-slate-400 outline-none">
+      <button id="btn-search-clear" class="hidden text-slate-400 hover:text-white p-1"><i data-lucide="x" class="w-3.5 h-3.5"></i></button>
+      <button id="btn-search-submit" class="bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg p-1.5 ml-1"><i data-lucide="arrow-right" class="w-3.5 h-3.5"></i></button>
+    </div>
+
+    <!-- Search Results Dropdown -->
+    <div id="search-results" class="hidden absolute top-12 left-0 w-80 bg-slate-900/95 border border-slate-700/80 rounded-2xl shadow-2xl backdrop-blur-xl p-2 max-h-64 overflow-y-auto space-y-1 text-xs z-50"></div>
+
+    <!-- Prominent Basemap Selector Badge -->
+    <div class="flex items-center gap-2 bg-slate-900/95 border border-indigo-500/40 px-3 py-1.5 rounded-2xl shadow-2xl backdrop-blur-xl">
+      <div class="flex items-center gap-1.5 text-indigo-400 font-bold text-xs">
+        <i data-lucide="map" class="w-4 h-4"></i>
+        <span>แผนที่ฐาน:</span>
+      </div>
+      <select id="style-select" class="bg-slate-800 text-xs font-semibold text-white border border-slate-700 rounded-xl px-2 py-1 outline-none cursor-pointer hover:border-indigo-500">
+        <optgroup label="🛰️ ภาพถ่ายดาวเทียม (best-effort provider)">
+          <option value="esri-satellite">ESRI World Imagery</option>
+        </optgroup>
+        <optgroup label="🏙️ แผนที่ถนน (Street)">
+          <option value="osm-fast" selected>OpenStreetMap (visible attribution)</option>
+          <option value="carto-voyager">Carto Voyager (สีสดใส)</option>
+          <option value="esri-streets">ESRI World Street Map</option>
+        </optgroup>
+        <optgroup label="🎨 โทนมินิมอล (Thematic)">
+          <option value="carto-dark">Carto Dark Matter (โหมดมืด)</option>
+          <option value="carto-positron">Carto Positron (เทาคลีน เหมาะทำเล่ม)</option>
+        </optgroup>
+        <optgroup label="⛰️ ความสูงและเนินเขา (Topography)">
+          <option value="esri-topo">ESRI World Topo Map</option>
+          <option value="opentopomap">OpenTopoMap (เส้น Contour)</option>
+        </optgroup>
+      </select>
+    </div>
+  </div>
+
+  <!-- Floating Main Toolbar -->
+  <div class="absolute top-[4.5rem] left-5 z-30 flex items-center gap-2 bg-slate-900/95 border border-slate-700/80 p-1.5 rounded-2xl shadow-2xl backdrop-blur-xl">
+    
+    <!-- Drawing & CAD Tools -->
+    <div class="flex items-center gap-1 border-r border-slate-700/80 pr-2">
+      <button id="btn-select" class="tool-btn active p-2.5 rounded-xl text-white bg-indigo-600 transition-all" title="Select & Inspect">
+        <i data-lucide="mouse-pointer" class="w-4 h-4"></i>
+      </button>
+      <button id="btn-marker" class="tool-btn p-2.5 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 transition-all" title="วางหมุด (Marker) - ย้ายหมุดได้">
+        <i data-lucide="map-pin" class="w-4 h-4"></i>
+      </button>
+      <button id="btn-road" class="tool-btn p-2.5 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 transition-all disabled:opacity-50 disabled:cursor-not-allowed" title="External route preview — Disabled/Planned (pedestrian method not validated)" disabled aria-disabled="true">
+        <i data-lucide="route" class="w-4 h-4"></i>
+      </button>
+      <button id="btn-line" class="tool-btn p-2.5 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 transition-all" title="Polyline CAD - มองเห็นจุดร่างชัดเจน">
+        <i data-lucide="spline" class="w-4 h-4"></i>
+      </button>
+      <button id="btn-poly" class="tool-btn p-2.5 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 transition-all" title="Polygon Area / Zone">
+        <i data-lucide="hexagon" class="w-4 h-4"></i>
+      </button>
+    </div>
+
+    <!-- Advanced transport tools and quarantined research controls -->
+    <div class="flex items-center gap-1 border-r border-slate-700/80 pr-2">
+      <button id="btn-desire-line" class="tool-btn p-2.5 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 transition-all" title="User-authored Desire Line">
+        <i data-lucide="git-branch" class="w-4 h-4 text-cyan-400"></i>
+      </button>
+      <button id="btn-experimental-network" class="tool-btn p-2.5 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 transition-all disabled:opacity-50 disabled:cursor-not-allowed" title="Experimental Network Analysis — Disabled/Planned" disabled aria-disabled="true">
+        <i data-lucide="network" class="w-4 h-4 text-rose-400"></i>
+      </button>
+      <button id="btn-isochrone" class="tool-btn p-2.5 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 transition-all disabled:opacity-50 disabled:cursor-not-allowed" title="Pedestrian travel-time catchment — Disabled/Planned" disabled aria-disabled="true">
+        <i data-lucide="hourglass" class="w-4 h-4 text-purple-400"></i>
+      </button>
+      <button id="btn-cad-snap-toggle" class="p-2.5 rounded-xl bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 transition-all" title="เปิด/ปิด CAD Magnetic Snapping">
+        <i data-lucide="magnet" class="w-4 h-4"></i>
+      </button>
+    </div>
+
+    <!-- Undo / Redo -->
+    <div class="flex items-center gap-1 border-r border-slate-700/80 pr-2">
+      <button id="btn-undo" class="p-2.5 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 disabled:opacity-30" title="Undo" disabled>
+        <i data-lucide="undo-2" class="w-4 h-4"></i>
+      </button>
+      <button id="btn-redo" class="p-2.5 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 disabled:opacity-30" title="Redo" disabled>
+        <i data-lucide="redo-2" class="w-4 h-4"></i>
+      </button>
+    </div>
+
+    <!-- Camera Compass & Pitch Controls -->
+    <div class="flex items-center gap-1 border-r border-slate-700/80 pr-2">
+      <div class="flex items-center bg-slate-800/90 rounded-xl px-2 py-1 border border-slate-700 gap-1 text-xs">
+        <button class="bearing-btn font-bold px-1.5 py-0.5 rounded hover:bg-indigo-600 hover:text-white" data-bearing="0" title="หมุนทิศเหนือ N (0°)">N</button>
+        <button class="bearing-btn font-bold px-1.5 py-0.5 rounded hover:bg-indigo-600 hover:text-white" data-bearing="90" title="หมุนทิศตะวันออก E (90°)">E</button>
+        <button class="bearing-btn font-bold px-1.5 py-0.5 rounded hover:bg-indigo-600 hover:text-white" data-bearing="180" title="หมุนทิศใต้ S (180°)">S</button>
+        <button class="bearing-btn font-bold px-1.5 py-0.5 rounded hover:bg-indigo-600 hover:text-white" data-bearing="270" title="หมุนทิศตะวันตก W (270°)">W</button>
+      </div>
+      <button id="btn-3d" class="p-2.5 rounded-xl bg-amber-500/20 text-amber-400 border border-amber-500/30 transition-all disabled:opacity-50 disabled:cursor-not-allowed" title="3D Buildings unavailable on this basemap" disabled aria-disabled="true">
+        <i data-lucide="box" class="w-4 h-4"></i>
+      </button>
+    </div>
+
+    <!-- Zoom Level & Lock Altitude Controls -->
+    <div class="flex items-center gap-1 border-r border-slate-700/80 pr-2">
+      <select id="zoom-presets" class="bg-slate-800 text-xs font-semibold text-slate-200 border border-slate-700 rounded-xl px-2 py-1.5 outline-none cursor-pointer">
+        <option value="11">Z11 เมือง (City)</option>
+        <option value="13">Z13 เขต/อำเภอ (District)</option>
+        <option value="15" selected>Z15 ย่าน/ชุมชน (Neighborhood)</option>
+        <option value="17">Z17 ถนน/อาคาร (Street)</option>
+        <option value="19">Z19 ละเอียดสูง (Detailed)</option>
+      </select>
+      <button id="btn-lock-zoom" class="p-2.5 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 transition-all" title="ล็อคระดับความสูง/ระยะซูม">
+        <i data-lucide="lock" class="w-4 h-4"></i>
+      </button>
+    </div>
+
+    <!-- Import / Export -->
+    <div class="flex items-center gap-1">
+      <label class="p-2.5 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 cursor-pointer" title="Import GeoJSON">
+        <i data-lucide="upload" class="w-4 h-4"></i>
+        <input type="file" id="file-import" accept=".geojson,.json" class="hidden">
+      </label>
+      <button id="btn-export" class="p-2.5 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800" title="Export GeoJSON">
+        <i data-lucide="download" class="w-4 h-4"></i>
+      </button>
+    </div>
+  </div>
+
+  <!-- Layer & Feature Management Panel -->
+  <div id="layer-panel" class="absolute top-32 left-5 z-20 w-[21rem] bg-slate-900/95 border border-slate-700/80 rounded-2xl shadow-2xl backdrop-blur-xl overflow-hidden transition-all">
+    <div id="panel-header" class="flex items-center justify-between px-4 py-3 border-b border-slate-800 cursor-pointer hover:bg-slate-800/40">
+      <div class="flex items-center gap-2 text-sm font-bold text-slate-200">
+        <i data-lucide="layers" class="w-4 h-4 text-indigo-400"></i>
+        <span>รายการหมุด & เลเยอร์ (<span id="feature-count">0</span>)</span>
+      </div>
+      <i data-lucide="chevron-down" id="panel-chevron" class="w-4 h-4 text-slate-400"></i>
+    </div>
+    <div id="panel-content" class="max-h-72 overflow-y-auto p-3 space-y-3">
+      <!-- Injected by JS -->
+    </div>
+  </div>
+
+  <!-- Desire Lines (OD Demand / Flow) Modal -->
+  <div id="desire-line-modal" class="hidden absolute top-24 left-1/2 -translate-x-1/2 z-40 w-[420px] bg-slate-900/95 border border-cyan-500/40 rounded-3xl shadow-2xl backdrop-blur-xl p-5 space-y-4">
+    <div class="flex items-center justify-between border-b border-slate-800 pb-2.5">
+      <div class="flex items-center gap-2.5">
+        <span class="p-2 rounded-xl bg-cyan-500/20 text-cyan-400"><i data-lucide="git-branch" class="w-5 h-5"></i></span>
+        <div>
+          <h4 class="font-bold text-sm text-white">User-authored Desire Lines</h4>
+          <span class="text-[10px] text-slate-400">เชื่อม Centroid ของพื้นที่ด้วยข้อมูล Demand ที่ผู้ใช้ระบุ</span>
+        </div>
+      </div>
+      <button id="desire-line-close" class="text-slate-400 hover:text-white"><i data-lucide="x" class="w-4 h-4"></i></button>
+    </div>
+
+    <div class="space-y-3.5 text-xs">
+      <!-- Zone Selection -->
+      <div class="grid grid-cols-2 gap-2">
+        <div>
+          <label class="block text-slate-300 font-semibold mb-1">โซนต้นทาง (Origin Zone):</label>
+          <select id="desire-origin-select" class="w-full bg-slate-800 border border-slate-700 rounded-xl px-2.5 py-1.5 text-xs text-white outline-none">
+            <option value="">-- เลือกต้นทาง --</option>
+          </select>
+        </div>
+        <div>
+          <label class="block text-slate-300 font-semibold mb-1">โซนปลายทาง (Destination):</label>
+          <select id="desire-dest-select" class="w-full bg-slate-800 border border-slate-700 rounded-xl px-2.5 py-1.5 text-xs text-white outline-none">
+            <option value="">-- เลือกปลายทาง --</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- Demand / Flow Volume -->
+      <div>
+        <div class="flex justify-between items-center text-slate-300 mb-1">
+          <span class="font-semibold">ปริมาณความต้องการสัญจร (Demand / Flow Volume):</span>
+          <div class="flex items-center gap-1">
+            <input type="number" id="desire-demand-input" min="1" max="100000" step="1" placeholder="กรอกข้อมูล" class="w-24 bg-slate-800 border border-slate-700 rounded px-2 py-0.5 text-right font-mono text-cyan-400 font-bold text-xs">
+            <span class="text-slate-400">เที่ยว/ชม.</span>
+          </div>
+        </div>
+        <p class="text-[10px] text-amber-300">Demand is user-authored input and is not a validated engineering result.</p>
+      </div>
+
+      <!-- Flow Line Thickness Scale Multiplier -->
+      <div class="bg-slate-800/60 p-3 rounded-2xl border border-slate-700 space-y-2">
+        <div class="flex justify-between items-center text-[11px] text-slate-300">
+          <span class="font-semibold">สเกลความหนาของเส้น (Stroke Width Scale):</span>
+          <span id="desire-scale-label" class="font-mono text-cyan-400 font-bold">1.5x</span>
+        </div>
+        <input type="range" id="desire-scale-slider" min="0.5" max="4.0" step="0.1" value="1.5" class="w-full h-1.5 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-cyan-500">
+        <p class="text-[10px] text-slate-400">ความหนาเป็น a visual scale only; the stored demand remains user-authored.</p>
+      </div>
+
+      <!-- Action Buttons -->
+      <div class="space-y-2 pt-1">
+        <button id="btn-create-single-desire" class="w-full bg-cyan-600 hover:bg-cyan-500 text-white font-bold py-2 rounded-xl shadow-lg shadow-cyan-600/30 transition-all flex items-center justify-center gap-1.5">
+          <i data-lucide="plus" class="w-4 h-4"></i>
+          <span>สร้าง Desire Line เส้นนี้</span>
+        </button>
+        <button id="btn-create-all-desire" class="w-full bg-slate-800 text-slate-400 font-bold py-2 rounded-xl border border-slate-700 transition-all flex items-center justify-center gap-1.5" disabled aria-disabled="true" title="Disabled/Planned — requires imported OD data">
+          <i data-lucide="sparkles" class="w-4 h-4"></i>
+          <span>All-Pairs — Disabled/Planned (requires imported OD data)</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Feature Inspector Modal -->
+  <div id="feature-inspector" class="hidden absolute top-20 right-5 z-40 w-[22rem] bg-slate-900/95 border border-indigo-500/40 rounded-3xl shadow-2xl backdrop-blur-xl p-4 space-y-4 max-h-[85vh] overflow-y-auto">
+    <div class="flex items-center justify-between border-b border-slate-800 pb-2.5">
+      <div class="flex items-center gap-2">
+        <span id="inspector-icon-wrap" class="p-1.5 rounded-lg bg-indigo-500/20 text-indigo-400"><i data-lucide="edit-3" class="w-4 h-4"></i></span>
+        <h4 id="inspector-title" class="font-bold text-sm text-white truncate w-56">Feature Settings</h4>
+      </div>
+      <button id="inspector-close" class="text-slate-400 hover:text-white"><i data-lucide="x" class="w-4 h-4"></i></button>
+    </div>
+
+    <!-- Feature Name & Display Label -->
+    <div class="space-y-2">
+      <div>
+        <label class="block text-xs font-semibold text-slate-300 mb-1">ชื่อเรียกหมุด / วัตถุ:</label>
+        <input type="text" id="inspector-name-input" class="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-1.5 text-xs text-white outline-none focus:border-indigo-500">
+      </div>
+      <div class="flex items-center justify-between bg-slate-800/60 px-3 py-2 rounded-xl border border-slate-700">
+        <span class="text-xs font-medium text-slate-200">แสดงชื่อบนแผนที่ (Label on Map)</span>
+        <input type="checkbox" id="inspector-show-label" class="w-4 h-4 accent-indigo-500 rounded cursor-pointer">
+      </div>
+    </div>
+
+    <!-- Marker Icon & Shape Selector -->
+    <div id="marker-shape-section" class="space-y-2 border-t border-slate-800 pt-2">
+      <label class="block text-xs font-semibold text-slate-300">รูปทรง / ไอคอนหมุด:</label>
+      <div class="grid grid-cols-4 gap-1.5 text-xs">
+        <button class="marker-icon-btn active bg-indigo-600 text-white p-2 rounded-xl flex flex-col items-center gap-1" data-icon="dot">
+          <span class="w-3 h-3 rounded-full bg-white"></span>
+          <span class="text-[9px]">วงกลม</span>
+        </button>
+        <button class="marker-icon-btn bg-slate-800 text-slate-300 hover:bg-slate-700 p-2 rounded-xl flex flex-col items-center gap-1" data-icon="pin">
+          <i data-lucide="map-pin" class="w-3.5 h-3.5"></i>
+          <span class="text-[9px]">หมุด</span>
+        </button>
+        <button class="marker-icon-btn bg-slate-800 text-slate-300 hover:bg-slate-700 p-2 rounded-xl flex flex-col items-center gap-1" data-icon="star">
+          <i data-lucide="star" class="w-3.5 h-3.5"></i>
+          <span class="text-[9px]">ดาว</span>
+        </button>
+        <button class="marker-icon-btn bg-slate-800 text-slate-300 hover:bg-slate-700 p-2 rounded-xl flex flex-col items-center gap-1" data-icon="flag">
+          <i data-lucide="flag" class="w-3.5 h-3.5"></i>
+          <span class="text-[9px]">ธง</span>
+        </button>
+        <button class="marker-icon-btn bg-slate-800 text-slate-300 hover:bg-slate-700 p-2 rounded-xl flex flex-col items-center gap-1" data-icon="landmark">
+          <i data-lucide="landmark" class="w-3.5 h-3.5"></i>
+          <span class="text-[9px]">อาคาร</span>
+        </button>
+        <button class="marker-icon-btn bg-slate-800 text-slate-300 hover:bg-slate-700 p-2 rounded-xl flex flex-col items-center gap-1" data-icon="car">
+          <i data-lucide="car" class="w-3.5 h-3.5"></i>
+          <span class="text-[9px]">รถ</span>
+        </button>
+        <button class="marker-icon-btn bg-slate-800 text-slate-300 hover:bg-slate-700 p-2 rounded-xl flex flex-col items-center gap-1" data-icon="alert">
+          <i data-lucide="alert-triangle" class="w-3.5 h-3.5"></i>
+          <span class="text-[9px]">เตือน</span>
+        </button>
+        <button class="marker-icon-btn bg-slate-800 text-slate-300 hover:bg-slate-700 p-2 rounded-xl flex flex-col items-center gap-1" data-icon="transit">
+          <i data-lucide="bus" class="w-3.5 h-3.5"></i>
+          <span class="text-[9px]">ขนส่ง</span>
+        </button>
+      </div>
+
+      <div class="pt-2">
+        <label class="block text-xs font-semibold text-slate-300 mb-1.5">Preset สีหมุด:</label>
+        <div class="flex flex-wrap gap-1.5" id="marker-color-presets"></div>
+      </div>
+    </div>
+
+    <!-- Marker Radius Controls -->
+    <div id="marker-radius-section" class="space-y-3 pt-2 border-t border-slate-800">
+      <div class="flex items-center justify-between bg-slate-800/60 p-2.5 rounded-xl border border-slate-700">
+        <span class="text-xs font-semibold text-slate-200">เปิดแสดงวงรัศมี (Radius Buffer)</span>
+        <input type="checkbox" id="radius-enable" class="w-4 h-4 accent-indigo-500 rounded cursor-pointer">
+      </div>
+
+      <div id="radius-controls" class="hidden space-y-3">
+        <div>
+          <div class="flex justify-between items-center text-xs font-medium text-slate-300 mb-1.5">
+            <span>ระยะรัศมี (กรอกหรือเลื่อน):</span>
+            <div class="flex items-center gap-1">
+              <input type="number" id="radius-num-input" min="10" max="50000" step="10" value="1000" class="w-20 bg-slate-800 border border-slate-700 rounded px-1.5 py-0.5 text-right font-mono text-indigo-400 font-bold text-xs">
+              <span class="text-xs text-slate-400">m</span>
+            </div>
+          </div>
+          <input type="range" id="radius-slider" min="50" max="10000" step="50" value="1000" class="w-full h-1.5 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-indigo-500">
+          <div class="flex gap-1.5 mt-2">
+            <button class="radius-preset-btn text-[10px] bg-slate-800 hover:bg-slate-700 px-2 py-1 rounded text-slate-300" data-val="300">300m</button>
+            <button class="radius-preset-btn text-[10px] bg-slate-800 hover:bg-slate-700 px-2 py-1 rounded text-slate-300" data-val="500">500m</button>
+            <button class="radius-preset-btn text-[10px] bg-slate-800 hover:bg-slate-700 px-2 py-1 rounded text-slate-300" data-val="1000">1 km</button>
+            <button class="radius-preset-btn text-[10px] bg-slate-800 hover:bg-slate-700 px-2 py-1 rounded text-slate-300" data-val="2000">2 km</button>
+            <button class="radius-preset-btn text-[10px] bg-slate-800 hover:bg-slate-700 px-2 py-1 rounded text-slate-300" data-val="5000">5 km</button>
+          </div>
+        </div>
+
+        <div>
+          <label class="block text-xs font-semibold text-slate-300 mb-1.5">Preset สีระบายรัศมี (Fill):</label>
+          <div class="flex flex-wrap gap-1.5" id="radius-fill-presets"></div>
+        </div>
+        <div>
+          <label class="block text-xs font-semibold text-slate-300 mb-1.5">Preset สีขอบรัศมี (Stroke):</label>
+          <div class="flex flex-wrap gap-1.5" id="radius-stroke-presets"></div>
+        </div>
+
+        <div>
+          <div class="flex justify-between items-center text-[11px] text-slate-400 mb-1">
+            <span>ความทึบแสงสีระบาย (Fill Opacity):</span>
+            <span id="radius-opacity-label" class="font-mono text-slate-300 font-bold">30%</span>
+          </div>
+          <input type="range" id="radius-opacity-slider" min="0" max="1" step="0.05" value="0.3" class="w-full h-1.5 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-indigo-500">
+        </div>
+
+        <div class="bg-indigo-950/40 border border-indigo-500/20 p-2.5 rounded-xl text-xs space-y-1">
+          <div class="flex justify-between text-slate-400">
+            <span>พื้นที่ครอบคลุม:</span>
+            <span id="area-calc-km" class="font-mono text-indigo-300 font-bold">3.14 ตร.กม.</span>
+          </div>
+          <div class="flex justify-between text-slate-400">
+            <span>หน่วยไทย:</span>
+            <span id="area-calc-rai" class="font-mono text-slate-300">~1,963 ไร่</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Polyline Context Actions -->
+    <div id="polyline-actions" class="hidden space-y-2 border-t border-slate-800 pt-2">
+      <button id="btn-bezier-smooth" class="w-full flex items-center justify-center gap-2 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white text-xs font-bold py-2 px-3 rounded-xl shadow-md transition-all">
+        <i data-lucide="sparkles" class="w-3.5 h-3.5"></i>
+        <span>แปลงเป็นเส้นโค้ง Bézier (Smooth Curve)</span>
+      </button>
+      <button id="btn-show-elevation" class="w-full flex items-center justify-center gap-2 bg-slate-800 text-slate-400 text-xs font-bold py-2 px-3 rounded-xl border border-slate-700 transition-all" disabled aria-disabled="true" title="Disabled/Planned — no DEM source is configured">
+        <i data-lucide="mountain-snow" class="w-3.5 h-3.5"></i>
+        <span>Elevation Profile — Disabled/Planned (requires DEM)</span>
+      </button>
+    </div>
+
+    <!-- Buffer Generator Section for Any Feature -->
+    <div class="bg-slate-800/60 p-3 rounded-xl border border-slate-700 space-y-2">
+      <div class="flex items-center justify-between text-xs font-semibold text-slate-200">
+        <span class="flex items-center gap-1.5"><i data-lucide="shield" class="w-3.5 h-3.5 text-emerald-400"></i> สร้างแนวกันชน (Buffer)</span>
+        <span id="buffer-val-label" class="font-mono text-emerald-400 font-bold">100m</span>
+      </div>
+      <input type="range" id="buffer-slider" min="10" max="2000" step="10" value="100" class="w-full h-1.5 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-emerald-500">
+      <button id="btn-apply-buffer" class="w-full bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold py-1.5 rounded-lg shadow transition-all">
+        สร้าง Buffer Zone รอบวัตถุนี้
+      </button>
+    </div>
+  </div>
+
+  <!-- Status Notification Banner -->
+  <div id="status-banner" class="hidden pointer-events-none absolute top-[4.5rem] left-1/2 -translate-x-1/2 bg-slate-900/95 border px-4 py-2 rounded-full shadow-2xl backdrop-blur-md text-sm font-medium items-center gap-2.5 z-30">
+    <span id="status-dot" class="w-2.5 h-2.5 rounded-full"></span>
+    <span id="status-text"></span>
+  </div>
+
+  <!-- Map Container -->
+  <div id="map" class="w-screen h-screen"></div>
+
+  <!-- Bottom Coordinates & Compass Bar -->
+  <div class="absolute bottom-4 right-4 z-20 bg-slate-900/85 border border-slate-800 px-3.5 py-1.5 rounded-xl shadow-lg backdrop-blur-md flex items-center gap-3 text-xs text-slate-400">
+    <div class="flex items-center gap-1.5 text-indigo-400 font-mono">
+      <i data-lucide="compass" class="w-3.5 h-3.5"></i>
+      <span id="bearing-val">0°</span>
+    </div>
+    <div class="border-l border-slate-700 pl-3">
+      <span>Pitch: </span>
+      <span id="pitch-val" class="font-mono text-slate-200">0°</span>
+    </div>
+    <div class="border-l border-slate-700 pl-3">
+      <span>Zoom: </span>
+      <span id="zoom-val" class="font-mono text-slate-200">15.0</span>
+    </div>
+    <div class="border-l border-slate-700 pl-3 text-slate-400 font-mono text-[11px]">
+      MapLibre v5 + local annotations
+    </div>
+  </div>
+
+  <script>
+    lucide.createIcons();
+
+    const COLOR_PRESETS = [
+      '#ef4444', '#f97316', '#f59e0b', '#10b981', '#0ea5e9',
+      '#3b82f6', '#6366f1', '#a855f7', '#ec4899', '#64748b'
+    ];
+
+    const BASEMAPS = {
+      'osm-fast': {
+        version: 8,
+        sources: { 'osm-fast-tiles': { type: 'raster', tiles: ['https://tile.openstreetmap.org/{z}/{x}/{y}.png'], tileSize: 256, attribution: '© OpenStreetMap contributors' } },
+        layers: [{ id: 'osm-fast-layer', type: 'raster', source: 'osm-fast-tiles' }]
+      },
+      'esri-satellite': {
+        version: 8,
+        sources: { 'es-tiles': { type: 'raster', tiles: ['https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'], tileSize: 256, attribution: 'Tiles © Esri — Source: Esri, Maxar, Earthstar Geographics, and the GIS User Community' } },
+        layers: [{ id: 'es-layer', type: 'raster', source: 'es-tiles' }]
+      },
+      'esri-streets': {
+        version: 8,
+        sources: { 'est-tiles': { type: 'raster', tiles: ['https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}'], tileSize: 256, attribution: 'Tiles © Esri' } },
+        layers: [{ id: 'est-layer', type: 'raster', source: 'est-tiles' }]
+      },
+      'esri-topo': {
+        version: 8,
+        sources: { 'et-tiles': { type: 'raster', tiles: ['https://server.arcgisonline.com/ArcGIS/rest/services/World_Topo_Map/MapServer/tile/{z}/{y}/{x}'], tileSize: 256, attribution: 'Tiles © Esri' } },
+        layers: [{ id: 'et-layer', type: 'raster', source: 'et-tiles' }]
+      },
+      'opentopomap': {
+        version: 8,
+        sources: { 'ot-tiles': { type: 'raster', tiles: ['https://a.tile.opentopomap.org/{z}/{x}/{y}.png'], tileSize: 256, attribution: 'Map data © OpenStreetMap contributors; map style © OpenTopoMap (CC-BY-SA)' } },
+        layers: [{ id: 'ot-layer', type: 'raster', source: 'ot-tiles' }]
+      },
+      'carto-dark': 'https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json',
+      'carto-voyager': 'https://basemaps.cartocdn.com/gl/voyager-gl-style/style.json',
+      'carto-positron': 'https://basemaps.cartocdn.com/gl/positron-gl-style/style.json'
+    };
+
+    let activeTool = 'select';
+    let is3DEnabled = false;
+    let buildings3dAvailable = false;
+    let last3dCapabilityState = null;
+    let activeBasemapId = 'osm-fast';
+    let providerStatusTimer = null;
+    let isCadSnappingEnabled = true;
+    let isZoomLocked = false;
+    let lockedZoomLevel = 15;
+    let activePoints = [];
+    let historyStack = [];
+    let redoStack = [];
+    let selectedFeatureId = null;
+
+    // Desire Lines Parameters
+    let desireScaleFactor = 1.5;
+
+    let htmlMarkersMap = {};
+
+    let layers = [
+      { id: 'layer-roads', name: 'Roads & Routes', visible: true, opacity: 1, color: '#38bdf8' },
+      { id: 'layer-zones', name: 'Zoning & Parcels', visible: true, opacity: 0.7, color: '#a855f7' },
+      { id: 'layer-points', name: 'หมุดและจุดสำรวจ (Pins)', visible: true, opacity: 1, color: '#f43f5e' },
+      { id: 'layer-desire', name: 'User-authored Desire Lines', visible: true, opacity: 0.9, color: '#06b6d4' },
+      { id: 'layer-analytics', name: 'Geometry Operations (Buffer)', visible: true, opacity: 0.6, color: '#10b981' }
+    ];
+
+    let features = [];
+
+    const GEOJSON_EXPORT_FORMAT = 'city-map-tools.geojson';
+    const GEOJSON_EXPORT_VERSION = 1;
+    const DEFAULT_VALIDATION_STATUS = 'Functional but unvalidated';
+    const RECOGNIZED_VALIDATION_STATUSES = new Set([
+      'Validated',
+      DEFAULT_VALIDATION_STATUS,
+      'Experimental',
+      'Stale'
+    ]);
+
+    function isRecord(value) {
+      return value !== null && typeof value === 'object' && !Array.isArray(value);
+    }
+
+    function boundedString(value, maxLength = 500) {
+      return typeof value === 'string' && value.length > 0 ? value.slice(0, maxLength) : null;
+    }
+
+    function normalizeValidationStatus(value, { allowValidated = false } = {}) {
+      if (typeof value !== 'string' || !RECOGNIZED_VALIDATION_STATUSES.has(value)) {
+        return DEFAULT_VALIDATION_STATUS;
+      }
+      if (value === 'Validated' && !allowValidated) return DEFAULT_VALIDATION_STATUS;
+      return value;
+    }
+
+    function normalizeLineageIdentity(value, depth = 0) {
+      if (!isRecord(value) || depth > 2) return null;
+      const identity = {};
+      if (value.id !== undefined && value.id !== null) identity.id = String(value.id).slice(0, 120);
+      const name = boundedString(value.name);
+      if (name) identity.name = name;
+      if (typeof value.validationStatus === 'string' && RECOGNIZED_VALIDATION_STATUSES.has(value.validationStatus)) {
+        identity.validationStatus = value.validationStatus;
+      }
+      return Object.keys(identity).length > 0 ? identity : null;
+    }
+
+    function normalizeProvenance(value, depth = 0) {
+      if (!isRecord(value) || depth > 2) return null;
+      const normalized = {};
+      ['method', 'source', 'units', 'limitations', 'operation', 'importedValidationStatus'].forEach((field) => {
+        const text = boundedString(value[field]);
+        if (text) normalized[field] = text;
+      });
+
+      if (Array.isArray(value.importChain)) {
+        const chain = value.importChain
+          .filter((item) => typeof item === 'string')
+          .map((item) => item.slice(0, 160))
+          .slice(-20);
+        if (chain.length > 0) normalized.importChain = chain;
+      }
+
+      const parent = normalizeLineageIdentity(value.derivedFrom, depth + 1);
+      const parentProvenance = normalizeProvenance(value.derivedFrom?.provenance, depth + 1);
+      if (parent || parentProvenance) {
+        normalized.derivedFrom = { ...(parent || {}) };
+        if (parentProvenance) normalized.derivedFrom.provenance = parentProvenance;
+      }
+
+      return Object.keys(normalized).length > 0 ? normalized : null;
+    }
+
+    function defaultAnnotationProvenance() {
+      return {
+        method: 'User-authored annotation',
+        source: 'User input',
+        units: 'WGS84 longitude/latitude',
+        limitations: 'Not a validated engineering result'
+      };
+    }
+
+    function appendImportContext(provenance, isApplicationExport) {
+      const next = normalizeProvenance(provenance) || {
+        method: 'GeoJSON import',
+        source: 'Imported GeoJSON',
+        units: 'WGS84 longitude/latitude',
+        limitations: 'Imported values are not validated by this prototype'
+      };
+      const chain = Array.isArray(next.importChain) ? next.importChain.slice(-19) : [];
+      chain.push(isApplicationExport ? 'GeoJSON import from City Map Tools export' : 'GeoJSON import from external file');
+      next.importChain = chain;
+      const note = 'This prototype preserves imported lineage but does not independently validate it.';
+      const limitations = next.limitations || 'Imported values are not validated by this prototype';
+      if (!limitations.includes(note)) next.limitations = `${limitations}; ${note}`;
+      return next;
+    }
+
+    function normalizeImportedMetadata(properties, isApplicationExport) {
+      const rawStatus = properties?.validationStatus;
+      const rawProvenance = normalizeProvenance(properties?.provenance);
+      const validationStatus = normalizeValidationStatus(rawStatus);
+      const provenance = appendImportContext(rawProvenance, isApplicationExport);
+
+      if (typeof rawStatus === 'string' && rawStatus !== validationStatus) {
+        provenance.importedValidationStatus = rawStatus.slice(0, 120);
+      }
+
+      return { validationStatus, provenance };
+    }
+
+    function cloneFeatures() {
+      return JSON.parse(JSON.stringify(features));
+    }
+
+    // Map Setup
+    const map = new maplibregl.Map({
+      container: 'map',
+      style: BASEMAPS['osm-fast'],
+      center: [100.5018, 13.7563],
+      zoom: 15,
+      pitch: 0,
+      bearing: 0,
+      antialias: true
+    });
+
+    map.addControl(new maplibregl.NavigationControl({ visualizePitch: true }), 'top-right');
+    map.addControl(new maplibregl.ScaleControl({ unit: 'metric' }), 'bottom-left');
+
+    map.on('rotate', updateCameraStats);
+    map.on('pitch', updateCameraStats);
+    map.on('zoom', () => {
+      if (isZoomLocked) map.setZoom(lockedZoomLevel);
+      updateCameraStats();
+    });
+
+    function updateCameraStats() {
+      document.getElementById('pitch-val').innerText = Math.round(map.getPitch()) + '°';
+      document.getElementById('bearing-val').innerText = Math.round(map.getBearing()) + '°';
+      document.getElementById('zoom-val').innerText = map.getZoom().toFixed(1);
+    }
+
+    document.getElementById('style-select').onchange = (e) => {
+      activeBasemapId = e.target.value;
+      map.setStyle(BASEMAPS[activeBasemapId]);
+      showStatus(`Basemap selected: ${activeBasemapId}. Provider availability is best-effort.`, 'sky');
+      window.clearTimeout(providerStatusTimer);
+      providerStatusTimer = window.setTimeout(hideStatus, 2500);
+    };
+
+    document.querySelectorAll('.bearing-btn').forEach(btn => {
+      btn.onclick = () => {
+        const b = parseFloat(btn.dataset.bearing);
+        map.easeTo({ bearing: b, duration: 500 });
+      };
+    });
+
+    document.getElementById('zoom-presets').onchange = (e) => {
+      const z = parseFloat(e.target.value);
+      map.flyTo({ zoom: z, duration: 600 });
+      if (isZoomLocked) lockedZoomLevel = z;
+    };
+
+    document.getElementById('btn-lock-zoom').onclick = () => {
+      isZoomLocked = !isZoomLocked;
+      const btn = document.getElementById('btn-lock-zoom');
+      if (isZoomLocked) {
+        lockedZoomLevel = map.getZoom();
+        btn.className = 'p-2.5 rounded-xl bg-indigo-600 text-white border border-indigo-400 transition-all';
+        showStatus(`🔒 ล็อคระดับความสูง/ระยะซูมไว้ที่ Z${lockedZoomLevel.toFixed(1)}`, 'sky');
+      } else {
+        btn.className = 'p-2.5 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 transition-all';
+        showStatus('🔓 ปลดล็อคระยะซูมแล้ว', 'sky');
+      }
+      setTimeout(hideStatus, 1500);
+    };
+
+    // Location Search (Nominatim)
+    const searchInput = document.getElementById('search-input');
+    const searchResults = document.getElementById('search-results');
+    const clearBtn = document.getElementById('btn-search-clear');
+
+    searchInput.oninput = () => { clearBtn.classList.toggle('hidden', searchInput.value.length === 0); };
+    clearBtn.onclick = () => { searchInput.value = ''; clearBtn.classList.add('hidden'); searchResults.classList.add('hidden'); };
+
+    async function executeSearch() {
+      const q = searchInput.value.trim();
+      if (!q) return;
+      showStatus(`กำลังค้นหา "${q}"...`, 'sky');
+      try {
+        const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(q)}&limit=5`);
+        const data = await res.json();
+        hideStatus();
+        searchResults.replaceChildren();
+        if (data.length === 0) {
+          const empty = document.createElement('div');
+          empty.className = 'p-2 text-slate-400 text-center';
+          empty.textContent = 'ไม่พบสถานที่ที่ระบุ';
+          searchResults.appendChild(empty);
+          searchResults.classList.remove('hidden');
+          return;
+        }
+
+        data.forEach(item => {
+          const displayName = typeof item.display_name === 'string' ? item.display_name : 'Unnamed result';
+          const resultButton = document.createElement('button');
+          resultButton.type = 'button';
+          resultButton.className = 'p-2 hover:bg-slate-800 rounded-lg cursor-pointer transition-colors search-item w-full text-left';
+
+          const shortName = document.createElement('p');
+          shortName.className = 'font-bold text-white text-xs truncate';
+          shortName.textContent = displayName.split(',')[0];
+
+          const fullName = document.createElement('p');
+          fullName.className = 'text-[10px] text-slate-400 truncate';
+          fullName.textContent = displayName;
+
+          resultButton.append(shortName, fullName);
+          resultButton.addEventListener('click', () => {
+            const lat = parseFloat(item.lat);
+            const lon = parseFloat(item.lon);
+            if (!Number.isFinite(lat) || !Number.isFinite(lon)) return;
+            map.flyTo({ center: [lon, lat], zoom: 16, essential: true });
+            searchResults.classList.add('hidden');
+          });
+          searchResults.appendChild(resultButton);
+        });
+        searchResults.classList.remove('hidden');
+      } catch(e) {
+        showStatus('การค้นหาขัดข้อง', 'amber');
+        setTimeout(hideStatus, 2000);
+      }
+    }
+
+    document.getElementById('btn-search-submit').onclick = executeSearch;
+    searchInput.onkeydown = (e) => { if (e.key === 'Enter') executeSearch(); };
+
+    function update3DButtonVisual() {
+      const btn = document.getElementById('btn-3d');
+      btn.classList.toggle('bg-amber-500/20', buildings3dAvailable && is3DEnabled);
+      btn.classList.toggle('text-amber-400', buildings3dAvailable && is3DEnabled);
+      btn.classList.toggle('border-amber-500/30', buildings3dAvailable && is3DEnabled);
+      btn.classList.toggle('text-slate-400', !buildings3dAvailable || !is3DEnabled);
+    }
+
+    function set3DCapabilityState(available, reason = 'the selected basemap has no compatible vector building source') {
+      const changed = last3dCapabilityState !== available;
+      const btn = document.getElementById('btn-3d');
+      buildings3dAvailable = available;
+      btn.disabled = !available;
+      btn.setAttribute('aria-disabled', String(!available));
+      btn.title = available ? 'Toggle 3D Buildings & Pitch' : '3D Buildings unavailable on this basemap';
+
+      if (!available) {
+        is3DEnabled = false;
+        if (map.getLayer('3d-buildings')) map.setLayoutProperty('3d-buildings', 'visibility', 'none');
+        if (map.getPitch() !== 0) map.easeTo({ pitch: 0, duration: 0 });
+        if (changed) showStatus(`3D Buildings unavailable: ${reason}.`, 'amber');
+      } else if (changed) {
+        showStatus('3D Buildings available on the selected vector basemap.', 'sky');
+      }
+
+      last3dCapabilityState = available;
+      update3DButtonVisual();
+    }
+
+    function findBuildingSource() {
+      const style = map.getStyle();
+      const buildingLayer = style?.layers?.find(layer =>
+        layer.type === 'fill' &&
+        layer.source &&
+        typeof layer['source-layer'] === 'string' &&
+        /building/i.test(layer['source-layer']) &&
+        map.getSource(layer.source)?.type === 'vector'
+      );
+      return buildingLayer ? { source: buildingLayer.source, sourceLayer: buildingLayer['source-layer'] } : null;
+    }
+
+    function configure3DBuildings() {
+      const sourceInfo = findBuildingSource();
+      if (!sourceInfo) {
+        set3DCapabilityState(false);
+        return;
+      }
+
+      if (!map.getLayer('3d-buildings')) {
+        try {
+          map.addLayer({
+            id: '3d-buildings',
+            source: sourceInfo.source,
+            'source-layer': sourceInfo.sourceLayer,
+            type: 'fill-extrusion',
+            minzoom: 14,
+            layout: { visibility: 'none' },
+            paint: {
+              'fill-extrusion-color': '#1e293b',
+              'fill-extrusion-height': ['interpolate', ['linear'], ['zoom'], 14, 0, 15.05, ['coalesce', ['get', 'render_height'], ['get', 'height'], 0]],
+              'fill-extrusion-base': ['interpolate', ['linear'], ['zoom'], 14, 0, 15.05, ['coalesce', ['get', 'render_min_height'], ['get', 'min_height'], 0]],
+              'fill-extrusion-opacity': 0.8
+            }
+          });
+        } catch (error) {
+          console.warn('3D building capability unavailable', error);
+          set3DCapabilityState(false, 'the vector building layer could not be configured');
+          return;
+        }
+      }
+
+      set3DCapabilityState(true);
+    }
+
+    map.on('error', (event) => {
+      console.warn('Map provider error', event?.error || event);
+      showStatus('Basemap or provider unavailable. Local annotations remain available.', 'amber');
+      window.clearTimeout(providerStatusTimer);
+      providerStatusTimer = window.setTimeout(hideStatus, 3500);
+    });
+
+    // Setup Sources on Map Style Load
+    map.on('styledata', () => {
+      configure3DBuildings();
+
+      if (!map.getSource('user-annotations')) {
+        map.addSource('user-annotations', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
+
+        map.addLayer({
+          id: 'user-polygons-fill',
+          type: 'fill',
+          source: 'user-annotations',
+          filter: ['==', '$type', 'Polygon'],
+          paint: {
+            'fill-color': ['coalesce', ['get', 'fillColor'], '#3b82f6'],
+            'fill-opacity': ['coalesce', ['get', 'fillOpacity'], 0.35]
+          }
+        });
+
+        map.addLayer({
+          id: 'user-lines-stroke',
+          type: 'line',
+          source: 'user-annotations',
+          filter: ['in', '$type', 'LineString', 'Polygon'],
+          paint: {
+            'line-color': ['coalesce', ['get', 'strokeColor'], ['get', 'color'], '#38bdf8'],
+            'line-width': ['coalesce', ['get', 'strokeWidth'], 3.5],
+            'line-opacity': 0.95
+          }
+        });
+
+        // Drafting Preview
+        map.addSource('drafting-source', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
+        map.addLayer({
+          id: 'drafting-line',
+          type: 'line',
+          source: 'drafting-source',
+          filter: ['==', '$type', 'LineString'],
+          paint: { 'line-color': '#fbbf24', 'line-width': 3, 'line-dasharray': [2, 2] }
+        });
+        map.addLayer({
+          id: 'drafting-points',
+          type: 'circle',
+          source: 'drafting-source',
+          filter: ['==', '$type', 'Point'],
+          paint: { 'circle-radius': 8, 'circle-color': '#f59e0b', 'circle-stroke-width': 2.5, 'circle-stroke-color': '#ffffff' }
+        });
+      }
+      refreshMapData();
+    });
+
+    function showStatus(text, type = 'info') {
+      const banner = document.getElementById('status-banner');
+      const dot = document.getElementById('status-dot');
+      const textEl = document.getElementById('status-text');
+
+      banner.classList.remove('hidden', 'flex', 'text-sky-400', 'border-sky-500/30', 'text-amber-400', 'border-amber-500/30', 'text-purple-400', 'border-purple-500/30', 'text-rose-400', 'border-rose-500/30', 'text-cyan-400', 'border-cyan-500/30');
+      banner.classList.add('flex');
+
+      if (type === 'sky') {
+        banner.classList.add('text-sky-400', 'border-sky-500/30');
+        dot.className = 'w-2.5 h-2.5 rounded-full bg-sky-500';
+      } else if (type === 'rose') {
+        banner.classList.add('text-rose-400', 'border-rose-500/30');
+        dot.className = 'w-2.5 h-2.5 rounded-full bg-rose-500';
+      } else if (type === 'cyan') {
+        banner.classList.add('text-cyan-400', 'border-cyan-500/30');
+        dot.className = 'w-2.5 h-2.5 rounded-full bg-cyan-500';
+      } else if (type === 'purple') {
+        banner.classList.add('text-purple-400', 'border-purple-500/30');
+        dot.className = 'w-2.5 h-2.5 rounded-full bg-purple-500';
+      } else {
+        banner.classList.add('text-amber-400', 'border-amber-500/30');
+        dot.className = 'w-2.5 h-2.5 rounded-full bg-amber-500';
+      }
+      textEl.textContent = text;
+    }
+
+    function hideStatus() {
+      document.getElementById('status-banner').classList.add('hidden');
+      document.getElementById('status-banner').classList.remove('flex');
+    }
+
+    function setTool(tool) {
+      activeTool = tool;
+      activePoints = [];
+      clearDraftingPreview();
+      hideStatus();
+
+      document.querySelectorAll('.tool-btn').forEach(b => {
+        b.classList.remove('bg-indigo-600', 'text-white');
+        b.classList.add('text-slate-400');
+      });
+
+      const btnMap = {
+        'select': 'btn-select',
+        'marker': 'btn-marker',
+        'line': 'btn-line',
+        'polygon': 'btn-poly',
+        'desire-line': 'btn-desire-line'
+      };
+
+      const activeEl = document.getElementById(btnMap[tool]);
+      if (activeEl) {
+        activeEl.classList.remove('text-slate-400');
+        activeEl.classList.add('bg-indigo-600', 'text-white');
+      }
+
+      if (tool === 'marker') {
+        showStatus('📍 Marker: คลิกปักหมุด (ลากย้ายได้อิสระ ไม่แสดงรัศมีเป็นค่าเริ่มต้น)', 'sky');
+      } else if (tool === 'line') {
+        showStatus('📐 Polyline CAD: คลิกวางจุดต่อเส้น (มองเห็นจุดและเส้นร่างชัดเจน)', 'amber');
+      } else if (tool === 'polygon') {
+        showStatus('⬡ Polygon: คลิกวางจุดขอบเขต (ดับเบิลคลิกเพื่อเสร็จสิ้น)', 'amber');
+      }
+    }
+
+    document.getElementById('btn-select').onclick = () => setTool('select');
+    document.getElementById('btn-marker').onclick = () => setTool('marker');
+    document.getElementById('btn-line').onclick = () => setTool('line');
+    document.getElementById('btn-poly').onclick = () => setTool('polygon');
+
+    // Open Desire Line Modal
+    document.getElementById('btn-desire-line').onclick = () => {
+      populateDesireZoneDropdowns();
+      document.getElementById('desire-line-modal').classList.remove('hidden');
+      setTool('desire-line');
+    };
+
+    // CAD Magnetic Snapping Toggle
+    document.getElementById('btn-cad-snap-toggle').onclick = () => {
+      isCadSnappingEnabled = !isCadSnappingEnabled;
+      const btn = document.getElementById('btn-cad-snap-toggle');
+      if (isCadSnappingEnabled) {
+        btn.className = 'p-2.5 rounded-xl bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 transition-all';
+        showStatus('🧲 CAD Magnetic Snapping: เปิดใช้งานแล้ว', 'sky');
+      } else {
+        btn.className = 'p-2.5 rounded-xl text-slate-500 hover:text-white hover:bg-slate-800 transition-all';
+        showStatus('🧲 CAD Magnetic Snapping: ปิดการทำงาน', 'amber');
+        document.getElementById('snap-indicator').classList.add('hidden');
+      }
+      setTimeout(hideStatus, 1500);
+    };
+
+    // 3D toggle; the control is enabled only after a compatible vector building source is detected.
+    document.getElementById('btn-3d').onclick = () => {
+      if (!buildings3dAvailable) {
+        showStatus('3D Buildings unavailable on this basemap.', 'amber');
+        return;
+      }
+      is3DEnabled = !is3DEnabled;
+      if (is3DEnabled) {
+        map.easeTo({ pitch: 45, duration: 600 });
+        if (map.getLayer('3d-buildings')) map.setLayoutProperty('3d-buildings', 'visibility', 'visible');
+      } else {
+        map.easeTo({ pitch: 0, duration: 600 });
+        if (map.getLayer('3d-buildings')) map.setLayoutProperty('3d-buildings', 'visibility', 'none');
+      }
+      update3DButtonVisual();
+    };
+
+    // CAD Snapping Engine
+    function findSnapTarget(mouseScreenPoint) {
+      if (!isCadSnappingEnabled) return null;
+      let closest = null;
+      let minDistance = 15;
+
+      features.forEach(f => {
+        if (!f.coordinates || f.visible === false) return;
+
+        if (f.type === 'Point') {
+          const ptScreen = map.project(f.coordinates);
+          const dist = Math.hypot(ptScreen.x - mouseScreenPoint.x, ptScreen.y - mouseScreenPoint.y);
+          if (dist < minDistance) {
+            minDistance = dist;
+            closest = { lngLat: f.coordinates, screen: ptScreen, type: 'VERTEX' };
+          }
+        } else if (f.type === 'LineString' || f.type === 'Polygon') {
+          const ring = f.type === 'Polygon' ? f.coordinates[0] : f.coordinates;
+          for (let i = 0; i < ring.length; i++) {
+            const v = ring[i];
+            const ptScreen = map.project(v);
+            const dist = Math.hypot(ptScreen.x - mouseScreenPoint.x, ptScreen.y - mouseScreenPoint.y);
+            if (dist < minDistance) {
+              minDistance = dist;
+              closest = { lngLat: v, screen: ptScreen, type: 'VERTEX' };
+            }
+            if (i < ring.length - 1) {
+              const mid = [(v[0] + ring[i+1][0]) / 2, (v[1] + ring[i+1][1]) / 2];
+              const midScreen = map.project(mid);
+              const mDist = Math.hypot(midScreen.x - mouseScreenPoint.x, midScreen.y - mouseScreenPoint.y);
+              if (mDist < minDistance) {
+                minDistance = mDist;
+                closest = { lngLat: mid, screen: midScreen, type: 'MIDPOINT' };
+              }
+            }
+          }
+        }
+      });
+
+      return closest;
+    }
+
+    function updateDraftingPreview(currentLngLat) {
+      const source = map.getSource('drafting-source');
+      if (!source) return;
+      const draftFeatures = [];
+
+      activePoints.forEach((p, idx) => {
+        draftFeatures.push({ type: 'Feature', geometry: { type: 'Point', coordinates: p }, properties: { index: idx + 1 } });
+      });
+
+      if (activePoints.length > 0 && currentLngLat) {
+        draftFeatures.push({ type: 'Feature', geometry: { type: 'LineString', coordinates: [...activePoints, currentLngLat] } });
+      }
+
+      source.setData({ type: 'FeatureCollection', features: draftFeatures });
+    }
+
+    function clearDraftingPreview() {
+      const source = map.getSource('drafting-source');
+      if (source) source.setData({ type: 'FeatureCollection', features: [] });
+    }
+
+    let activeSnappedLngLat = null;
+    map.on('mousemove', (e) => {
+      const snapInd = document.getElementById('snap-indicator');
+      const snapTarget = findSnapTarget(e.point);
+
+      if (snapTarget && (activeTool === 'line' || activeTool === 'polygon')) {
+        activeSnappedLngLat = snapTarget.lngLat;
+        snapInd.classList.remove('hidden');
+        snapInd.style.left = snapTarget.screen.x + 'px';
+        snapInd.style.top = snapTarget.screen.y + 'px';
+
+        const core = document.getElementById('snap-core');
+        const ring = document.getElementById('snap-ring');
+        const label = document.getElementById('snap-label');
+
+        if (snapTarget.type === 'VERTEX') {
+          core.className = 'w-3 h-3 rounded-full bg-emerald-400 border-2 border-white shadow-lg relative';
+          ring.className = 'w-6 h-6 rounded-full border-2 border-emerald-400 bg-emerald-400/20 animate-ping absolute -top-3 -left-3';
+          label.innerText = 'SNAP: VERTEX';
+        } else {
+          core.className = 'w-3 h-3 rotate-45 bg-amber-400 border-2 border-white shadow-lg relative';
+          ring.className = 'w-6 h-6 rotate-45 border-2 border-amber-400 bg-amber-400/20 animate-ping absolute -top-3 -left-3';
+          label.innerText = 'SNAP: MIDPOINT';
+        }
+      } else {
+        activeSnappedLngLat = null;
+        snapInd.classList.add('hidden');
+      }
+
+      if ((activeTool === 'line' || activeTool === 'polygon') && activePoints.length > 0) {
+        const cur = activeSnappedLngLat ? activeSnappedLngLat : [e.lngLat.lng, e.lngLat.lat];
+        updateDraftingPreview(cur);
+      }
+    });
+
+    function ensureFeatureProvenance(feature) {
+      feature.validationStatus = normalizeValidationStatus(feature.validationStatus);
+      feature.provenance = normalizeProvenance(feature.provenance) || defaultAnnotationProvenance();
+      return feature;
+    }
+
+    function addFeature(f) {
+      ensureFeatureProvenance(f);
+      historyStack.push(cloneFeatures());
+      redoStack = [];
+      features.push(f);
+      updateHistoryButtons();
+      refreshMapData();
+      renderLayerPanel();
+    }
+
+    function refreshMapData() {
+      const source = map.getSource('user-annotations');
+      if (!source) return;
+
+      const visibleLayers = new Set(layers.filter(l => l.visible).map(l => l.id));
+      const geojsonFeatures = [];
+      const currentPointIds = new Set();
+
+      features.forEach(f => {
+        if (f.visible === false || !visibleLayers.has(f.layerId)) {
+          if (htmlMarkersMap[f.id]) {
+            htmlMarkersMap[f.id].remove();
+            delete htmlMarkersMap[f.id];
+          }
+          return;
+        }
+
+        if (f.type === 'Point') {
+          currentPointIds.add(f.id);
+
+          if (!htmlMarkersMap[f.id]) {
+            const el = document.createElement('div');
+            el.className = 'custom-marker';
+            el.id = 'marker-el-' + f.id;
+
+            const iconContainer = document.createElement('div');
+            iconContainer.className = 'custom-marker-icon';
+            el.appendChild(iconContainer);
+
+            const labelEl = document.createElement('span');
+            labelEl.className = 'custom-marker-label';
+            el.appendChild(labelEl);
+
+            const marker = new maplibregl.Marker({ element: el, draggable: true })
+              .setLngLat(f.coordinates)
+              .addTo(map);
+            let dragBeforeState = null;
+
+            marker.on('dragstart', () => {
+              dragBeforeState = cloneFeatures();
+            });
+
+            marker.on('drag', () => {
+              const currentFeature = features.find(item => item.id === f.id);
+              if (!currentFeature) return;
+              currentFeature.coordinates = [marker.getLngLat().lng, marker.getLngLat().lat];
+              refreshMapData();
+            });
+
+            marker.on('dragend', () => {
+              if (dragBeforeState) {
+                historyStack.push(dragBeforeState);
+                redoStack = [];
+                dragBeforeState = null;
+                updateHistoryButtons();
+              }
+            });
+
+            el.onclick = (e) => {
+              e.stopPropagation();
+              openFeatureInspector(f.id);
+            };
+
+            htmlMarkersMap[f.id] = marker;
+          }
+
+          const markerObj = htmlMarkersMap[f.id];
+          markerObj.setLngLat(f.coordinates);
+          const el = markerObj.getElement();
+          const iconContainer = el.querySelector('.custom-marker-icon');
+          const labelEl = el.querySelector('.custom-marker-label');
+
+          const iconType = f.markerIcon || 'dot';
+          const color = f.style?.color || '#f43f5e';
+          iconContainer.style.backgroundColor = color;
+          iconContainer.replaceChildren();
+          
+          if (iconType === 'dot') {
+            iconContainer.className = 'custom-marker-icon w-5 h-5 rounded-full';
+          } else {
+            iconContainer.className = 'custom-marker-icon w-8 h-8 rounded-xl text-white';
+            const iconName = {
+              pin: 'map-pin',
+              star: 'star',
+              flag: 'flag',
+              landmark: 'landmark',
+              car: 'car',
+              alert: 'alert-triangle',
+              transit: 'bus'
+            }[iconType];
+            if (iconName) {
+              const icon = document.createElement('i');
+              icon.setAttribute('data-lucide', iconName);
+              icon.className = 'w-4 h-4';
+              iconContainer.appendChild(icon);
+              lucide.createIcons();
+            }
+          }
+
+          if (f.showLabelOnMap) {
+            labelEl.textContent = f.name;
+            labelEl.classList.remove('hidden');
+          } else {
+            labelEl.classList.add('hidden');
+          }
+
+          if (f.radiusConfig && f.radiusConfig.enabled) {
+            try {
+              const circlePoly = turf.circle(f.coordinates, f.radiusConfig.radiusMeters / 1000, { steps: 64, units: 'kilometers' });
+              geojsonFeatures.push({
+                type: 'Feature',
+                id: f.id + '-circle',
+                geometry: circlePoly.geometry,
+                properties: {
+                  id: f.id,
+                  name: f.name + ' (รัศมี ' + f.radiusConfig.radiusMeters + 'm)',
+                  strokeColor: f.radiusConfig.strokeColor || '#1d4ed8',
+                  strokeWidth: f.radiusConfig.strokeWidth || 2,
+                  fillColor: f.radiusConfig.fillColor || '#3b82f6',
+                  fillOpacity: f.radiusConfig.fillOpacity ?? 0.3
+                }
+              });
+            } catch(e) {}
+          }
+        } else {
+          // Lines, Polygons & Desire Lines
+          let strokeW = f.style?.strokeWidth || 3.5;
+          
+          // If feature is a Desire Line, dynamically scale stroke width by demand
+          if (f.layerId === 'layer-desire' && f.demand) {
+            strokeW = Math.max(2, Math.min(22, (f.demand / 1000) * 1.8 * desireScaleFactor));
+          }
+
+          geojsonFeatures.push({
+            type: 'Feature',
+            id: f.id,
+            geometry: { type: f.type, coordinates: f.coordinates },
+            properties: {
+              id: f.id,
+              name: f.name,
+              color: f.style?.color || '#38bdf8',
+              strokeColor: f.style?.strokeColor || f.style?.color || '#38bdf8',
+              strokeWidth: strokeW,
+              fillColor: f.style?.fillColor || '#a855f7',
+              fillOpacity: f.style?.fillOpacity ?? 0.35
+            }
+          });
+        }
+      });
+
+      Object.keys(htmlMarkersMap).forEach(id => {
+        if (!currentPointIds.has(id)) {
+          htmlMarkersMap[id].remove();
+          delete htmlMarkersMap[id];
+        }
+      });
+
+      source.setData({ type: 'FeatureCollection', features: geojsonFeatures });
+      document.getElementById('feature-count').innerText = features.length;
+    }
+
+    // Map Click Handler
+    map.on('click', async (e) => {
+      const lngLat = activeSnappedLngLat ? activeSnappedLngLat : [e.lngLat.lng, e.lngLat.lat];
+
+      if (activeTool === 'select') {
+        const bbox = [[e.point.x - 6, e.point.y - 6], [e.point.x + 6, e.point.y + 6]];
+        const clicked = map.queryRenderedFeatures(bbox, { layers: ['user-polygons-fill', 'user-lines-stroke'] });
+        if (clicked.length > 0) {
+          const target = features.find(f => f.id === clicked[0].properties.id);
+          if (target) openFeatureInspector(target.id);
+        }
+      } else if (activeTool === 'marker') {
+        const newPoint = {
+          id: 'pt-' + Date.now(),
+          name: `หมุด ${features.filter(x => x.type === 'Point').length + 1}`,
+          type: 'Point',
+          layerId: 'layer-points',
+          coordinates: lngLat,
+          visible: true,
+          showLabelOnMap: true,
+          markerIcon: 'dot',
+          style: { color: '#f43f5e', strokeWidth: 2 },
+          radiusConfig: {
+            enabled: false,
+            radiusMeters: 1000,
+            fillColor: '#3b82f6',
+            fillOpacity: 0.3,
+            strokeColor: '#1d4ed8',
+            strokeWidth: 2
+          }
+        };
+        addFeature(newPoint);
+        openFeatureInspector(newPoint.id);
+      } else if (activeTool === 'line' || activeTool === 'polygon') {
+        activePoints.push(lngLat);
+        updateDraftingPreview(lngLat);
+        showStatus(`📐 วางจุดที่ ${activePoints.length} แล้ว (มองเห็นจุดและเส้นร่างชัดเจน | ดับเบิลคลิกเพื่อเสร็จสิ้น)`, 'amber');
+      }
+    });
+
+    map.on('dblclick', (e) => {
+      if (activeTool === 'line' && activePoints.length >= 2) {
+        e.preventDefault();
+        const lineGeom = turf.lineString(activePoints);
+        const distKm = turf.length(lineGeom, { units: 'kilometers' }).toFixed(2);
+        const newLine = {
+          id: 'line-' + Date.now(),
+          name: `Polyline ${distKm} km`,
+          type: 'LineString',
+          layerId: 'layer-roads',
+          coordinates: activePoints,
+          visible: true,
+          style: { color: '#fbbf24', strokeWidth: 3.5 },
+          distanceKm: parseFloat(distKm)
+        };
+        addFeature(newLine);
+        activePoints = [];
+        clearDraftingPreview();
+        openFeatureInspector(newLine.id);
+        showStatus('คลิกเลือกเครื่องมือที่ต้องการใช้งาน', 'sky');
+      } else if (activeTool === 'polygon' && activePoints.length >= 3) {
+        e.preventDefault();
+        const closed = [...activePoints, activePoints[0]];
+        const polyGeom = turf.polygon([closed]);
+        const areaRai = Math.round(turf.area(polyGeom) / 1600);
+        const newPoly = {
+          id: 'poly-' + Date.now(),
+          name: `โซนพื้นที่ TAZ (~${areaRai} ไร่)`,
+          type: 'Polygon',
+          layerId: 'layer-zones',
+          coordinates: [closed],
+          visible: true,
+          style: { color: '#a855f7', strokeWidth: 2, fillColor: '#a855f7', fillOpacity: 0.35 }
+        };
+        addFeature(newPoly);
+        activePoints = [];
+        clearDraftingPreview();
+        openFeatureInspector(newPoly.id);
+        showStatus('คลิกเลือกเครื่องมือที่ต้องการใช้งาน', 'sky');
+      }
+    });
+
+    // -------------------------------------------------------------
+    // USER-AUTHORED DESIRE LINES (CENTROID CONNECTIONS)
+    // -------------------------------------------------------------
+    function getZoneCentroid(feature) {
+      if (feature.type === 'Point') {
+        return feature.coordinates;
+      } else if (feature.type === 'Polygon') {
+        const c = turf.centroid(feature);
+        return c.geometry.coordinates;
+      }
+      return null;
+    }
+
+    function populateDesireZoneDropdowns() {
+      const origSelect = document.getElementById('desire-origin-select');
+      const destSelect = document.getElementById('desire-dest-select');
+
+      // Get all Zones (Polygons or Points with radius)
+      const candidateZones = features.filter(f => f.type === 'Polygon' || f.type === 'Point');
+
+      origSelect.replaceChildren(new Option('-- เลือกต้นทาง (Origin) --', ''));
+      destSelect.replaceChildren(new Option('-- เลือกปลายทาง (Destination) --', ''));
+
+      candidateZones.forEach(z => {
+        origSelect.appendChild(new Option(z.name, z.id));
+        destSelect.appendChild(new Option(z.name, z.id));
+      });
+
+      if (candidateZones.length >= 2) {
+        origSelect.selectedIndex = 1;
+        destSelect.selectedIndex = 2;
+      }
+    }
+
+    document.getElementById('desire-line-close').onclick = () => {
+      document.getElementById('desire-line-modal').classList.add('hidden');
+      setTool('select');
+    };
+
+    document.getElementById('desire-scale-slider').oninput = (e) => {
+      desireScaleFactor = parseFloat(e.target.value);
+      document.getElementById('desire-scale-label').textContent = desireScaleFactor.toFixed(1) + 'x';
+      refreshMapData();
+    };
+
+    // Create Single Desire Line
+    document.getElementById('btn-create-single-desire').onclick = () => {
+      const origId = document.getElementById('desire-origin-select').value;
+      const destId = document.getElementById('desire-dest-select').value;
+      const demandVal = Number(document.getElementById('desire-demand-input').value);
+
+      if (!origId || !destId || origId === destId) {
+        alert('กรุณาเลือกโซนต้นทางและปลายทางที่ไม่ซ้ำกัน');
+        return;
+      }
+
+      if (!Number.isFinite(demandVal) || demandVal <= 0) {
+        alert('กรุณากรอก Demand ที่มาจากข้อมูลผู้ใช้หรือข้อมูลนำเข้า');
+        return;
+      }
+
+      const origZone = features.find(f => f.id === origId);
+      const destZone = features.find(f => f.id === destId);
+
+      const origCentroid = getZoneCentroid(origZone);
+      const destCentroid = getZoneCentroid(destZone);
+
+      if (!origCentroid || !destCentroid) {
+        alert('ไม่สามารถคำนวณ Centroid ของพื้นที่ที่เลือกได้');
+        return;
+      }
+
+      const newDesire = {
+        id: `desire-${Date.now()}`,
+        name: `Desire Line: ${origZone.name} ➔ ${destZone.name} (${demandVal.toLocaleString()} trips/h)`,
+        type: 'LineString',
+        layerId: 'layer-desire',
+        visible: true,
+        coordinates: [origCentroid, destCentroid],
+        demand: demandVal,
+        validationStatus: 'Functional but unvalidated',
+        provenance: {
+          method: 'User-authored straight connection between selected centroids',
+          source: 'User-entered demand',
+          units: 'trips/hour',
+          limitations: 'Not a validated engineering demand model or network assignment'
+        },
+        style: {
+          color: '#06b6d4', // Cyan Flow Line
+          strokeWidth: Math.max(2, Math.min(22, (demandVal / 1000) * 1.8 * desireScaleFactor))
+        }
+      };
+
+      addFeature(newDesire);
+      document.getElementById('desire-line-modal').classList.add('hidden');
+      showStatus(`⚡ User-authored Desire Line created (${demandVal.toLocaleString()} เที่ยว/ชม.); not validated.`, 'cyan');
+      setTimeout(hideStatus, 2500);
+    };
+
+    // Bézier Smoothing
+    document.getElementById('btn-bezier-smooth').onclick = () => {
+      const f = features.find(x => x.id === selectedFeatureId);
+      if (!f || f.type !== 'LineString' || f.coordinates.length < 3) {
+        alert('เส้นต้องมีจุดหักมุมอย่างน้อย 3 จุดขึ้นไปเพื่อดัดโค้ง Bézier');
+        return;
+      }
+      try {
+        const line = turf.lineString(f.coordinates);
+        const curved = turf.bezierSpline(line, { resolution: 10000, sharpness: 0.85 });
+        historyStack.push(JSON.parse(JSON.stringify(features)));
+        redoStack = [];
+        f.coordinates = curved.geometry.coordinates;
+        f.name += ' (Bézier Curved)';
+        refreshMapData();
+        renderLayerPanel();
+        showStatus('✨ แปลงเป็นเส้นโค้งมน Bézier สำเร็จ', 'sky');
+        setTimeout(hideStatus, 2000);
+      } catch(err) {
+        console.error(err);
+      }
+    };
+
+    // Buffer Generator
+    document.getElementById('buffer-slider').oninput = (e) => {
+      document.getElementById('buffer-val-label').textContent = e.target.value + 'm';
+    };
+
+    document.getElementById('btn-apply-buffer').onclick = () => {
+      const f = features.find(x => x.id === selectedFeatureId);
+      if (!f) return;
+      const meters = parseInt(document.getElementById('buffer-slider').value);
+
+      try {
+        let geojson;
+        if (f.type === 'Point') geojson = turf.point(f.coordinates);
+        else if (f.type === 'LineString') geojson = turf.lineString(f.coordinates);
+        else if (f.type === 'Polygon') geojson = turf.polygon(f.coordinates);
+
+        const buffered = turf.buffer(geojson, meters / 1000, { units: 'kilometers' });
+        const sourceIdentity = normalizeLineageIdentity({ id: f.id, name: f.name, validationStatus: f.validationStatus });
+        const sourceProvenance = normalizeProvenance(f.provenance) || defaultAnnotationProvenance();
+        const sourceLabel = sourceIdentity?.name
+          ? `feature ${sourceIdentity.id} (${sourceIdentity.name})`
+          : `feature ${sourceIdentity?.id || 'without an id'}`;
+        const newBufferFeature = {
+          id: 'buffer-' + Date.now(),
+          name: `Buffer ${meters}m ของ ${f.name}`,
+          type: 'Polygon',
+          layerId: 'layer-analytics',
+          visible: true,
+          coordinates: buffered.geometry.coordinates,
+          validationStatus: f.validationStatus === 'Stale' || f.validationStatus === 'Experimental'
+            ? f.validationStatus
+            : DEFAULT_VALIDATION_STATUS,
+          provenance: {
+            method: 'Turf.js geodesic buffer',
+            source: `Derived from ${sourceLabel}`,
+            units: 'metres; WGS84 longitude/latitude',
+            operation: 'Turf.js buffer',
+            limitations: 'Prototype geometry operation; not a validated engineering setback or catchment result',
+            derivedFrom: {
+              ...sourceIdentity,
+              provenance: sourceProvenance
+            }
+          },
+          style: { color: '#10b981', strokeWidth: 2, fillColor: '#10b981', fillOpacity: 0.25 }
+        };
+        addFeature(newBufferFeature);
+        showStatus(`🛡️ สร้าง Buffer ${meters}m สำเร็จแล้ว`, 'sky');
+        setTimeout(hideStatus, 2000);
+      } catch(err) {
+        alert('เกิดข้อผิดพลาดในการสร้าง Buffer: ' + err.message);
+      }
+    };
+
+    // Build Color Swatches
+    function initColorPresets() {
+      const markerWrap = document.getElementById('marker-color-presets');
+      const fillWrap = document.getElementById('radius-fill-presets');
+      const strokeWrap = document.getElementById('radius-stroke-presets');
+
+      COLOR_PRESETS.forEach(color => {
+        const b1 = document.createElement('button');
+        b1.className = 'w-5 h-5 rounded-full border border-white/40 shadow hover:scale-125 transition-transform';
+        b1.style.backgroundColor = color;
+        b1.onclick = () => {
+          const f = features.find(x => x.id === selectedFeatureId);
+          if (f) {
+            f.style = f.style || {};
+            f.style.color = color;
+            refreshMapData();
+          }
+        };
+        markerWrap.appendChild(b1);
+
+        const b2 = document.createElement('button');
+        b2.className = 'w-5 h-5 rounded-full border border-white/40 shadow hover:scale-125 transition-transform';
+        b2.style.backgroundColor = color;
+        b2.onclick = () => {
+          const f = features.find(x => x.id === selectedFeatureId);
+          if (f && f.radiusConfig) {
+            f.radiusConfig.fillColor = color;
+            refreshMapData();
+          }
+        };
+        fillWrap.appendChild(b2);
+
+        const b3 = document.createElement('button');
+        b3.className = 'w-5 h-5 rounded-full border border-white/40 shadow hover:scale-125 transition-transform';
+        b3.style.backgroundColor = color;
+        b3.onclick = () => {
+          const f = features.find(x => x.id === selectedFeatureId);
+          if (f && f.radiusConfig) {
+            f.radiusConfig.strokeColor = color;
+            refreshMapData();
+          }
+        };
+        strokeWrap.appendChild(b3);
+      });
+    }
+
+    initColorPresets();
+
+    function openFeatureInspector(featureId) {
+      selectedFeatureId = featureId;
+      const f = features.find(x => x.id === featureId);
+      if (!f) return;
+
+      const inspector = document.getElementById('feature-inspector');
+      inspector.classList.remove('hidden');
+
+      document.getElementById('inspector-title').innerText = f.name;
+      document.getElementById('inspector-name-input').value = f.name;
+      document.getElementById('inspector-show-label').checked = f.showLabelOnMap !== false;
+
+      const shapeSection = document.getElementById('marker-shape-section');
+      const radiusSection = document.getElementById('marker-radius-section');
+      const polylineSection = document.getElementById('polyline-actions');
+
+      if (f.type === 'Point') {
+        shapeSection.classList.remove('hidden');
+        radiusSection.classList.remove('hidden');
+        polylineSection.classList.add('hidden');
+
+        document.querySelectorAll('.marker-icon-btn').forEach(btn => {
+          btn.classList.toggle('active', btn.dataset.icon === (f.markerIcon || 'dot'));
+          btn.classList.toggle('bg-indigo-600', btn.dataset.icon === (f.markerIcon || 'dot'));
+          btn.classList.toggle('text-white', btn.dataset.icon === (f.markerIcon || 'dot'));
+        });
+
+        const rc = f.radiusConfig || { enabled: false, radiusMeters: 1000, fillColor: '#3b82f6', fillOpacity: 0.3, strokeColor: '#1d4ed8' };
+        document.getElementById('radius-enable').checked = rc.enabled;
+        document.getElementById('radius-controls').classList.toggle('hidden', !rc.enabled);
+        document.getElementById('radius-slider').value = rc.radiusMeters;
+        document.getElementById('radius-num-input').value = rc.radiusMeters;
+        document.getElementById('radius-opacity-slider').value = rc.fillOpacity;
+        document.getElementById('radius-opacity-label').innerText = Math.round(rc.fillOpacity * 100) + '%';
+        updateRadiusLabels(rc.radiusMeters);
+      } else if (f.type === 'LineString') {
+        shapeSection.classList.add('hidden');
+        radiusSection.classList.add('hidden');
+        polylineSection.classList.remove('hidden');
+      } else {
+        shapeSection.classList.add('hidden');
+        radiusSection.classList.add('hidden');
+        polylineSection.classList.add('hidden');
+      }
+    }
+
+    document.getElementById('inspector-name-input').oninput = (e) => {
+      const f = features.find(x => x.id === selectedFeatureId);
+      if (f) {
+        f.name = e.target.value;
+        document.getElementById('inspector-title').innerText = f.name;
+        refreshMapData();
+        renderLayerPanel();
+      }
+    };
+
+    document.getElementById('inspector-show-label').onchange = (e) => {
+      const f = features.find(x => x.id === selectedFeatureId);
+      if (f) {
+        f.showLabelOnMap = e.target.checked;
+        refreshMapData();
+      }
+    };
+
+    document.querySelectorAll('.marker-icon-btn').forEach(btn => {
+      btn.onclick = () => {
+        document.querySelectorAll('.marker-icon-btn').forEach(b => {
+          b.className = 'marker-icon-btn bg-slate-800 text-slate-300 hover:bg-slate-700 p-2 rounded-xl flex flex-col items-center gap-1';
+        });
+        btn.className = 'marker-icon-btn active bg-indigo-600 text-white p-2 rounded-xl flex flex-col items-center gap-1';
+
+        const f = features.find(x => x.id === selectedFeatureId);
+        if (f) {
+          f.markerIcon = btn.dataset.icon;
+          refreshMapData();
+        }
+      };
+    });
+
+    document.getElementById('radius-enable').onchange = (e) => {
+      const f = features.find(x => x.id === selectedFeatureId);
+      if (!f) return;
+      if (!f.radiusConfig) f.radiusConfig = { radiusMeters: 1000, fillColor: '#3b82f6', fillOpacity: 0.3, strokeColor: '#1d4ed8', strokeWidth: 2 };
+      f.radiusConfig.enabled = e.target.checked;
+      document.getElementById('radius-controls').classList.toggle('hidden', !e.target.checked);
+      refreshMapData();
+    };
+
+    function setRadiusMeters(val) {
+      const f = features.find(x => x.id === selectedFeatureId);
+      if (f && f.radiusConfig) {
+        f.radiusConfig.radiusMeters = val;
+        document.getElementById('radius-slider').value = val;
+        document.getElementById('radius-num-input').value = val;
+        updateRadiusLabels(val);
+        refreshMapData();
+      }
+    }
+
+    document.getElementById('radius-slider').oninput = (e) => setRadiusMeters(parseInt(e.target.value));
+    document.getElementById('radius-num-input').onchange = (e) => setRadiusMeters(parseInt(e.target.value));
+
+    document.querySelectorAll('.radius-preset-btn').forEach(btn => {
+      btn.onclick = () => setRadiusMeters(parseInt(btn.dataset.val));
+    });
+
+    document.getElementById('radius-opacity-slider').oninput = (e) => {
+      const val = parseFloat(e.target.value);
+      document.getElementById('radius-opacity-label').innerText = Math.round(val * 100) + '%';
+      const f = features.find(x => x.id === selectedFeatureId);
+      if (f && f.radiusConfig) {
+        f.radiusConfig.fillOpacity = val;
+        refreshMapData();
+      }
+    };
+
+    function updateRadiusLabels(meters) {
+      const km = (meters / 1000).toFixed(2);
+      const areaKm2 = (Math.PI * Math.pow(meters / 1000, 2)).toFixed(2);
+      const rai = Math.round((Math.PI * Math.pow(meters, 2)) / 1600).toLocaleString();
+      document.getElementById('area-calc-km').innerText = `${areaKm2} ตร.กม.`;
+      document.getElementById('area-calc-rai').innerText = `~${rai} ไร่`;
+    }
+
+    document.getElementById('inspector-close').onclick = () => {
+      document.getElementById('feature-inspector').classList.add('hidden');
+    };
+
+    // Undo / Redo
+    function updateHistoryButtons() {
+      document.getElementById('btn-undo').disabled = historyStack.length === 0;
+      document.getElementById('btn-redo').disabled = redoStack.length === 0;
+    }
+
+    document.getElementById('btn-undo').onclick = () => {
+      if (historyStack.length === 0) return;
+      redoStack.push(JSON.parse(JSON.stringify(features)));
+      features = historyStack.pop();
+      updateHistoryButtons();
+      refreshMapData();
+      renderLayerPanel();
+    };
+
+    document.getElementById('btn-redo').onclick = () => {
+      if (redoStack.length === 0) return;
+      historyStack.push(JSON.parse(JSON.stringify(features)));
+      features = redoStack.pop();
+      updateHistoryButtons();
+      refreshMapData();
+      renderLayerPanel();
+    };
+
+    // Layer Panel UI
+    function createLucideIcon(name, className) {
+      const icon = document.createElement('i');
+      icon.setAttribute('data-lucide', name);
+      icon.className = className;
+      return icon;
+    }
+
+    function renderLayerPanel() {
+      const container = document.getElementById('panel-content');
+      container.replaceChildren();
+
+      layers.forEach(layer => {
+        const layerFeatures = features.filter(f => f.layerId === layer.id);
+        const card = document.createElement('div');
+        card.className = 'bg-slate-800/50 border border-slate-700/50 rounded-xl p-3 space-y-2';
+
+        const header = document.createElement('div');
+        header.className = 'flex items-center justify-between';
+
+        const layerTitle = document.createElement('div');
+        layerTitle.className = 'flex items-center gap-2 text-xs font-semibold text-slate-200';
+
+        const colorDot = document.createElement('span');
+        colorDot.className = 'w-2.5 h-2.5 rounded-full';
+        colorDot.style.backgroundColor = layer.color;
+
+        const layerName = document.createElement('span');
+        layerName.textContent = layer.name;
+
+        const layerCount = document.createElement('span');
+        layerCount.className = 'text-[10px] text-slate-500 font-mono';
+        layerCount.textContent = `(${layerFeatures.length})`;
+
+        layerTitle.append(colorDot, layerName, layerCount);
+
+        const layerVisibility = document.createElement('button');
+        layerVisibility.type = 'button';
+        layerVisibility.className = 'layer-vis-btn text-slate-400 hover:text-white';
+        layerVisibility.dataset.id = layer.id;
+        layerVisibility.appendChild(createLucideIcon(layer.visible ? 'eye' : 'eye-off', 'w-3.5 h-3.5'));
+        layerVisibility.addEventListener('click', () => {
+          const targetLayer = layers.find(item => item.id === layer.id);
+          if (targetLayer) targetLayer.visible = !targetLayer.visible;
+          refreshMapData();
+          renderLayerPanel();
+        });
+
+        header.append(layerTitle, layerVisibility);
+        card.appendChild(header);
+
+        if (layerFeatures.length > 0) {
+          const featureList = document.createElement('div');
+          featureList.className = 'pt-1.5 space-y-1 border-t border-slate-700/40';
+
+          layerFeatures.forEach(feature => {
+            const featureItem = document.createElement('div');
+            featureItem.className = 'flex items-center justify-between text-xs bg-slate-900/60 hover:bg-slate-900 px-2.5 py-1.5 rounded-lg text-slate-300 group cursor-pointer feature-item';
+            featureItem.dataset.id = feature.id;
+
+            const featureLeft = document.createElement('div');
+            featureLeft.className = 'flex items-center gap-1.5 truncate pr-2';
+
+            const featureVisibility = document.createElement('button');
+            featureVisibility.type = 'button';
+            featureVisibility.className = 'feat-vis-btn text-slate-500 hover:text-white';
+            featureVisibility.dataset.id = feature.id;
+            featureVisibility.appendChild(createLucideIcon(feature.visible !== false ? 'eye' : 'eye-off', 'w-3 h-3'));
+            featureVisibility.addEventListener('click', event => {
+              event.stopPropagation();
+              const targetFeature = features.find(item => item.id === feature.id);
+              if (targetFeature) targetFeature.visible = targetFeature.visible === false;
+              refreshMapData();
+              renderLayerPanel();
+            });
+
+            const featureName = document.createElement('span');
+            featureName.className = 'truncate';
+            featureName.textContent = feature.name;
+            if (feature.visible === false) featureName.classList.add('line-through', 'text-slate-500');
+
+            featureLeft.append(featureVisibility, featureName);
+
+            const featureActions = document.createElement('div');
+            featureActions.className = 'flex items-center gap-1';
+
+            const deleteButton = document.createElement('button');
+            deleteButton.type = 'button';
+            deleteButton.className = 'del-btn opacity-0 group-hover:opacity-100 text-slate-500 hover:text-rose-400';
+            deleteButton.dataset.id = feature.id;
+            deleteButton.appendChild(createLucideIcon('trash-2', 'w-3 h-3'));
+            deleteButton.addEventListener('click', event => {
+              event.stopPropagation();
+              historyStack.push(cloneFeatures());
+              redoStack = [];
+              features = features.filter(item => item.id !== feature.id);
+              updateHistoryButtons();
+              refreshMapData();
+              renderLayerPanel();
+            });
+
+            featureActions.appendChild(deleteButton);
+            featureItem.append(featureLeft, featureActions);
+            featureItem.addEventListener('click', event => {
+              if (event.target.closest('.del-btn') || event.target.closest('.feat-vis-btn')) return;
+              openFeatureInspector(feature.id);
+            });
+            featureList.appendChild(featureItem);
+          });
+
+          card.appendChild(featureList);
+        }
+
+        container.appendChild(card);
+      });
+
+      lucide.createIcons();
+    }
+
+
+    renderLayerPanel();
+
+    // Export GeoJSON
+    document.getElementById('btn-export').onclick = () => {
+      const geojson = {
+        type: 'FeatureCollection',
+        metadata: {
+          format: GEOJSON_EXPORT_FORMAT,
+          version: GEOJSON_EXPORT_VERSION,
+          generator: 'City Map Tools'
+        },
+        features: features.map(f => ({
+          type: 'Feature',
+          id: f.id,
+          geometry: { type: f.type, coordinates: f.coordinates },
+          properties: {
+            name: f.name,
+            layerId: f.layerId,
+            visible: f.visible,
+            showLabelOnMap: f.showLabelOnMap,
+            markerIcon: f.markerIcon,
+            demand: f.demand,
+            style: f.style,
+            radiusConfig: f.radiusConfig,
+            validationStatus: normalizeValidationStatus(f.validationStatus, { allowValidated: true }),
+            provenance: normalizeProvenance(f.provenance) || defaultAnnotationProvenance()
+          }
+        }))
+      };
+      const blob = new Blob([JSON.stringify(geojson, null, 2)], { type: 'application/json' });
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = `map-annotations-${Date.now()}.geojson`;
+      a.click();
+      window.setTimeout(() => URL.revokeObjectURL(a.href), 0);
+    };
+
+    // Import GeoJSON
+    document.getElementById('file-import').onchange = (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = (ev) => {
+        try {
+          const parsed = JSON.parse(ev.target.result);
+          if (!parsed || parsed.type !== 'FeatureCollection' || !Array.isArray(parsed.features)) {
+            throw new Error('Expected a GeoJSON FeatureCollection');
+          }
+          const isApplicationExport = parsed.metadata?.format === GEOJSON_EXPORT_FORMAT &&
+            parsed.metadata?.version === GEOJSON_EXPORT_VERSION &&
+            parsed.metadata?.generator === 'City Map Tools';
+
+          const importedFeatures = parsed.features.flatMap((feature, index) => {
+            const geometryType = feature?.geometry?.type;
+            const coordinates = feature?.geometry?.coordinates;
+            if (!['Point', 'LineString', 'Polygon'].includes(geometryType) || !coordinates) return [];
+
+            const rawName = feature?.properties?.name;
+            const name = typeof rawName === 'string' && rawName.trim() ? rawName : `Imported Feature ${index + 1}`;
+            const requestedLayer = feature?.properties?.layerId;
+            const layerId = layers.some(layer => layer.id === requestedLayer) ? requestedLayer : 'layer-points';
+            const style = feature?.properties?.style && typeof feature.properties.style === 'object'
+              ? feature.properties.style
+              : { color: '#f43f5e', strokeWidth: 2 };
+            const radiusConfig = feature?.properties?.radiusConfig && typeof feature.properties.radiusConfig === 'object'
+              ? feature.properties.radiusConfig
+              : { enabled: false };
+            const importedMetadata = normalizeImportedMetadata(feature?.properties, isApplicationExport);
+
+            return [{
+              id: feature?.id !== undefined ? String(feature.id) : `f-${Date.now()}-${index}`,
+              name,
+              type: geometryType,
+              layerId,
+              coordinates,
+              visible: feature?.properties?.visible !== false,
+              showLabelOnMap: feature?.properties?.showLabelOnMap !== false,
+              markerIcon: feature?.properties?.markerIcon || 'dot',
+              demand: Number.isFinite(feature?.properties?.demand) ? feature.properties.demand : undefined,
+              style,
+              radiusConfig,
+              validationStatus: importedMetadata.validationStatus,
+              provenance: importedMetadata.provenance
+            }];
+          });
+
+          if (importedFeatures.length === 0) throw new Error('No supported geometries found');
+          historyStack.push(cloneFeatures());
+          redoStack = [];
+          features.push(...importedFeatures);
+          updateHistoryButtons();
+          refreshMapData();
+          renderLayerPanel();
+          showStatus(`Imported ${importedFeatures.length} feature(s); imported values remain unvalidated.`, 'sky');
+        } catch(err) {
+          console.warn('GeoJSON import rejected', err);
+          alert('รูปแบบ GeoJSON ไม่ถูกต้องหรือไม่มี geometry ที่รองรับ');
+        }
+      };
+      reader.readAsText(file);
+      e.target.value = '';
+    };
+
+
+    // Panel Toggle
+    let isPanelOpen = true;
+    document.getElementById('panel-header').onclick = () => {
+      isPanelOpen = !isPanelOpen;
+      document.getElementById('panel-content').style.display = isPanelOpen ? 'block' : 'none';
+      document.getElementById('panel-chevron').setAttribute('data-lucide', isPanelOpen ? 'chevron-down' : 'chevron-right');
+      lucide.createIcons();
+    };
+  </script>
+</body>
+</html>
