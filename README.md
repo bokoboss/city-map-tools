@@ -1,72 +1,62 @@
-# City Map Tools (`city-map-tools`) 🏙️🗺️⚡
-> **Next-Gen 3D Geospatial Annotation, Space Syntax & Transport Flow Web Canvas**  
-> GitHub Repository: [https://github.com/bokoboss/city-map-tools](https://github.com/bokoboss/city-map-tools)  
-> Live Application: [https://bokoboss.github.io/city-map-tools/](https://bokoboss.github.io/city-map-tools/)
+# City Map Tools
 
----
+> Static-first browser map annotation prototype. This README describes the current revision only; it is not a claim of production readiness or validated engineering analysis.
 
-## 🌟 Key Features
+Repository: <https://github.com/bokoboss/city-map-tools>
+Live application: <https://bokoboss.github.io/city-map-tools/>
 
-### 1. 🔬 Space Syntax Analysis (Online OpenMapping Engine)
-* **Zero-File Setup**: No Shapefiles required. Pulls live OpenStreetMap road network data via Overpass API in real-time.
-* **Topological Centrality**:
-  * **Spatial Integration** (To-Movement / Closeness Centrality): Identifies primary urban cores and retail hubs.
-  * **Spatial Choice** (Through-Movement / Betweenness Centrality): Detects major traffic spines and vehicular flow corridors.
-* **Metric Radii Options**: $R = 800\text{ m}$ (Pedestrian), $R = 2\text{ km}$ (Transit/Neighborhood), $R = 5\text{ km}$ (Citywide).
-* **Color Ramp**: Red (Top 10% Integration Core) ➔ Orange ➔ Yellow ➔ Green ➔ Blue (Cul-de-sacs).
+## Current scope
 
-### 2. ⚡ Desire Lines (OD Demand / Flow Matrix)
-* Automatically connects the **geometric Centroids** (`turf.centroid`) of any drawn Zones (Polygons, Parcels, or Circular Buffers).
-* **Dynamic Attribute Scaling**: Line thickness automatically scales with trip demand volume ($Q$).
-* **Real-time Scale Multiplier ($0.5\times - 4.0\times$)** to dynamically emphasize high-volume corridors.
-* **1-Click All-Pairs Matrix Generator**: Automatically interconnects all active zones on the map into an Origin-Destination flow web.
+The application is a single-file MapLibre/Turf prototype for local annotation work. It stores feature geometry as WGS84 longitude/latitude and keeps metric units and provider limitations explicit where they apply.
 
-### 3. ⌛ Accessibility & Catchment (Axon-City Style)
-* **Dual Representation**:
-  * **Isochrone Area Contours**: 5, 10, 15-minute catchment polygons.
-  * **Network Reachable Paths**: Street infrastructure tree highlighting walkable/drivable road segments.
-* **Travel Modes**: Walking (4.5 km/h), Cycling (15 km/h), Driving (40 km/h).
+Current working behavior includes:
 
-### 4. 🧲 CAD Precision Snapping & Bézier Smoothing
-* **Magnetic Snapping**: 15px snap radius to vertices (Green) and midpoints (Orange) with R-Tree spatial indexing.
-* **Road Snapping (OSRM)**: Snaps polylines to real-world road networks with distance metrics.
-* **Bézier Curves**: Converts angular line segments into aerodynamic curves via Turf.js spline interpolation.
+- Displaying the map with OpenStreetMap, ESRI, OpenTopoMap, and CARTO basemap options. Providers are best-effort and attribution is shown by the map/provider style.
+- Drawing points, polylines, and polygons with client-side vertex/midpoint snapping.
+- Dragging markers, editing names/styles, toggling visibility, undoing changes, and creating Turf.js buffer geometry.
+- Creating a user-authored desire line between selected centroids when the user supplies a demand value. The demand is not validated and is not a traffic assignment result.
+- Best-effort Nominatim place search. External routing/accessibility preview is disabled until a pedestrian method and provider contract are validated; no fallback geometry is fabricated.
+- GeoJSON import/export. Exported features carry a validationStatus and provenance object so authored, imported, experimental, and unvalidated data cannot be mistaken for validated engineering results.
+- A 3D Buildings control that is enabled only when the selected vector basemap exposes a compatible building source. It is disabled on raster/incompatible basemaps.
 
-### 5. ⛰️ Interactive Elevation Profile
-* Real-time elevation sampling along routes from Terrain DEM.
-* Bottom drawer interactive chart with bidirectional map marker tracking.
+## Capability status
 
-### 6. 📍 Dynamic Draggable Markers & Radius Buffers
-* Freely drag pins across the map with live attached circle buffer and label synchronization.
-* Configurable Radius Buffer (50m–10km) with metric ($km^2$) and Thai units (~Rai) area calculation.
-* 8 Marker Icons & 10 Color Swatches presets.
+| Status | Capability | Current truth |
+| --- | --- | --- |
+| Validated | Engineering analytics | None. No analytical method in this prototype is accepted as validated engineering analysis. |
+| Functional but unvalidated | Annotation, drawing, snapping, marker drag/undo, buffers, GeoJSON import/export | Useful prototype behavior; geometry and imported/user-authored values still require review for project use. |
+| Experimental | Basemap providers, Nominatim search, 3D buildings on compatible vector styles, user-authored desire lines | External services and outputs are best-effort or authored; attribution, provider policy, method, and limitations remain material. |
+| Disabled/Planned | Network centrality / Space Syntax, pedestrian routing and travel-time catchments, elevation/DEM profiles, all-pairs OD demand generation | Quarantined until separately validated methods, sources, and evidence are accepted. No pseudo or synthetic replacement is generated. |
 
-### 7. 🛰️ 12+ High-Definition Basemaps
-* Google Hybrid, Google Satellite, Google Streets, Google Terrain
-* ESRI World Imagery, ESRI Streets, ESRI Topo
-* Carto Dark Matter, Carto Positron, Carto Voyager, OSM Liberty, OpenTopoMap
+Motor-vehicle routing, traffic-aware isochrones, real DEM analysis, persistence architecture, and the future modular React/TypeScript migration are outside this R0 remediation.
 
----
+## Development
 
-## 🚀 Deployment Instructions for `bokoboss/city-map-tools`
+Prerequisites: Node.js 18+ and npm.
 
-### Initial Setup & Git Push
-```bash
-# 1. Clone your new repository (or navigate to your local folder)
-git clone https://github.com/bokoboss/city-map-tools.git
-cd city-map-tools
+~~~bash
+npm install
+npm run dev
+~~~
 
-# 2. Extract the files from city-map-tools-github.zip into this folder
-# 3. Stage and push to GitHub
-git add .
-git commit -m "feat: initial commit for City Map Tools v2.2"
-git branch -M main
-git push -u origin main
-```
+The development server uses the Vite shell and serves the application under the /city-map-tools/ path. The production smoke check is:
 
-### Enable GitHub Pages
-1. Go to your repository on GitHub: `https://github.com/bokoboss/city-map-tools`
-2. Navigate to **Settings** ➔ **Pages**
-3. Under **Build and deployment** ➔ **Source**, select **GitHub Actions**
-4. The workflow will run automatically and your app will be live at:
-   👉 **`https://bokoboss.github.io/city-map-tools/`**
+~~~bash
+npm run build
+~~~
+
+The prototype intentionally does not yet define a full lint, typecheck, unit, or end-to-end test suite. Browser smoke evidence is run manually for behavior that crosses the DOM, MapLibre, and provider boundaries.
+
+## Providers and attribution
+
+- OpenStreetMap tiles and Nominatim search are community/open services with usage policies and best-effort availability.
+- ESRI, CARTO, and OpenTopoMap basemaps retain provider attribution where required by their styles/tiles.
+- Routing/accessibility provider integration is not active in this revision; a future provider must be pedestrian-scoped and separately validated.
+- Direct undocumented Google tile endpoints are not included. A supported Google Maps Platform integration, if ever added, must be separately designed with authentication, billing, attribution, and usage review.
+- Provider errors are surfaced in the UI; local annotations remain client-side.
+
+## Provenance and licensing
+
+See [ACKNOWLEDGEMENTS.md](ACKNOWLEDGEMENTS.md) for the bounded provenance findings and the distinction between conceptual inspiration, methodology research, and embedded material.
+
+A repository license has not been selected while the complete source lineage remains unresolved. No third-party source, dataset, or asset is intentionally redistributed by this revision.

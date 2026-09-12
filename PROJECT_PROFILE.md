@@ -9,9 +9,9 @@
 
 ## Current accepted baseline
 - Accepted branch: `main`
-- Accepted HEAD SHA: `a0691f98c3b6289c95243cad1bf0851291b9904d`
+- Accepted HEAD SHA: `b030483a14f640cdc0322697241950cd54122e02`
 - Accepted date: 2026-09-12 (commit authored in the project timezone, UTC+07:00)
-- Current phase/milestone: R0 productionization of prototype — workflow baseline, truth/security remediation, early CI
+- Current phase/milestone: R0 productionization of prototype — post-#2 accepted; R0B truth/security/quarantine remediation in progress
 - Durable program record: GitHub Issue #1
 - Handoff checkpoint: GitHub Issue #23
 
@@ -136,4 +136,4 @@ Changes must not:
 - Future traffic-result overlay #16 and 3D simulation replay #22 are deferred.
 
 ## Current next objective
-Complete #2, then #3 and #6 Phase A according to Issue #1/#23 sequence.
+Complete and accept #3, then reconstruct the post-#3 state before #6 Phase A; #18 remains blocked.
