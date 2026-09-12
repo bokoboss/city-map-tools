@@ -92,7 +92,7 @@ Changes must not:
 - Project workflow profile: `PROJECT_PROFILE.md`
 - Agent rules: `AGENTS.md`
 - GitHub issue templates: `.github/ISSUE_TEMPLATE/`
-- GitHub workflows: `.github/workflows/` (currently empty)
+- GitHub workflows: `.github/workflows/deploy.yml`
 - Installed/pinned workflow after #2: `.engineering-workflow/`
 - Workflow manifest: `.engineering-workflow.json`
 - Future modular source/tests (after #18+): `src/`, `tests/`
@@ -131,7 +131,7 @@ Changes must not:
 - Known pseudo/synthetic analytics and DOM-XSS/provider/dead-control defects are tracked in #3.
 - No persistence/autosave.
 - No deterministic lockfile at the accepted baseline.
-- Pages is not currently enabled/configured for the Actions deploy workflow; `.github/workflows/` is currently empty in this checkout.
+- Historical GitHub Actions runs `34681081318` and `34681441457` failed at the `Setup Pages` step because GitHub Pages was not enabled/configured for GitHub Actions at that time; `.github/workflows/deploy.yml` exists in this checkout.
 - Space Syntax #10 is deferred research and is not part of v1 implementation.
 - Future traffic-result overlay #16 and 3D simulation replay #22 are deferred.
 
