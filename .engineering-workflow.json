@@ -1,0 +1,19 @@
+{
+  "managed": {
+    ".github/ISSUE_TEMPLATE/engineering-workflow-task.md": "b78bf6905a643ba151ee9c9ca5bf6c8b8bed935c95d72fef33ccbca87768c253",
+    "docs/development/ENGINEERING_WORKFLOW.md": "c7299c9e02491abbabf851a622e25508b0ed160fa5f5beb610867bbb53587824",
+    "docs/development/templates/ACCEPTANCE_GATE.md": "1fc03f5f9fa5aad567bbc9a1eb597bacc12eb3b5457f626d4c402bb71fc26070",
+    "docs/development/templates/CODEX_PROMPT.md": "eb741b53e5fbd04369b0b25fd2c5c7908ad33aee9a619b13ddfbbbf78ce9e33f",
+    "docs/development/templates/EVIDENCE_PACKAGE.md": "eb9fa882a7ffe285b99312be2e12dcaa071155a7c4c451bda7798e170eeee6dd",
+    "docs/development/templates/EXECUTION_CONTRACT.md": "423ebe4ad971dbb2955d2954ff53aff19b17ff8726f4ab7f5ccd869ee643e3c4",
+    "docs/development/templates/HANDOFF.md": "a1b4f84034f1c5a451057746752ae52a381ec32f65a4b4cc3f517399aa2bd74e",
+    "docs/development/templates/POSTMORTEM.md": "3890aee6fc50966fb828c8a15c46f74a786b6ad6822acc2c04db6918bc0c96c4"
+  },
+  "project_owned_created": [
+    "AGENTS.md",
+    "PROJECT_PROFILE.md"
+  ],
+  "schema_version": 1,
+  "workflow_repo": "https://github.com/bokoboss/engineering-development-workflow",
+  "workflow_version": "1.4.1"
+}
