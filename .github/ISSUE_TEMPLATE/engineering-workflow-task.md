@@ -6,6 +6,15 @@ labels: ''
 assignees: ''
 ---
 
+## Work mode
+- FAST / STANDARD / STRICT:
+- Rationale:
+- Escalation triggers:
+
+## Workspace safety
+- Target project root:
+- External writes approved: No / explicit path+action
+
 ## Objective
 
 ## Scope
