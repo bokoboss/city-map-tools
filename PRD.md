@@ -1,10 +1,23 @@
 # Product Requirement Document (PRD) & Technical Specification
 
+> **Document status: target/product vision.** This document describes planned architecture and future capabilities, not the current prototype contract. Current capability truth is maintained in `README.md`; features marked disabled, planned, or experimental are not validated engineering methods.
+
 ## Project: Next-Gen Map Tools (`map-tools-v2`)
 * **Upstream Baseline**: [bokoboss/map-tools](https://github.com/bokoboss/map-tools)
 * **Version**: 2.0.0
 * **Target Audience**: Transportation & Traffic Engineers, Urban Planners, GIS Specialists, Field Surveyors
 * **Priority Sequence**: `A` ➔ `B` ➔ `C` ➔ `E` ➔ `F` ➔ `D` ➔ `G`
+
+## Current R0B boundary
+
+The accepted prototype remains a static-first, single-file annotation tool. The following capabilities are explicitly quarantined until their own methods, sources, and evidence are accepted: network centrality / Space Syntax, pedestrian travel-time catchments, elevation/DEM profiles, and all-pairs OD demand generation. The current program does not add motor-vehicle routing or traffic-aware isochrones. No target item below should be read as implemented merely because it appears in this vision document.
+
+| Status | Meaning in this PRD |
+| --- | --- |
+| Validated | Accepted engineering method with independent reference evidence; none of the prototype analytics currently qualify. |
+| Functional but unvalidated | Prototype behavior that can be exercised but is not an engineering result. |
+| Experimental | Provider-backed or exploratory behavior with visible limitations and failure states. |
+| Disabled/Planned | Not executable in the current prototype; future work requires a separate validation gate. |
 
 ---
 
@@ -61,8 +74,8 @@ Next-Gen Map Tools transforms a lightweight 2D Leaflet annotation toy into a pro
 
 ### Module B: Smart CAD & Snapping (Priority 2)
 1. **Smart Road Snapping**:
-   * Auto-routing Polyline mode: User clicks Waypoint A and Waypoint B -> App queries OSRM Routing Engine -> Returns accurate road-aligned LineString with distance and turn details.
-   * Fallback to direct straight segment if no road is detected or if Shift key is held.
+   * Future pedestrian provider-backed route preview: User clicks Waypoint A and Waypoint B -> an optional pedestrian-scoped routing provider may return a route for review.
+   * Provider failure must fail closed; no direct-segment fallback or motor-vehicle route may be presented as a snapped, routed, or accessibility result.
 2. **CAD-Grade Magnetic Snapping**:
    * Client-side R-tree (`rbush`) indexing all vertices and line midpoints in active layers.
    * Configurable snap radius (10–20px screen space) with visual magnetic cursor indicator.
@@ -74,19 +87,19 @@ Next-Gen Map Tools transforms a lightweight 2D Leaflet annotation toy into a pro
    * Drawing or selecting a Polyline calculates elevation samples along the route.
    * Interactive cross-section chart rendered at the bottom drawer. Hovering over the elevation graph moves a sync marker along the 3D map line in real-time.
 2. **Isochrone Travel-Time Reachability**:
-   * Place a pin, pick travel mode (Walk, Bicycle, Drive), select threshold (5, 10, 15, 30 min).
+   * Place a pin, pick a pedestrian travel mode, and select a threshold (5, 10, 15, 30 min).
    * Generates multi-ring travel polygon sheds showing accessibility zones.
 3. **Buffer Zones**:
    * Generate instant buffer polygons around points, lines, or areas (e.g., 50m right-of-way, 500m transit catchment area) using `turf.buffer`.
 
 ### Module E: Figma-like UX/UI & State Management (Priority 4)
 1. **Infinite Undo/Redo Engine**:
-   * Full history tracking (`Ctrl+Z`, `Ctrl+Shift+Z` / `Ctrl+Y`) for geometry creation, node edits, style changes, and deletions.
+   * Full history tracking with keyboard bindings to be specified and tested in a future implementation; the current prototype does not advertise keyboard shortcuts.
 2. **Figma-Style Layer Manager**:
    * Left sidebar layer tree: Drag-and-drop layer reordering (controls render z-index).
    * Per-layer controls: Visibility toggle (Eye), Lock position, Opacity slider (0–100%), Color swatch, Renaming, Grouping folders.
 3. **Modern Floating Toolbars**:
-   * Floating dock with tool shortcuts: Select (V), Hand (H), Marker (M), Polyline (L), Road Snap (R), Polygon (P), Buffer (B), Measure (D).
+   * Floating dock with task controls; keyboard shortcuts are a future requirement and are not implemented in the current prototype.
 
 ### Module F: High-DPI Cartographic Print (Priority 5)
 1. **Publication-Ready Export Engine**:
@@ -159,7 +172,7 @@ export interface MapToolsFeatureProperties {
 
 | Milestone | Deliverables | Target Status |
 | :--- | :--- | :--- |
-| **M1 (Sprint 1)** | Core MapLibre 3D engine, 3D buildings, style switcher, and Road Snapping tool with OSRM | **Phase 1 Scaffold** |
-| **M2 (Sprint 2)** | Turf.js analytics, Elevation Profile chart, Isochrone generator, Buffer tool | Phase 2 |
-| **M3 (Sprint 3)** | Figma-like layer manager, Infinite Undo/Redo (Zundo), IndexedDB local persistence | Phase 3 |
-| **M4 (Sprint 4)** | 300 DPI Cartographic export with Scale Bar & North Arrow, DXF/Shapefile/KML parser, Media popups | Phase 4 |
+| **M1 (Sprint 1)** | Core MapLibre 3D engine, compatible-vector 3D buildings, style switcher, and experimental provider preview | **Planned / partially scaffolded** |
+| **M2 (Sprint 2)** | Validated Turf geometry operations, real DEM evidence, and pedestrian catchment research | **Planned / gated** |
+| **M3 (Sprint 3)** | Figma-like layer manager, bounded history, IndexedDB local persistence | **Planned** |
+| **M4 (Sprint 4)** | 300 DPI cartographic export, interoperability parsers, and media popups | **Planned** |
