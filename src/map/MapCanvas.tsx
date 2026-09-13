@@ -152,6 +152,7 @@ export function MapCanvas({
           {selectedFeature.description !== undefined && <div className="inspector-field"><span>Description</span><p>{selectedFeature.description}</p></div>}
           <div className="inspector-field"><span>Coordinates</span><output>[{selectedFeature.coordinates[0]}, {selectedFeature.coordinates[1]}]</output></div>
           <div className="inspector-field"><span>Lineage</span><output>{selectedFeature.lineage}</output></div>
+          {selectedFeature.provenance.sourceLineageClaim && <div className="inspector-field"><span>Source lineage claim (untrusted)</span><output>{selectedFeature.provenance.sourceLineageClaim.lineage}</output></div>}
           <div className="inspector-field"><span>Validation status</span><output>{selectedFeature.validationStatus}</output></div>
           <div className="inspector-field"><span>Provenance</span><p>{selectedFeature.provenance.method}; {selectedFeature.provenance.source}; {selectedFeature.provenance.limitations}</p></div>
         </section>}

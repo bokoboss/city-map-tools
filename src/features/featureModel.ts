@@ -26,6 +26,8 @@ export interface Provenance {
   units: string;
   limitations: string;
   importedValidationStatus?: string;
+  // Audit data from an untrusted file; never used as active workspace lineage.
+  sourceLineageClaim?: { lineage: FeatureLineage; trust: 'untrusted' };
   importChain?: string[];
   derivedFrom?: DerivedFrom;
 }
@@ -112,6 +114,10 @@ export function normalizeProvenance(value: unknown, depth = 0): Provenance | nul
   if (!method || !source || !units || !limitations) return null;
 
   const normalized: Provenance = { method, source, units, limitations };
+  if (isRecord(value.sourceLineageClaim) &&
+      isFeatureLineage(value.sourceLineageClaim.lineage) && value.sourceLineageClaim.trust === 'untrusted') {
+    normalized.sourceLineageClaim = { lineage: value.sourceLineageClaim.lineage, trust: 'untrusted' };
+  }
   const importedValidationStatus = text(value.importedValidationStatus);
   if (importedValidationStatus) normalized.importedValidationStatus = importedValidationStatus;
 

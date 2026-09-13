@@ -29,6 +29,22 @@ Pages configuration remains a separate human-controlled deployment gate.
   unsupported geometry, malformed coordinates, and unknown layers reject the whole
   import with a visible reason. Imported text is rendered as text, never HTML.
 
+GeoJSON imports accept at most **500 Points per file** and 1,000,000 characters.
+Larger collections reject before Point conversion; feature state and selection
+remain unchanged. This is a per-import limit, not a total workspace limit. Exports
+contain all workspace Points; exports above either import limit cannot be re-imported
+as one file. There is no automatic splitting, clustering, or virtualization.
+
+Every file import, including a current application export, has active lineage
+`imported`. Public format/version/generator markers do not authenticate a file.
+Recognized incoming lineage is retained only as the bounded provenance object
+`sourceLineageClaim: { lineage: "authored" | "imported" | "derived", trust: "untrusted" }`.
+An existing source claim takes precedence over the incoming active lineage so it
+survives subsequent export/re-import cycles. These claims never activate derived
+or trusted behavior. `derivedFrom` remains imported audit/reference data and follows
+the deterministic ID collision mapping. `Validated` claims remain demoted to
+`Functional but unvalidated` with the original claim retained in provenance.
+
 The accepted R0 annotation prototype is preserved unchanged at
 [`legacy/r0-safe-prototype.html`](legacy/r0-safe-prototype.html), with a
 [reference-only marker](legacy/README.md). It is not included in the production
@@ -61,6 +77,18 @@ rendering, pan/zoom, both basemaps, provider error/recovery, incompatible 3D,
 compatible 3D on/off, and reload cleanup. CI's stable `build` check runs clean
 install, typecheck, and build on PR/main; deploy also typechecks before building
 and uploading only `dist/`. No lint/unit/E2E script is claimed.
+
+Focused Issue #19 regression fixtures are committed under `tests/`:
+
+```sh
+npx --yes --package tsx tsx tests/geojson-import.test.ts
+# With the production preview running and a playwright-cli browser open:
+npx --yes --package @playwright/cli playwright-cli run-code --filename tests/geojson-browser.js
+```
+
+These check import trust, count limits, transactional state preservation, XSS,
+provenance round-trips, and the Point/layer/basemap controls. The browser fixture
+uses generated File objects through the file input and reads actual export downloads.
 
 MapLibre v6's worker is bundled with
 `maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url` and `setWorkerUrl(...)`, per

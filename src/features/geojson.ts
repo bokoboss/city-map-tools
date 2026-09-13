@@ -9,7 +9,6 @@ import {
   normalizeProvenance,
   normalizeValidationStatus,
   type FeatureLayer,
-  type FeatureLineage,
   type PointFeature,
   type Provenance,
   validateWgs84Point,
@@ -18,6 +17,7 @@ import {
 export const GEOJSON_EXPORT_FORMAT = 'city-map-tools.geojson';
 export const GEOJSON_EXPORT_VERSION = 1;
 export const GEOJSON_MAX_TEXT_LENGTH = 1_000_000;
+export const GEOJSON_MAX_FEATURES = 500;
 
 export const SUPPORTED_GEOJSON_PROPERTIES = [
   'name',
@@ -64,9 +64,16 @@ function readBoundedString(value: unknown, label: string, maxLength = MAX_TEXT_L
 
 function assertSupportedProvenance(value: unknown, label: string, depth = 0): void {
   if (!isRecord(value) || depth > 2) fail(`${label} must be a bounded provenance object.`);
-  const supported = new Set(['method', 'source', 'units', 'limitations', 'importedValidationStatus', 'importChain', 'derivedFrom']);
+  const supported = new Set(['method', 'source', 'units', 'limitations', 'importedValidationStatus', 'sourceLineageClaim', 'importChain', 'derivedFrom']);
   const unsupported = Object.keys(value).find(key => !supported.has(key));
   if (unsupported) fail(`${label}.${unsupported} is unsupported; import was rejected without changing app state.`);
+  if (value.sourceLineageClaim !== undefined) {
+    const claim = value.sourceLineageClaim;
+    if (!isRecord(claim) || !isFeatureLineage(claim.lineage) || claim.trust !== 'untrusted' ||
+        Object.keys(claim).some(key => key !== 'lineage' && key !== 'trust')) {
+      fail(`${label}.sourceLineageClaim must contain a recognized lineage and trust "untrusted" only.`);
+    }
+  }
   for (const key of ['method', 'source', 'units', 'limitations', 'importedValidationStatus']) {
     if (value[key] !== undefined) readBoundedString(value[key], `${label}.${key}`, key === 'importedValidationStatus' ? MAX_FEATURE_ID_LENGTH : MAX_TEXT_LENGTH);
   }
@@ -97,13 +104,6 @@ function readFeatureId(value: unknown, index: number): string {
   fail(`Feature ${index + 1} id must be a string or safe integer.`);
 }
 
-function isApplicationExport(document: GeoJsonFeatureCollection): boolean {
-  return isRecord(document.metadata) &&
-    document.metadata.format === GEOJSON_EXPORT_FORMAT &&
-    document.metadata.version === GEOJSON_EXPORT_VERSION &&
-    document.metadata.generator === 'City Map Tools';
-}
-
 function readProperties(value: unknown, index: number): JsonProperties {
   if (value === null || value === undefined) return {};
   if (!isRecord(value)) fail(`Feature ${index + 1} properties must be an object or null.`);
@@ -112,12 +112,10 @@ function readProperties(value: unknown, index: number): JsonProperties {
   return value as JsonProperties;
 }
 
-function appendImportContext(provenance: Provenance, applicationExport: boolean): Provenance {
+function appendImportContext(provenance: Provenance): Provenance {
   const chain = provenance.importChain ? provenance.importChain.slice(-19) : [];
-  chain.push(applicationExport
-    ? 'GeoJSON import from City Map Tools export'
-    : 'GeoJSON import from external file');
-  const note = 'This import preserves lineage but does not independently validate it.';
+  chain.push('GeoJSON file import; source lineage claims are untrusted');
+  const note = 'Imported provenance and source lineage claims are untrusted; not independently validated.';
   const separator = '; ';
   const available = MAX_TEXT_LENGTH - separator.length - note.length;
   const limitations = provenance.limitations.includes(note)
@@ -126,7 +124,7 @@ function appendImportContext(provenance: Provenance, applicationExport: boolean)
   return { ...provenance, limitations, importChain: chain };
 }
 
-function readPointFeature(value: unknown, index: number, layers: readonly FeatureLayer[], applicationExport: boolean): PointFeature {
+function readPointFeature(value: unknown, index: number, layers: readonly FeatureLayer[]): PointFeature {
   if (!isRecord(value) || value.type !== 'Feature') fail(`Feature ${index + 1} must be a GeoJSON Feature.`);
   if (!isRecord(value.geometry) || value.geometry.type !== 'Point') {
     const geometryType = isRecord(value.geometry) && typeof value.geometry.type === 'string' ? value.geometry.type : 'missing';
@@ -168,10 +166,12 @@ function readPointFeature(value: unknown, index: number, layers: readonly Featur
   if (properties.provenance !== undefined && !rawProvenance) {
     fail(`Feature ${index + 1} provenance must include method, source, units, and limitations.`);
   }
-  const lineage: FeatureLineage = applicationExport && isFeatureLineage(properties.lineage)
-    ? properties.lineage
-    : 'imported';
-  const provenance = appendImportContext(rawProvenance || defaultProvenance(lineage), applicationExport);
+  const provenance = appendImportContext(rawProvenance || defaultProvenance('imported'));
+  // Retain the original audit claim across re-imports, even though exports now
+  // carry active lineage "imported". Neither field grants workspace trust.
+  if (!provenance.sourceLineageClaim && isFeatureLineage(properties.lineage)) {
+    provenance.sourceLineageClaim = { lineage: properties.lineage, trust: 'untrusted' };
+  }
   if (typeof rawStatus === 'string' && rawStatus !== validationStatus) {
     provenance.importedValidationStatus = boundedText(rawStatus, 120);
   }
@@ -184,7 +184,7 @@ function readPointFeature(value: unknown, index: number, layers: readonly Featur
     ...(description === undefined ? {} : { description }),
     layerId,
     visible: properties.visible !== false,
-    lineage,
+    lineage: 'imported',
     validationStatus,
     provenance,
   };
@@ -203,8 +203,10 @@ export function importGeoJsonText(text: string, layers: readonly FeatureLayer[])
   }
   const document = parsed as unknown as GeoJsonFeatureCollection;
   if (document.features.length === 0) fail('GeoJSON FeatureCollection contains no features.');
-  const applicationExport = isApplicationExport(document);
-  const imported = document.features.map((feature, index) => readPointFeature(feature, index, layers, applicationExport));
+  if (document.features.length > GEOJSON_MAX_FEATURES) {
+    fail(`GeoJSON exceeds the ${GEOJSON_MAX_FEATURES}-Point import limit; import was rejected without changing app state.`);
+  }
+  const imported = document.features.map((feature, index) => readPointFeature(feature, index, layers));
   const ids = new Set<string>();
   for (const feature of imported) {
     if (ids.has(feature.id)) {
