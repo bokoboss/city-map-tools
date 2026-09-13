@@ -1,5 +1,6 @@
 export const POINT_LAYER_ID = 'layer-points';
 export const MAX_TEXT_LENGTH = 500;
+export const MAX_FEATURE_ID_LENGTH = 120;
 
 export const VALIDATION_STATUSES = [
   'Validated',
@@ -195,7 +196,11 @@ export function resolveImportedFeatures(
     let id = feature.id;
     let suffix = 2;
     while (used.has(id)) {
-      id = `${feature.id}-${suffix}`;
+      const suffixText = `-${suffix}`;
+      if (suffixText.length >= MAX_FEATURE_ID_LENGTH) {
+        throw new Error('Imported feature ID collision cannot be represented within the ID length limit.');
+      }
+      id = `${boundedText(feature.id, MAX_FEATURE_ID_LENGTH - suffixText.length)}${suffixText}`;
       suffix += 1;
     }
     used.add(id);

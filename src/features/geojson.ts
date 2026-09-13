@@ -4,6 +4,7 @@ import {
   isFeatureLineage,
   isRecord,
   isValidationStatus,
+  MAX_FEATURE_ID_LENGTH,
   MAX_TEXT_LENGTH,
   normalizeProvenance,
   normalizeValidationStatus,
@@ -67,7 +68,7 @@ function assertSupportedProvenance(value: unknown, label: string, depth = 0): vo
   const unsupported = Object.keys(value).find(key => !supported.has(key));
   if (unsupported) fail(`${label}.${unsupported} is unsupported; import was rejected without changing app state.`);
   for (const key of ['method', 'source', 'units', 'limitations', 'importedValidationStatus']) {
-    if (value[key] !== undefined) readBoundedString(value[key], `${label}.${key}`, key === 'importedValidationStatus' ? 120 : MAX_TEXT_LENGTH);
+    if (value[key] !== undefined) readBoundedString(value[key], `${label}.${key}`, key === 'importedValidationStatus' ? MAX_FEATURE_ID_LENGTH : MAX_TEXT_LENGTH);
   }
   if (value.importChain !== undefined) {
     if (!Array.isArray(value.importChain) || value.importChain.length > 20 ||
@@ -80,7 +81,7 @@ function assertSupportedProvenance(value: unknown, label: string, depth = 0): vo
     const derivedKeys = new Set(['id', 'name', 'validationStatus', 'provenance']);
     const unsupportedDerived = Object.keys(value.derivedFrom).find(key => !derivedKeys.has(key));
     if (unsupportedDerived) fail(`${label}.derivedFrom.${unsupportedDerived} is unsupported.`);
-    if (value.derivedFrom.id !== undefined) readBoundedString(value.derivedFrom.id, `${label}.derivedFrom.id`, 120);
+    if (value.derivedFrom.id !== undefined) readBoundedString(value.derivedFrom.id, `${label}.derivedFrom.id`, MAX_FEATURE_ID_LENGTH);
     if (value.derivedFrom.name !== undefined) readBoundedString(value.derivedFrom.name, `${label}.derivedFrom.name`);
     if (value.derivedFrom.validationStatus !== undefined && !isValidationStatus(value.derivedFrom.validationStatus)) {
       fail(`${label}.derivedFrom.validationStatus is not recognized.`);
@@ -91,7 +92,7 @@ function assertSupportedProvenance(value: unknown, label: string, depth = 0): vo
 
 function readFeatureId(value: unknown, index: number): string {
   if (value === undefined || value === null) return `imported-point-${index + 1}`;
-  if (typeof value === 'string') return readBoundedString(value, `Feature ${index + 1} id`, 120);
+  if (typeof value === 'string') return readBoundedString(value, `Feature ${index + 1} id`, MAX_FEATURE_ID_LENGTH);
   if (typeof value === 'number' && Number.isSafeInteger(value)) return String(value);
   fail(`Feature ${index + 1} id must be a string or safe integer.`);
 }
@@ -147,7 +148,7 @@ function readPointFeature(value: unknown, index: number, layers: readonly Featur
     : readBoundedString(properties.description, `Feature ${index + 1} description`);
   const layerId = properties.layerId === undefined
     ? layers[0]?.id
-    : readBoundedString(properties.layerId, `Feature ${index + 1} layerId`, 120);
+     : readBoundedString(properties.layerId, `Feature ${index + 1} layerId`, MAX_FEATURE_ID_LENGTH);
   if (!layerId || !layers.some(layer => layer.id === layerId)) {
     fail(`Feature ${index + 1} references an unknown layer; no fallback layer was guessed.`);
   }
