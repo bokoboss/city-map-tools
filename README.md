@@ -1,7 +1,8 @@
 ﻿# City Map Tools
 
-Static-first map viewing foundation. This revision introduces the modular shell
-in Issue #18; it does not provide validated engineering analysis.
+Static-first map workspace. This revision carries the modular shell from Issue #18
+and the bounded Point/layer/GeoJSON slice from Issue #19; it does not provide
+validated engineering analysis.
 
 Repository: <https://github.com/bokoboss/city-map-tools>
 Intended Pages URL: <https://bokoboss.github.io/city-map-tools/>.
@@ -19,16 +20,24 @@ Pages configuration remains a separate human-controlled deployment gate.
 - Reload map creates a fresh map session. Basemap changes preserve location/zoom
   and reset 3D. Provider failures disable 3D and remain visible until a new basemap
   load or explicit reload; no fallback data is generated.
+- Create and select Point features, rename them in the inspector, and toggle the
+  Points layer visibility. New points are authored and remain `Functional but
+  unvalidated` with explicit WGS84 longitude/latitude provenance.
+- Import and export GeoJSON FeatureCollections for Point geometry only. Supported
+  properties are `name`, `description`, `layerId`, `visible`, `lineage`,
+  `validationStatus`, and the bounded R0 provenance object. Unknown properties,
+  unsupported geometry, malformed coordinates, and unknown layers reject the whole
+  import with a visible reason. Imported text is rendered as text, never HTML.
 
 The accepted R0 annotation prototype is preserved unchanged at
 [`legacy/r0-safe-prototype.html`](legacy/r0-safe-prototype.html), with a
 [reference-only marker](legacy/README.md). It is not included in the production
-build. Its editor, search, GeoJSON, drawing, buffers, and history are not available
-in this shell. Later bounded Issues #19, #20, #5, and #21 own those migrations.
+build. Its search, drawing, buffers, and history are not available in this shell.
+Later bounded Issues #20, #5, and #21 own those migrations.
 
 Space Syntax, routing/accessibility, synthetic isochrones, elevation, and OD
 analytics remain unavailable. No analytical engine is migrated or reactivated.
-There is no project storage, API-key input, or export in this slice.
+There is no project storage, API-key input, or non-Point GIS format in this slice.
 
 ## Development and verification
 

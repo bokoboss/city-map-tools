@@ -8,14 +8,13 @@
 - Package version: `2.2.0` (package label, not a production-readiness claim)
 
 ## Current accepted baseline
-- Accepted pre-#18 main: `37417ff12c8adb5ec2de83da99aa3fdae720c09c`
+- Accepted pre-#19 main: `70bcadeb5baecdd174b815ec1fe5d3ce5679aa7f`
 - Accepted date: 2026-09-12, project timezone UTC+07:00
 - #2 workflow baseline, #3 R0B truth/security/quarantine remediation (PR #25), and
   #6 Phase A deterministic install/CI (PR #26) are accepted and merged.
 - Durable program record: Issue #1. Latest checkpoint: Issue #23.
-- Issue #18's execution packet and latest routing addendum authorize this first
-  modular shell. This branch's implementation is pending PR acceptance; it does
-  not change the accepted main SHA above.
+- Issue #18 is accepted and merged (PR #27). Issue #19 is the current bounded
+  implementation slice; this branch's implementation is pending PR acceptance.
 
 ## Current implemented stack
 - Vite 6 + React + strict TypeScript + npm/ESM MapLibre GL JS v6.
@@ -23,9 +22,11 @@
   small typed basemap config, and plain build-time CSS.
 - Production scope: map navigation, OSM raster/CARTO Voyager vector switching,
   loading/error recovery, and explicit compatible/unavailable 3D state.
+- Issue #19 scope: typed Point features/layers, point creation/selection/rename,
+  layer visibility, and transactional safe Point-only GeoJSON import/export.
 - Accepted R0 monolithic prototype preserved unchanged as non-production reference
   at `legacy/r0-safe-prototype.html`; excluded from `dist/`.
-- No production editor, GeoJSON workflow, persistence, history, or analytical engine.
+- No persistence, history, line/polygon drawing, buffers, or analytical engine.
 - No established automated unit/E2E suite. Production-preview browser smoke is
   required for changes at the React/MapLibre/provider boundary.
 
@@ -115,9 +116,11 @@ is still a separate human-controlled blocker; do not alter it as part of #18.
 - Report external writes and global/system changes explicitly.
 
 ## Current objective and remaining limitations
-Complete/review #18, then reconstruct accepted main before #19.
+Complete/review #19, then reconstruct accepted main before #20.
 Sequence: #18 → #19 → #20 → (#5 + #6 Phase B) → #21.
 
 Provider availability/coverage is best-effort, 3D is visualization only, project
-storage is absent, and no engineering analytics are validated. The legacy reference
-retains prototype behavior and quarantine but is not the current production app.
+storage/history is absent, GeoJSON supports only structurally valid Point/WGS84
+coordinates and an explicit scalar/provenance property subset, and no engineering
+analytics are validated. The legacy reference retains prototype behavior and
+quarantine but is not the current production app.
