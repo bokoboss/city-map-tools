@@ -8,14 +8,25 @@ async (page) => {
   const point = (id, properties = {}) => ({ type: 'Feature', id, geometry: { type: 'Point', coordinates: [100.5, 13.75] }, properties });
   const provenance = { method: 'Fixture', source: 'Untrusted file', units: 'WGS84 longitude/latitude', limitations: 'Unvalidated' };
   const collection = features => ({ type: 'FeatureCollection', metadata: { format: 'city-map-tools.geojson', version: 1, generator: 'City Map Tools' }, features });
-  const upload = async document => {
+  const upload = async (document, expected = { kind: 'imported', count: document.features.length }) => {
+    const status = page.locator('.import-status');
+    const previousStatus = await status.innerText();
+    const completion = page.waitForFunction(({ previous, expectedStatus }) => {
+      const current = document.querySelector('.import-status').textContent;
+      if (current === previous) return false;
+      if (expectedStatus.kind === 'imported') {
+        const suffix = expectedStatus.count === 1 ? 'feature' : 'features';
+        return current === `Imported ${expectedStatus.count} Point ${suffix}; imported values remain unvalidated.`;
+      }
+      return current.startsWith('Import rejected:') && current.includes(expectedStatus.reason);
+    }, { previous: previousStatus, expectedStatus: expected });
     await page.locator('input[type=file]').evaluate((input, text) => {
       const transfer = new DataTransfer();
       transfer.items.add(new File([text], 'fixture.geojson', { type: 'application/geo+json' }));
       input.files = transfer.files;
       input.dispatchEvent(new Event('change', { bubbles: true }));
     }, JSON.stringify(document));
-    await page.waitForFunction(() => /^(Imported |Import rejected:)/.test(document.querySelector('.import-status').textContent));
+    await completion;
   };
   const exported = async () => {
     const pending = page.waitForEvent('download');
@@ -30,7 +41,7 @@ async (page) => {
     const before = await exported();
     const selected = await page.locator('.inspector-id').innerText();
     const priorCount = await count();
-    await upload(document);
+    await upload(document, { kind: 'rejected', reason: expected });
     const message = await page.locator('.import-status').innerText();
     check(message.startsWith('Import rejected:') && message.includes(expected), `visible rejection: ${message}`);
     check(await count() === priorCount, 'rejection preserves feature count');
