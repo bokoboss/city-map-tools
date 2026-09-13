@@ -170,3 +170,57 @@ export function createAuthoredPoint(id: string, coordinates: Wgs84Point, index: 
 export function renamePoint(feature: PointFeature, name: string): PointFeature {
   return { ...feature, name: name.length > 0 ? boundedText(name) : 'Untitled point' };
 }
+
+function remapProvenanceIds(provenance: Provenance, idMap: ReadonlyMap<string, string>): Provenance {
+  const derivedFrom = provenance.derivedFrom;
+  if (!derivedFrom) return provenance;
+
+  const remappedDerivedFrom: DerivedFrom = {
+    ...derivedFrom,
+    ...(derivedFrom.id && idMap.has(derivedFrom.id) ? { id: idMap.get(derivedFrom.id) } : {}),
+    ...(derivedFrom.provenance
+      ? { provenance: remapProvenanceIds(derivedFrom.provenance, idMap) }
+      : {}),
+  };
+  return { ...provenance, derivedFrom: remappedDerivedFrom };
+}
+
+export function resolveImportedFeatures(
+  imported: readonly PointFeature[],
+  existing: readonly PointFeature[],
+): PointFeature[] {
+  const used = new Set(existing.map(feature => feature.id));
+  const idMap = new Map<string, string>();
+  const resolvedIds = imported.map(feature => {
+    let id = feature.id;
+    let suffix = 2;
+    while (used.has(id)) {
+      id = `${feature.id}-${suffix}`;
+      suffix += 1;
+    }
+    used.add(id);
+    idMap.set(feature.id, id);
+    return id;
+  });
+
+  return imported.map((feature, index) => {
+    const id = resolvedIds[index];
+    if (!id) throw new Error('Imported feature ID resolution produced an incomplete result.');
+    return {
+      ...feature,
+      id,
+      provenance: remapProvenanceIds(feature.provenance, idMap),
+    };
+  });
+}
+
+export function importFeaturesIntoWorkspace(
+  imported: readonly PointFeature[],
+  existing: readonly PointFeature[],
+): { features: PointFeature[]; selectedFeatureId: string | null } {
+  const inserted = resolveImportedFeatures(imported, existing);
+  return {
+    features: [...existing, ...inserted],
+    selectedFeatureId: inserted[0]?.id || null,
+  };
+}

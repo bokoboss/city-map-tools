@@ -1,6 +1,6 @@
-import { useState } from 'react';
+import { useReducer, useState } from 'react';
 import { importGeoJsonText, exportGeoJson, GEOJSON_MAX_TEXT_LENGTH } from './features/geojson';
-import { createAuthoredPoint, createDefaultLayers, renamePoint } from './features/featureModel';
+import { createAuthoredPoint, createDefaultLayers, importFeaturesIntoWorkspace, renamePoint } from './features/featureModel';
 import type { FeatureLayer, PointFeature, Wgs84Point } from './features/featureModel';
 import { MapCanvas } from './map/MapCanvas';
 import type { EditorMode } from './map/MapCanvas';
@@ -12,39 +12,58 @@ function nextPointId(features: readonly PointFeature[], prefix: string): string 
   return `${prefix}-${index}`;
 }
 
-function uniqueImportedFeatures(imported: readonly PointFeature[], existing: readonly PointFeature[]): PointFeature[] {
-  const used = new Set(existing.map(feature => feature.id));
-  return imported.map(feature => {
-    let id = feature.id;
-    let suffix = 2;
-    while (used.has(id)) {
-      id = `${feature.id}-${suffix}`;
-      suffix += 1;
+interface FeatureState {
+  features: PointFeature[];
+  selectedFeatureId: string | null;
+}
+
+type FeatureAction =
+  | { type: 'create'; coordinates: Wgs84Point }
+  | { type: 'import'; imported: readonly PointFeature[] }
+  | { type: 'select'; id: string | null }
+  | { type: 'toggleVisibility'; id: string }
+  | { type: 'rename'; id: string; name: string };
+
+function featureReducer(state: FeatureState, action: FeatureAction): FeatureState {
+  switch (action.type) {
+    case 'create': {
+      const point = createAuthoredPoint(nextPointId(state.features, 'point'), action.coordinates, state.features.length + 1);
+      return { features: [...state.features, point], selectedFeatureId: point.id };
     }
-    used.add(id);
-    return id === feature.id ? feature : { ...feature, id };
-  });
+    case 'import': {
+      const next = importFeaturesIntoWorkspace(action.imported, state.features);
+      return { features: next.features, selectedFeatureId: next.selectedFeatureId };
+    }
+    case 'select':
+      return { ...state, selectedFeatureId: action.id };
+    case 'toggleVisibility':
+      return {
+        ...state,
+        features: state.features.map(feature => feature.id === action.id ? { ...feature, visible: !feature.visible } : feature),
+      };
+    case 'rename':
+      return {
+        ...state,
+        features: state.features.map(feature => feature.id === action.id ? renamePoint(feature, action.name) : feature),
+      };
+  }
 }
 
 export function App() {
   const [mapSession, setMapSession] = useState(0);
-  const [features, setFeatures] = useState<PointFeature[]>([]);
+  const [featureState, dispatchFeature] = useReducer(featureReducer, { features: [], selectedFeatureId: null });
+  const { features, selectedFeatureId } = featureState;
   const [layers, setLayers] = useState<FeatureLayer[]>(createDefaultLayers);
-  const [selectedFeatureId, setSelectedFeatureId] = useState<string | null>(null);
   const [mode, setMode] = useState<EditorMode>('select');
   const [importStatus, setImportStatus] = useState('No GeoJSON imported.');
 
   const handleMapPointClick = (coordinates: Wgs84Point) => {
     if (mode !== 'create') {
-      setSelectedFeatureId(null);
+      dispatchFeature({ type: 'select', id: null });
       return;
     }
-    setFeatures(current => {
-      const point = createAuthoredPoint(nextPointId(current, 'point'), coordinates, current.length + 1);
-      setSelectedFeatureId(point.id);
-      setMode('select');
-      return [...current, point];
-    });
+    dispatchFeature({ type: 'create', coordinates });
+    setMode('select');
   };
 
   const handleImportFile = async (file: File) => {
@@ -54,11 +73,9 @@ export function App() {
     }
     try {
       const imported = importGeoJsonText(await file.text(), layers);
-      const safeImported = uniqueImportedFeatures(imported, features);
-      setFeatures(current => [...current, ...uniqueImportedFeatures(imported, current)]);
-      setSelectedFeatureId(safeImported[0]?.id || null);
+      dispatchFeature({ type: 'import', imported });
       setMode('select');
-      setImportStatus(`Imported ${safeImported.length} Point feature${safeImported.length === 1 ? '' : 's'}; imported values remain unvalidated.`);
+      setImportStatus(`Imported ${imported.length} Point feature${imported.length === 1 ? '' : 's'}; imported values remain unvalidated.`);
     } catch (error) {
       setImportStatus(`Import rejected: ${error instanceof Error ? error.message : 'unsupported GeoJSON input.'}`);
     }
@@ -89,12 +106,12 @@ export function App() {
         mode={mode}
         importStatus={importStatus}
         onModeChange={setMode}
-        onPointSelect={setSelectedFeatureId}
+        onPointSelect={id => dispatchFeature({ type: 'select', id })}
         onMapPointClick={handleMapPointClick}
         onLayerVisibilityChange={id => setLayers(current => current.map(layer => layer.id === id ? { ...layer, visible: !layer.visible } : layer))}
-        onFeatureVisibilityChange={id => setFeatures(current => current.map(feature => feature.id === id ? { ...feature, visible: !feature.visible } : feature))}
-        onFeatureSelect={setSelectedFeatureId}
-        onFeatureRename={(id, name) => setFeatures(current => current.map(feature => feature.id === id ? renamePoint(feature, name) : feature))}
+        onFeatureVisibilityChange={id => dispatchFeature({ type: 'toggleVisibility', id })}
+        onFeatureSelect={id => dispatchFeature({ type: 'select', id })}
+        onFeatureRename={(id, name) => dispatchFeature({ type: 'rename', id, name })}
         onImportFile={handleImportFile}
         onExport={handleExport}
       />

@@ -117,9 +117,11 @@ function appendImportContext(provenance: Provenance, applicationExport: boolean)
     ? 'GeoJSON import from City Map Tools export'
     : 'GeoJSON import from external file');
   const note = 'This import preserves lineage but does not independently validate it.';
+  const separator = '; ';
+  const available = MAX_TEXT_LENGTH - separator.length - note.length;
   const limitations = provenance.limitations.includes(note)
     ? provenance.limitations
-    : `${provenance.limitations}; ${note}`;
+    : `${boundedText(provenance.limitations, available)}${separator}${note}`;
   return { ...provenance, limitations, importChain: chain };
 }
 
