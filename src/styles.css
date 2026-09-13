@@ -18,6 +18,35 @@ h1 { font-size: 21px; margin: 0; letter-spacing: -0.4px; }
 .map-controls { flex: 0 0 290px; background: #fff; border-right: 1px solid #cbd5db; padding: 20px; overflow-y: auto; }
 .map-controls label { display: block; font-size: 13px; font-weight: 650; margin-bottom: 8px; }
 .map-controls select { width: 100%; }
+.map-controls h2 { font-size: 14px; margin: 0 0 10px; }
+.editor-tools, .layer-panel, .inspector, .map-options { padding-bottom: 18px; margin-bottom: 18px; border-bottom: 1px solid #dce4e8; }
+.mode-buttons, .file-actions { display: flex; gap: 8px; }
+.mode-buttons button, .file-actions button, .file-button { flex: 1; font-size: 12px; padding: 8px; text-align: center; }
+.control-help, .import-status, .inspector-id { color: #526573; font-size: 12px; }
+.import-status { display: block; min-height: 18px; margin-top: 9px; }
+.file-button { border: 1px solid #afbec8; border-radius: 6px; background: #fff; cursor: pointer; }
+.file-button:hover { background: #edf4f8; }
+.file-button input { width: 1px; height: 1px; opacity: 0; position: absolute; }
+.layer-card { padding: 9px; margin-top: 8px; border: 1px solid #d4dfe4; border-radius: 6px; background: #f8fafb; }
+.layer-header, .layer-name, .feature-list li { display: flex; align-items: center; gap: 7px; }
+.layer-header, .feature-list li { justify-content: space-between; }
+.layer-name { min-width: 0; font-size: 13px; font-weight: 650; }
+.layer-color { width: 10px; height: 10px; flex: 0 0 auto; border-radius: 50%; }
+.feature-count, .feature-row-lineage, .inspector-id { color: #687b87; font-size: 11px; font-weight: 400; }
+.visibility-button, .feature-visibility { padding: 5px 7px; font-size: 11px; }
+.feature-list { list-style: none; padding: 7px 0 0; margin: 7px 0 0; border-top: 1px solid #dce4e8; }
+.feature-list li { align-items: stretch; margin-top: 5px; }
+.feature-row { display: flex; min-width: 0; flex: 1; justify-content: space-between; gap: 7px; padding: 6px 7px; border: 0; background: transparent; text-align: left; }
+.feature-row:hover, .feature-row.selected { background: #e7f0f4; }
+.feature-row-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.inspector label { margin-top: 8px; }
+.inspector input { width: 100%; }
+.stored-value, .inspector-field { display: block; margin-top: 10px; font-size: 12px; overflow-wrap: anywhere; }
+.stored-value { padding: 7px; border-radius: 4px; background: #eef4f7; }
+.inspector-field > span { display: block; color: #526573; font-weight: 650; margin-bottom: 3px; }
+.inspector-field output { font-variant-numeric: tabular-nums; }
+.inspector-field p { font-size: 12px; }
+.map-options { border-bottom: 0; margin-bottom: 0; }
 .map-status { margin-top: 20px; padding: 12px; border-left: 3px solid #5786a1; background: #eef4f7; font-size: 13px; }
 .map-status.ready { border-color: #2f7963; background: #edf6f1; }
 .map-status.error { border-color: #a3452e; background: #fff0e9; }
@@ -28,11 +57,16 @@ summary { cursor: pointer; font-weight: 650; padding: 4px 0; }
 .map-position { display: block; margin-top: 20px; font-size: 11px; font-variant-numeric: tabular-nums; color: #526573; }
 .map-canvas { flex: 1; min-width: 0; background: #dde5e8; }
 .app-footer { padding: 9px 22px; font-size: 11px; line-height: 1.5; border-top: 1px solid #cbd5db; background: #fff; }
+.point-marker { display: flex; flex-direction: column; align-items: center; border: 0; padding: 0; background: transparent; color: #1e3443; }
+.point-marker:focus-visible { outline: 3px solid #237aa4; outline-offset: 3px; }
+.point-marker-dot { width: 18px; height: 18px; display: block; border: 3px solid #fff; border-radius: 50%; box-shadow: 0 1px 5px #18313f99; }
+.point-marker-label { max-width: 180px; margin-top: 3px; padding: 2px 5px; border-radius: 3px; background: #fff; box-shadow: 0 1px 4px #18313f44; font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.point-marker.selected .point-marker-dot { outline: 3px solid #174b65; outline-offset: 2px; }
 @media (max-width: 640px) {
   .app { min-height: 680px; }
   .app-header { padding: 12px; }
   .map-workspace { flex-direction: column; }
-  .map-controls { flex: 0 0 auto; max-height: 270px; padding: 12px; border-right: 0; border-bottom: 1px solid #cbd5db; }
+  .map-controls { flex: 0 0 auto; max-height: 390px; padding: 12px; border-right: 0; border-bottom: 1px solid #cbd5db; }
   .map-status { margin-top: 10px; padding: 8px; }
   .building-control { margin: 10px 0; }
   .map-position { margin-top: 8px; }

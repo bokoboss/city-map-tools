@@ -1,8 +1,9 @@
-import { Map, NavigationControl, ScaleControl, setWorkerUrl } from 'maplibre-gl';
+import { Map, Marker, NavigationControl, ScaleControl, setWorkerUrl } from 'maplibre-gl';
 import type { ExpressionSpecification } from 'maplibre-gl';
 import workerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url';
 import { basemaps } from './basemaps';
 import type { BasemapId } from './basemaps';
+import type { PointFeature } from '../features/featureModel';
 
 // Vite must bundle the worker's shared imports into the production worker asset.
 setWorkerUrl(workerUrl);
@@ -29,10 +30,26 @@ export const initialMapState: MapState = {
 
 const buildingLayerId = 'city-map-buildings';
 
-export function createMap(container: HTMLDivElement, onState: (state: MapState) => void) {
+export interface MapPointOverlay {
+  id: string;
+  coordinates: PointFeature['coordinates'];
+  name: string;
+  visible: boolean;
+  layerVisible: boolean;
+  color: string;
+  selected: boolean;
+}
+
+export function createMap(
+  container: HTMLDivElement,
+  onState: (state: MapState) => void,
+  onPointClick: (id: string) => void,
+  onMapClick: (coordinates: PointFeature['coordinates']) => void,
+) {
   let state = { ...initialMapState };
   let disposed = false;
   let loadingTimer: ReturnType<typeof setTimeout>;
+  const pointMarkers = new globalThis.Map<string, Marker>();
 
   const publish = (patch: Partial<MapState>) => {
     if (disposed) return;
@@ -48,6 +65,52 @@ export function createMap(container: HTMLDivElement, onState: (state: MapState) 
     style: basemaps.osm.style,
     attributionControl: { compact: false },
   });
+
+  const removePointMarker = (id: string) => {
+    pointMarkers.get(id)?.remove();
+    pointMarkers.delete(id);
+  };
+
+  const renderPointOverlays = (overlays: readonly MapPointOverlay[]) => {
+    if (disposed) return;
+    const activeIds = new Set<string>();
+    overlays.forEach(overlay => {
+      if (!overlay.visible || !overlay.layerVisible) {
+        removePointMarker(overlay.id);
+        return;
+      }
+      activeIds.add(overlay.id);
+      let marker = pointMarkers.get(overlay.id);
+      if (!marker) {
+        const element = document.createElement('button');
+        element.type = 'button';
+        element.className = 'point-marker';
+        element.setAttribute('aria-label', `Select point ${overlay.name}`);
+        element.addEventListener('click', event => {
+          event.stopPropagation();
+          onPointClick(overlay.id);
+        });
+        const dot = document.createElement('span');
+        dot.className = 'point-marker-dot';
+        const label = document.createElement('span');
+        label.className = 'point-marker-label';
+        element.append(dot, label);
+        marker = new Marker({ element, anchor: 'bottom' }).setLngLat(overlay.coordinates).addTo(map);
+        pointMarkers.set(overlay.id, marker);
+      }
+      marker.setLngLat(overlay.coordinates);
+      const element = marker.getElement();
+      const dot = element.querySelector<HTMLElement>('.point-marker-dot');
+      const label = element.querySelector<HTMLElement>('.point-marker-label');
+      if (dot) dot.style.backgroundColor = overlay.color;
+      if (label) label.textContent = overlay.name;
+      element.classList.toggle('selected', overlay.selected);
+      element.setAttribute('aria-label', `Select point ${overlay.name}`);
+    });
+    [...pointMarkers.keys()].forEach(id => {
+      if (!activeIds.has(id)) removePointMarker(id);
+    });
+  };
 
   const fail = () => {
     clearTimeout(loadingTimer);
@@ -128,6 +191,7 @@ export function createMap(container: HTMLDivElement, onState: (state: MapState) 
     const center = map.getCenter();
     publish({ longitude: center.lng, latitude: center.lat, zoom: map.getZoom() });
   });
+  map.on('click', event => onMapClick([event.lngLat.lng, event.lngLat.lat]));
   map.addControl(new NavigationControl({ visualizePitch: true }), 'top-right');
   map.addControl(new ScaleControl({ unit: 'metric' }));
   const resizeObserver = new ResizeObserver(() => map.resize());
@@ -145,6 +209,9 @@ export function createMap(container: HTMLDivElement, onState: (state: MapState) 
         fail();
       }
     },
+    setPointOverlays(overlays: readonly MapPointOverlay[]) {
+      renderPointOverlays(overlays);
+    },
     toggleBuildings() {
       if (!isReady() || state.buildings === 'unavailable') return;
       const enabled = state.buildings !== 'on';
@@ -160,6 +227,8 @@ export function createMap(container: HTMLDivElement, onState: (state: MapState) 
     destroy() {
       disposed = true;
       clearTimeout(loadingTimer);
+      pointMarkers.forEach(marker => marker.remove());
+      pointMarkers.clear();
       resizeObserver.disconnect();
       map.remove();
     },
