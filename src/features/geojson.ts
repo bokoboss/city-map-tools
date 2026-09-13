@@ -203,9 +203,12 @@ export function importGeoJsonText(text: string, layers: readonly FeatureLayer[])
   const applicationExport = isApplicationExport(document);
   const imported = document.features.map((feature, index) => readPointFeature(feature, index, layers, applicationExport));
   const ids = new Set<string>();
-  const duplicateId = imported.find(feature => ids.has(feature.id))?.id;
-  if (duplicateId) fail(`Feature id "${boundedText(duplicateId, 120)}" is duplicated; import was rejected without changing app state.`);
-  imported.forEach(feature => ids.add(feature.id));
+  for (const feature of imported) {
+    if (ids.has(feature.id)) {
+      fail(`Feature id "${boundedText(feature.id, 120)}" is duplicated; import was rejected without changing app state.`);
+    }
+    ids.add(feature.id);
+  }
   return imported;
 }
 
