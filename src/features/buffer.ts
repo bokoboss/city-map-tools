@@ -5,6 +5,7 @@ import {
   type GeometrySnapshot,
   type PolygonFeature,
   type SpatialFeature,
+  type ValidationStatus,
   type Wgs84Point,
   type Wgs84Polygon,
   validateWgs84Polygon,
@@ -99,6 +100,13 @@ function toBufferInput(geometry: GeometrySnapshot): BufferInputFeature {
   return { type: 'Feature', properties: {}, geometry };
 }
 
+function conservativeDerivedStatus(sourceStatus: ValidationStatus): ValidationStatus {
+  if (sourceStatus === 'Stale' || sourceStatus === 'Experimental') return sourceStatus;
+  // The buffer method itself is not validated, so even a Validated source cannot
+  // upgrade a derived result to Validated.
+  return 'Functional but unvalidated';
+}
+
 export function deriveBufferFeature(
   source: SpatialFeature,
   id: string,
@@ -116,7 +124,7 @@ export function deriveBufferFeature(
     layerId: BUFFER_LAYER_ID,
     visible: true,
     lineage: 'derived',
-    validationStatus: 'Functional but unvalidated',
+    validationStatus: conservativeDerivedStatus(source.validationStatus),
     provenance: {
       method: 'Turf buffer (derived spatial output)',
       source: `${source.type} ${source.id}`,

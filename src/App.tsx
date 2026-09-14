@@ -4,6 +4,7 @@ import { importGeoJsonText, exportGeoJson, GEOJSON_MAX_TEXT_LENGTH } from './fea
 import {
   createDefaultLayers,
   isPointFeature,
+  pointCompatibleLayers,
   validateGeometrySnapshot,
   validateWgs84Point,
   type FeatureLayer,
@@ -78,7 +79,7 @@ export function App() {
       if (!source) throw new Error('Selected source feature no longer exists.');
       const buffer = deriveBufferFeature(source, nextFeatureId(features, 'buffer'), radius);
       dispatchFeature({ type: 'insert', feature: buffer });
-      return success(`Created derived buffer at ${radius} meters with explicit @turf/buffer@7.4.0 provenance. It is Functional but unvalidated and read-only.`);
+      return success(`Created derived buffer at ${radius} meters with explicit @turf/buffer@7.4.0 provenance. It is ${buffer.validationStatus} and read-only.`);
     } catch (error) {
       return failure(error);
     }
@@ -104,7 +105,7 @@ export function App() {
       return;
     }
     try {
-      const imported = importGeoJsonText(await file.text(), layers);
+      const imported = importGeoJsonText(await file.text(), pointCompatibleLayers(layers));
       dispatchFeature({ type: 'import', imported });
       setMode('select');
       setImportStatus(`Imported ${imported.length} Point feature${imported.length === 1 ? '' : 's'}; imported values remain unvalidated.`);
@@ -129,7 +130,15 @@ export function App() {
     <main className="app">
       <header className="app-header">
         <div><h1>City Map Tools</h1><p>Geometry editor workspace · R1A-3 preview</p></div>
-        <button type="button" onClick={() => setMapSession(session => session + 1)}>Reload map</button>
+        <div className="reload-control">
+          <button
+            type="button"
+            disabled={mode !== 'select'}
+            aria-describedby={mode === 'select' ? undefined : 'reload-reason'}
+            onClick={() => setMapSession(session => session + 1)}
+          >Reload map</button>
+          {mode !== 'select' && <p id="reload-reason">Reload map is unavailable while an active geometry draft is open. Finish or cancel it before reloading.</p>}
+        </div>
       </header>
       <MapCanvas
         key={mapSession}

@@ -65,6 +65,9 @@ async (page) => {
   check(await page.locator('.stored-value').innerText() === 'Stored value: Local <point>', 'rename exact value');
   const authoredExport = await exported();
   check(authoredExport.features[0].properties.lineage === 'authored', 'local creation remains authored');
+  for (const layerId of ['layer-lines', 'layer-polygons', 'layer-buffers']) {
+    await rejectUnchanged(collection([point(`invalid-${layerId}`, { layerId })]), `unknown layer`);
+  }
   await upload(authoredExport);
   check(await page.locator('.inspector-id').innerText() === 'point-1-2', 'current-state collision selects inserted ID');
   let data = await exported();

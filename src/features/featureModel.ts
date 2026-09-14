@@ -120,6 +120,10 @@ export function createDefaultLayers(): FeatureLayer[] {
   ];
 }
 
+export function pointCompatibleLayers(layers: readonly FeatureLayer[]): FeatureLayer[] {
+  return layers.filter(layer => layer.id === POINT_LAYER_ID);
+}
+
 export function isRecord(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === 'object' && !Array.isArray(value);
 }

@@ -213,13 +213,17 @@ export function MapCanvas({
   };
 
   const applyEdit = () => {
-    if (!selectedFeature) return;
+    const editSession = controller.current?.session();
+    if (!editSession || editSession.kind !== 'edit') {
+      setEditorStatus('No valid geometry edit session is available to apply. The committed geometry is unchanged.');
+      return;
+    }
     const geometry = controller.current?.getEditGeometry();
     if (!geometry) {
       setEditorStatus('No valid geometry edit draft is available to apply. The committed geometry is unchanged.');
       return;
     }
-    const result = onGeometryApply(selectedFeature.id, geometry);
+    const result = onGeometryApply(editSession.sourceId, geometry);
     setEditorStatus(result.message);
     if (result.ok) {
       controller.current?.completeEdit();
@@ -313,7 +317,14 @@ export function MapCanvas({
           <div className="inspector-field"><span>Lineage</span><output>{selectedFeature.lineage}</output></div>
           {selectedFeature.provenance.sourceLineageClaim && <div className="inspector-field"><span>Source lineage claim (untrusted)</span><output>{selectedFeature.provenance.sourceLineageClaim.lineage}</output></div>}
           <div className="inspector-field"><span>Validation status</span><output>{selectedFeature.validationStatus}</output></div>
-          {selectedFeature.provenance.derivedFrom && <div className="inspector-field"><span>Derived source</span><output>{selectedFeature.provenance.derivedFrom.name || selectedFeature.provenance.derivedFrom.id || 'Unknown source'}{selectedFeature.provenance.derivedFrom.orphaned ? ' — orphaned' : ''}</output></div>}
+          {selectedFeature.provenance.derivedFrom && <div className="inspector-field">
+            <span>Derived source</span>
+            <output>{selectedFeature.provenance.derivedFrom.name || selectedFeature.provenance.derivedFrom.id || 'Unknown source'}{selectedFeature.provenance.derivedFrom.orphaned ? ' — orphaned' : selectedFeature.validationStatus === 'Stale' ? ' — stale' : selectedFeature.validationStatus === 'Experimental' ? ' — experimental' : ' — current at derivation'}</output>
+            {selectedFeature.provenance.derivedFrom.type && <output aria-label="Source geometry type">Geometry type: {selectedFeature.provenance.derivedFrom.type}</output>}
+            {selectedFeature.provenance.derivedFrom.validationStatus && <output aria-label="Source validation status">Source validation status: {selectedFeature.provenance.derivedFrom.validationStatus}</output>}
+            {selectedFeature.provenance.derivedFrom.geometry && <pre aria-label="Stored source geometry snapshot">{JSON.stringify(selectedFeature.provenance.derivedFrom.geometry)}</pre>}
+            {selectedFeature.provenance.derivedFrom.provenance && <output aria-label="Source provenance">{selectedFeature.provenance.derivedFrom.provenance.method}; {selectedFeature.provenance.derivedFrom.provenance.source}; {selectedFeature.provenance.derivedFrom.provenance.limitations}</output>}
+          </div>}
           {selectedFeature.provenance.buffer && <div className="inspector-field"><span>Buffer derivation</span><output>{selectedFeature.provenance.buffer.radius} {selectedFeature.provenance.buffer.units}; {selectedFeature.provenance.buffer.library}@{selectedFeature.provenance.buffer.libraryVersion}; {selectedFeature.provenance.buffer.steps} steps</output></div>}
           <div className="inspector-field"><span>Provenance</span><p>{selectedFeature.provenance.method}; {selectedFeature.provenance.source}; {selectedFeature.provenance.limitations}</p></div>
 

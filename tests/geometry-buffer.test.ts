@@ -47,6 +47,19 @@ for (const [source, id] of [[point, 'buffer-point'], [line, 'buffer-line'], [pol
 }
 console.log('PASS Point/LineString/Polygon buffers with exact meters/steps/library provenance');
 
+for (const [status, expected] of [
+  ['Validated', 'Functional but unvalidated'],
+  ['Functional but unvalidated', 'Functional but unvalidated'],
+  ['Experimental', 'Experimental'],
+  ['Stale', 'Stale'],
+] as const) {
+  const statusSource = { ...createAuthoredPoint(`status-${status}`, [100.5, 13.75], 1), validationStatus: status };
+  const statusBuffer = deriveBufferFeature(statusSource, `status-buffer-${status}`, 10);
+  assert.equal(statusBuffer.validationStatus, expected);
+  assert.equal(statusBuffer.provenance.derivedFrom?.validationStatus, status);
+}
+console.log('PASS conservative buffer status propagation for Validated, Functional but unvalidated, Experimental, and Stale sources');
+
 let capturedPointBufferInput: unknown;
 const capturedPointBuffer = deriveBufferFeature(point, 'captured-point-buffer', 125, feature => {
   capturedPointBufferInput = feature;

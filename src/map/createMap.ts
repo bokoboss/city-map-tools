@@ -567,6 +567,9 @@ export function createMap(container: HTMLDivElement, callbacks: MapCallbacks) {
     hasActiveEditorSession(): boolean {
       return editor?.hasActiveSession() || false;
     },
+    session(): GeometryEditorSession | null {
+      return editor?.session() || null;
+    },
     toggleBuildings() {
       if (!isReady() || state.buildings === 'unavailable') return;
       const enabled = state.buildings !== 'on';

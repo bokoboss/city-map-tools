@@ -69,10 +69,25 @@ async (page) => {
     check(text.includes(`Buffer derivation ${radius} meters; @turf/buffer@7.4.0; 8 steps`), 'explicit buffer provenance');
     check(text.includes('Validation status Functional but unvalidated'), 'buffer is never Validated');
   };
+  const assertReloadBlocked = async scenario => {
+    const reload = page.getByRole('button', { name: 'Reload map', exact: true });
+    check(await reload.isDisabled(), `${scenario} disables Reload map`);
+    check(await page.getByText('Reload map is unavailable while an active geometry draft is open. Finish or cancel it before reloading.', { exact: true }).isVisible(), `${scenario} has a visible reload explanation`);
+  };
 
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.goto('http://127.0.0.1:4173/city-map-tools/');
   await ready();
+
+  // Reload must not silently destroy an active LineString or Polygon draft.
+  await page.getByRole('button', { name: 'Line tool', exact: true }).click();
+  await mapClick(0.3, 0.32);
+  await assertReloadBlocked('Line draft');
+  await page.keyboard.press('Escape');
+  await page.getByRole('button', { name: 'Polygon tool', exact: true }).click();
+  await mapClick(0.3, 0.32);
+  await assertReloadBlocked('Polygon draft');
+  await page.keyboard.press('Escape');
 
   // Invalid structural output must stay out of workspace state with a visible reason.
   await page.getByRole('button', { name: 'Line tool', exact: true }).click();
@@ -122,6 +137,36 @@ async (page) => {
   const line = await drawLine();
   await renameSelected('Buffer line');
   await createBuffer(70);
+  await selectFeature('Buffer line buffer', 'derived');
+  const originalLineSourceSnapshot = await page.getByLabel('Stored source geometry snapshot', { exact: true }).innerText();
+  check(originalLineSourceSnapshot.includes('LineString'), 'buffer inspector exposes the exact LineString source snapshot');
+  check((await page.getByLabel('Source validation status', { exact: true }).innerText()).includes('Functional but unvalidated'), 'buffer inspector exposes source validation status');
+  check((await page.getByLabel('Source provenance', { exact: true }).innerText()).includes('User-authored'), 'buffer inspector exposes source provenance');
+
+  await drawLine(0.7, 0.46, 0.82, 0.54);
+  await renameSelected('Buffer line B');
+  await createBuffer(75);
+  await selectFeature('Buffer line B buffer', 'derived');
+  const lineBSourceSnapshot = await page.getByLabel('Stored source geometry snapshot', { exact: true }).innerText();
+  await selectFeature('Buffer line');
+
+  // Apply must stay bound to Line A even if the Layers surface selects Line B.
+  await page.getByRole('button', { name: 'Edit geometry', exact: true }).click();
+  await assertReloadBlocked('Line edit');
+  await selectFeature('Buffer line B');
+  const lineBBox = await mapBox();
+  await page.mouse.move(lineBBox.x + lineBBox.width * line.startX, lineBBox.y + lineBBox.height * line.startY);
+  await page.mouse.down();
+  await page.mouse.move(lineBBox.x + lineBBox.width * (line.startX + 0.025), lineBBox.y + lineBBox.height * (line.startY + 0.015), { steps: 4 });
+  await page.mouse.up();
+  await page.getByRole('button', { name: 'Apply geometry', exact: true }).click();
+  await selectFeature('Buffer line buffer', 'derived');
+  check((await inspectorText()).includes('Validation status Stale'), 'Line A edit makes only Line A buffer Stale');
+  check(await page.getByLabel('Stored source geometry snapshot', { exact: true }).innerText() === originalLineSourceSnapshot, 'Line A buffer retains its original source snapshot after source edit');
+  await selectFeature('Buffer line B buffer', 'derived');
+  check((await inspectorText()).includes('Validation status Functional but unvalidated'), 'Line B buffer remains current after Line A edit');
+  check(await page.getByLabel('Stored source geometry snapshot', { exact: true }).innerText() === lineBSourceSnapshot, 'Line B geometry and source snapshot remain unchanged after Line A edit');
+
   await selectFeature('Buffer line');
   await page.getByRole('button', { name: 'Edit geometry', exact: true }).click();
   const lineBox = await mapBox();
@@ -136,6 +181,9 @@ async (page) => {
   const beforeCancel = await page.locator('.inspector-field').allInnerTexts();
   await page.getByRole('button', { name: 'Edit geometry', exact: true }).click();
   await page.getByRole('button', { name: 'Cancel edit', exact: true }).click();
+  check(!(await page.getByRole('button', { name: 'Reload map', exact: true }).isDisabled()), 'Reload is enabled after cancelling an edit');
+  await page.getByRole('button', { name: 'Reload map', exact: true }).click();
+  await ready();
   check(JSON.stringify(await page.locator('.inspector-field').allInnerTexts()) === JSON.stringify(beforeCancel), 'LineString cancel restores exact committed inspector state');
   await page.getByRole('button', { name: 'Edit geometry', exact: true }).click();
   await page.getByLabel('Provider', { exact: true }).selectOption('voyager');
@@ -165,6 +213,7 @@ async (page) => {
   await selectFeature('Buffer polygon');
   const polygonBeforeCancel = await page.locator('.inspector-field').allInnerTexts();
   await page.getByRole('button', { name: 'Edit geometry', exact: true }).click();
+  await assertReloadBlocked('Polygon edit');
   await page.getByRole('button', { name: 'Cancel edit', exact: true }).click();
   check(JSON.stringify(await page.locator('.inspector-field').allInnerTexts()) === JSON.stringify(polygonBeforeCancel), 'Polygon cancel restores exact committed inspector state');
   await page.getByRole('button', { name: 'Edit geometry', exact: true }).click();
@@ -183,6 +232,7 @@ async (page) => {
   await page.getByRole('button', { name: 'Confirm delete', exact: true }).click();
   await selectFeature('Buffer line buffer', 'derived');
   check((await inspectorText()).includes('orphaned'), 'source delete makes dependent buffer visibly orphaned');
+  check(await page.getByLabel('Stored source geometry snapshot', { exact: true }).innerText() === originalLineSourceSnapshot, 'orphaned Line A buffer retains its original source snapshot');
   await selectFeature('Buffer polygon');
   await page.getByRole('button', { name: 'Delete feature', exact: true }).click();
   await page.getByRole('button', { name: 'Confirm delete', exact: true }).click();

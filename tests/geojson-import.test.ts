@@ -1,6 +1,6 @@
 // Run: npx --yes --package tsx tsx tests/geojson-import.test.ts
 import assert from 'node:assert/strict';
-import { createAuthoredPoint, createDefaultLayers, defaultProvenance, importFeaturesIntoWorkspace } from '../src/features/featureModel';
+import { createAuthoredPoint, createDefaultLayers, defaultProvenance, importFeaturesIntoWorkspace, pointCompatibleLayers } from '../src/features/featureModel';
 import { exportGeoJson, GEOJSON_MAX_FEATURES, importGeoJsonText } from '../src/features/geojson';
 
 const layers = createDefaultLayers();
@@ -13,6 +13,14 @@ const collection = (features: unknown[]) => JSON.stringify({
   features,
 });
 const parse = (features: unknown[]) => importGeoJsonText(collection(features), layers);
+const parsePointCompatible = (features: unknown[]) => importGeoJsonText(collection(features), pointCompatibleLayers(layers));
+
+assert.equal(pointCompatibleLayers(layers).length, 1);
+assert.equal(parsePointCompatible([point('point-layer', { layerId: 'layer-points' })])[0]!.layerId, 'layer-points');
+for (const layerId of ['layer-lines', 'layer-polygons', 'layer-buffers']) {
+  assert.throws(() => parsePointCompatible([point(`invalid-${layerId}`, { layerId })]), /unknown layer/);
+}
+console.log('PASS Point-only import accepts only the Point-compatible layer and rejects geometry-specific layers transactionally');
 
 for (const lineage of ['authored', 'derived', 'imported'] as const) {
   const imported = parse([point('forged', { lineage, validationStatus: 'Validated' })]);
