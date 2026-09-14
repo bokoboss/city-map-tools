@@ -8,13 +8,13 @@
 - Package version: `2.2.0` (package label, not a production-readiness claim)
 
 ## Current accepted baseline
-- Accepted pre-#19 main: `70bcadeb5baecdd174b815ec1fe5d3ce5679aa7f`
-- Accepted date: 2026-09-12, project timezone UTC+07:00
+- Accepted pre-#20 main: `8c5ac1c1648a54370017977be38f88ed2a05dd71`
+- Accepted date: 2026-09-13, project timezone UTC+07:00
 - #2 workflow baseline, #3 R0B truth/security/quarantine remediation (PR #25), and
   #6 Phase A deterministic install/CI (PR #26) are accepted and merged.
 - Durable program record: Issue #1. Latest checkpoint: Issue #23.
-- Issue #18 is accepted and merged (PR #27). Issue #19 is the current bounded
-  implementation slice; this branch's implementation is pending PR acceptance.
+- Issue #18 is accepted and merged (PR #27); Issue #19 is accepted and merged
+  (PR #28). Issue #20 is the current bounded geometry-editor implementation slice.
 
 ## Current implemented stack
 - Vite 6 + React + strict TypeScript + npm/ESM MapLibre GL JS v6.
@@ -22,13 +22,21 @@
   small typed basemap config, and plain build-time CSS.
 - Production scope: map navigation, OSM raster/CARTO Voyager vector switching,
   loading/error recovery, and explicit compatible/unavailable 3D state.
-- Issue #19 scope: typed Point features/layers, point creation/selection/rename,
-  layer visibility, and transactional safe Point-only GeoJSON import/export.
+- Issue #19 scope remains: typed Point features/layers, point creation/selection/
+  rename, layer visibility, and transactional safe Point-only GeoJSON import/export.
+- Issue #20 scope: authored WGS84 Point, LineString, and single-exterior-ring Polygon
+  workspace features; transient Terra Draw line/polygon creation and edit sessions;
+  derived Turf buffers with explicit source snapshots, metres, library version, steps,
+  stale/orphan state, and read-only derived geometry.
+- Point presentation is a deliberately small runtime-only layer: dot center or pin-tip
+  hotspot, 18/24/32 px marker size, and visible label placement in eight named positions.
+  Presentation never changes canonical coordinates, buffer input, provenance, or exports.
 - Accepted R0 monolithic prototype preserved unchanged as non-production reference
   at `legacy/r0-safe-prototype.html`; excluded from `dist/`.
-- No persistence, history, line/polygon drawing, buffers, or analytical engine.
-- No established automated unit/E2E suite. Production-preview browser smoke is
-  required for changes at the React/MapLibre/provider boundary.
+- No persistence, history, multi-ring/MultiPolygon editor, full icon catalogue, or
+  analytical engine. Workspace and point presentation state are in-memory only.
+- Focused pure and production-preview browser fixtures cover the bounded spatial and
+  MapLibre boundary behavior; they are not a claim of a general automated E2E suite.
 
 ## Accepted target direction
 - Modular UI/application structure with pure TypeScript domain/analysis modules
@@ -42,7 +50,8 @@ Future direction is not a claim of implemented capability.
 
 ## Package manager / commands
 - npm with a committed deterministic `package-lock.json`; `npm ci` is established.
-- Direct runtime dependencies: React, ReactDOM, MapLibre GL JS.
+- Direct runtime dependencies: React, ReactDOM, MapLibre GL JS, Terra Draw,
+  `terra-draw-maplibre-gl-adapter`, and `@turf/buffer`.
 - Tooling: Vite 6, compatible plugin-react 4, TypeScript, React types.
 - Exact installed versions are recorded by the lockfile.
 - Node 22 is the CI baseline.
@@ -64,9 +73,13 @@ Production preview URL: `http://127.0.0.1:4173/city-map-tools/`.
 - Never present/export synthetic, demo, experimental, or unvalidated results as
   validated engineering outputs. Quarantined analytics remain unavailable.
 - `README.md` describes the current shell; `PRD.md` describes planned capability.
-- Canonical geographic storage direction is WGS84 longitude/latitude. The current
-  map displays Web Mercator with approximate metric scale and performs no metric
-  analysis. Future calculations must state method, CRS, units, and transformations.
+- Canonical geographic storage is WGS84 longitude/latitude. The map displays Web
+  Mercator with approximate metric scale. The #20 buffer input is the exact canonical
+  Point/LineString/Polygon snapshot; `@turf/buffer@7.4.0` receives a radius in metres
+  and 8 steps, and returns a WGS84 Polygon. This is a functional, unvalidated derived
+  spatial output, not surveyed/cadastral/validated engineering geometry.
+- DOM bounds, icon pixels, labels, and marker hotspot presentation must never influence
+  geometry, buffer input, provenance, export, or stored WGS84 coordinates.
 - Engineering outputs must preserve source, method, parameters, units, version,
   validation status, stale state, and limitations through review/export.
 - Authored/imported data must remain distinct from derived engineering results.
@@ -96,7 +109,7 @@ Production preview URL: `http://127.0.0.1:4173/city-map-tools/`.
 | Strict TypeScript | `npm run typecheck` | Yes |
 | Production artifact | `npm run build` | Yes |
 | Diff hygiene | `git diff --check` | Yes |
-| Browser | Production preview at configured base path; map/navigation/style/capability/error/cleanup | For runtime changes |
+| Browser | Production preview at configured base path; map/navigation/style/capability/error/cleanup plus focused geometry/hotspot fixtures | For runtime changes |
 | CI | Exact PR-head stable `build` check: install + typecheck + build on Node 22 | Yes |
 | Independent review | Actual diff/evidence according to applicable Issue/workflow risk | As required |
 | Analytical/reference data | Method-specific deterministic/open fixtures | Before any analytical acceptance |
@@ -116,11 +129,12 @@ is still a separate human-controlled blocker; do not alter it as part of #18.
 - Report external writes and global/system changes explicitly.
 
 ## Current objective and remaining limitations
-Complete/review #19, then reconstruct accepted main before #20.
+Complete/review #20 from accepted main.
 Sequence: #18 → #19 → #20 → (#5 + #6 Phase B) → #21.
 
 Provider availability/coverage is best-effort, 3D is visualization only, project
-storage/history is absent, GeoJSON supports only structurally valid Point/WGS84
-coordinates and an explicit scalar/provenance property subset, and no engineering
-analytics are validated. The legacy reference retains prototype behavior and
-quarantine but is not the current production app.
+storage/history is absent, GeoJSON remains Point-only, and no engineering analytics
+are validated. Derived buffers are bounded, read-only, structurally checked, and
+explicitly unvalidated; they do not support antimeridian/pathological spans or
+MultiPolygon output. The legacy reference retains prototype behavior and quarantine
+but is not the current production app.

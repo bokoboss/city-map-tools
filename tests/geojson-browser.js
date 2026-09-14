@@ -4,6 +4,12 @@ async (page) => {
   const pageErrors = [];
   page.on('pageerror', error => pageErrors.push(error.message));
   const ready = () => page.locator('.map-status strong').filter({ hasText: /^Ready$/ }).waitFor({ timeout: 30000 });
+  const switchBasemap = async id => {
+    const enteredLoading = page.locator('.map-status strong').filter({ hasText: /^Loading$/ }).waitFor({ timeout: 5000 });
+    await page.getByLabel('Provider', { exact: true }).selectOption(id);
+    await enteredLoading;
+    await ready();
+  };
   const count = () => page.locator('.feature-row').count();
   const point = (id, properties = {}) => ({ type: 'Feature', id, geometry: { type: 'Point', coordinates: [100.5, 13.75] }, properties });
   const provenance = { method: 'Fixture', source: 'Untrusted file', units: 'WGS84 longitude/latitude', limitations: 'Unvalidated' };
@@ -30,7 +36,7 @@ async (page) => {
   };
   const exported = async () => {
     const pending = page.waitForEvent('download');
-    await page.getByRole('button', { name: 'Export GeoJSON' }).click();
+    await page.getByRole('button', { name: 'Export Points GeoJSON' }).click();
     const download = await pending;
     const stream = await download.createReadStream();
     let text = '';
@@ -48,9 +54,10 @@ async (page) => {
     check(await page.locator('.inspector-id').innerText() === selected, 'rejection preserves selection');
     check(JSON.stringify(await exported()) === JSON.stringify(before), 'rejection preserves complete feature data');
   };
-  await page.reload();
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto('http://127.0.0.1:4173/city-map-tools/');
   await ready();
-  await page.getByRole('button', { name: 'Create point', exact: true }).click();
+  await page.getByRole('button', { name: 'Point tool', exact: true }).click();
   const box = await page.locator('.maplibregl-canvas').boundingBox();
   await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
   check(await count() === 1, 'point creation');
@@ -69,8 +76,7 @@ async (page) => {
   check(await page.locator('.point-marker').count() === 0, 'layer hidden');
   await page.getByRole('button', { name: 'Show Points layer' }).click();
   check(await page.locator('.point-marker').count() === 2, 'layer shown');
-  await page.getByLabel('Provider', { exact: true }).selectOption('voyager');
-  await ready();
+  await switchBasemap('voyager');
   check(await page.locator('.point-marker').count() === 2, 'basemap preserves Points');
 
   await upload(collection([
