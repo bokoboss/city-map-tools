@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="icon" href="data:," />
+    <title>Terra Draw / MapLibre compatibility smoke</title>
+    <style>
+      body { font-family: system-ui, sans-serif; margin: 0; padding: 16px; }
+      #map { height: 480px; margin-top: 12px; border: 1px solid #789; }
+      button { margin: 0 6px 6px 0; }
+      #status { font-weight: 700; }
+      #events { max-height: 180px; overflow: auto; background: #f4f6f7; padding: 8px; }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>Terra Draw / MapLibre compatibility smoke</h1>
+      <p id="status" role="status" aria-live="polite">Starting MapLibre 6.9 compatibility spike…</p>
+      <div aria-label="Terra Draw compatibility controls">
+        <button type="button" data-mode="select">Select</button>
+        <button type="button" data-mode="linestring">Draw line</button>
+        <button type="button" data-mode="polygon">Draw polygon</button>
+        <button type="button" id="edit-line" disabled>Edit first line coordinates</button>
+        <button type="button" id="clear">Clear transient/store</button>
+        <button type="button" id="destroy">Stop and remove map</button>
+      </div>
+      <div id="map" aria-label="Terra Draw compatibility map"></div>
+      <pre id="events" aria-label="Terra Draw event log">[]</pre>
+    </main>
+    <script type="module" src="./terradraw-compat.js"></script>
+  </body>
+</html>
