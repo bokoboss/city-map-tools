@@ -48,5 +48,7 @@ export function pointPresentationFor(
   presentations: Readonly<Record<string, PointPresentation>>,
   featureId: string,
 ): PointPresentation {
-  return presentations[featureId] || defaultPointPresentation;
+  return Object.hasOwn(presentations, featureId)
+    ? presentations[featureId]!
+    : defaultPointPresentation;
 }

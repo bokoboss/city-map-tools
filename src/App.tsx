@@ -90,7 +90,7 @@ export function App() {
     if (!feature) return { ok: false, message: 'Selected feature no longer exists.' };
     dispatchFeature({ type: 'delete', id });
     setPointPresentations(current => {
-      if (!current[id]) return current;
+      if (!Object.hasOwn(current, id)) return current;
       const { [id]: _removed, ...remaining } = current;
       return remaining;
     });
