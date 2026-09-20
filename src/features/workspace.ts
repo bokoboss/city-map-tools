@@ -5,6 +5,7 @@ import {
   importFeaturesIntoWorkspace,
   markDependentBuffersStale,
   renameFeature,
+  reservedWorkspaceIds,
   type GeometrySnapshot,
   type PointFeature,
   type SpatialFeature,
@@ -33,7 +34,7 @@ export const initialWorkspaceState: WorkspaceState = {
 };
 
 export function nextFeatureId(features: readonly SpatialFeature[], prefix: string): string {
-  const used = new Set(features.map(feature => feature.id));
+  const used = reservedWorkspaceIds(features);
   let index = 1;
   while (used.has(`${prefix}-${index}`)) index += 1;
   return `${prefix}-${index}`;
@@ -94,7 +95,7 @@ export function workspaceReducer(state: WorkspaceState, action: WorkspaceAction)
     case 'applyGeometry':
       return { ...state, features: applyGeometry(state.features, action.id, action.geometry) };
     case 'insert': {
-      if (state.features.some(feature => feature.id === action.feature.id)) {
+      if (reservedWorkspaceIds(state.features).has(action.feature.id)) {
         throw new Error('New feature ID collides with an existing workspace feature.');
       }
       return { features: [...state.features, action.feature], selectedFeatureId: action.feature.id };

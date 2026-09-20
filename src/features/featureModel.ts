@@ -76,6 +76,20 @@ export interface LineStringFeature extends BaseFeature<'LineString', Wgs84LineSt
 export interface PolygonFeature extends BaseFeature<'Polygon', Wgs84Polygon> {}
 export type SpatialFeature = PointFeature | LineStringFeature | PolygonFeature;
 
+export function reservedWorkspaceIds(features: readonly SpatialFeature[]): Set<string> {
+  const reserved = new Set(features.map(feature => feature.id));
+  const collectHistoricalIds = (provenance: Provenance | undefined) => {
+    const derivedFrom = provenance?.derivedFrom;
+    if (!derivedFrom) return;
+    if (derivedFrom.id) reserved.add(derivedFrom.id);
+    collectHistoricalIds(derivedFrom.provenance);
+  };
+  features.forEach(feature => {
+    if (feature.lineage === 'derived') collectHistoricalIds(feature.provenance);
+  });
+  return reserved;
+}
+
 export interface FeatureLayer {
   id: string;
   name: string;
@@ -393,7 +407,7 @@ export function resolveImportedFeatures(
   imported: readonly PointFeature[],
   existing: readonly SpatialFeature[],
 ): PointFeature[] {
-  const used = new Set(existing.map(feature => feature.id));
+  const used = reservedWorkspaceIds(existing);
   const idMap = new Map<string, string>();
   const resolvedIds = imported.map(feature => {
     let id = feature.id;
@@ -449,7 +463,7 @@ export function markDependentBuffersStale(
     ? 'Source feature was deleted; this derived buffer is orphaned and stale.'
     : 'Source geometry changed; regenerate this derived buffer before use.';
   return features.map(feature => {
-    if (feature.lineage !== 'derived' || feature.provenance.derivedFrom?.id !== sourceId) return feature;
+    if (feature.lineage !== 'derived' || feature.provenance.derivedFrom?.id !== sourceId || feature.provenance.derivedFrom.orphaned) return feature;
     return {
       ...feature,
       validationStatus: 'Stale',

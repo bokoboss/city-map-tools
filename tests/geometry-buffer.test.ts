@@ -4,6 +4,7 @@ import {
   createAuthoredLineString,
   createAuthoredPoint,
   createAuthoredPolygon,
+  markDependentBuffersStale,
   validateWgs84LineString,
   validateWgs84Polygon,
   type Wgs84LineString,
@@ -112,6 +113,81 @@ assert.throws(() => workspaceReducer({ features: [dependent], selectedFeatureId:
   geometry: { type: 'Polygon', coordinates: polygonCoordinates },
 }), /read-only/);
 console.log('PASS dependent buffers become Stale after source edit and Stale/orphaned after source delete; derived geometry stays read-only');
+
+const orphanedLineSource = createAuthoredLineString('line-1', lineCoordinates, 1);
+const orphanedLineBuffer = deriveBufferFeature(orphanedLineSource, 'buffer-line-1', 80);
+const orphanedLineState = workspaceReducer({ features: [orphanedLineSource, orphanedLineBuffer], selectedFeatureId: orphanedLineSource.id }, {
+  type: 'delete',
+  id: orphanedLineSource.id,
+});
+const orphanedLineBeforeReplacement = JSON.stringify(orphanedLineState.features.find(feature => feature.id === orphanedLineBuffer.id));
+assert.throws(() => workspaceReducer(orphanedLineState, {
+  type: 'insert',
+  feature: createAuthoredPoint('line-1', [100.6, 13.8], 1),
+}), /collides/);
+const replacementLineState = workspaceReducer(orphanedLineState, {
+  type: 'createGeometry',
+  geometry: { type: 'LineString', coordinates: [[100.5, 13.75], [100.53, 13.76]] },
+});
+const replacementLine = replacementLineState.features.find(feature => feature.lineage === 'authored' && feature.type === 'LineString');
+assert.equal(replacementLine?.id, 'line-2');
+const editedReplacementLineState = workspaceReducer(replacementLineState, {
+  type: 'applyGeometry',
+  id: 'line-2',
+  geometry: { type: 'LineString', coordinates: [[100.5, 13.75], [100.54, 13.77]] },
+});
+assert.equal(JSON.stringify(editedReplacementLineState.features.find(feature => feature.id === orphanedLineBuffer.id)), orphanedLineBeforeReplacement);
+const deletedReplacementLineState = workspaceReducer(editedReplacementLineState, { type: 'delete', id: 'line-2' });
+assert.equal(JSON.stringify(deletedReplacementLineState.features.find(feature => feature.id === orphanedLineBuffer.id)), orphanedLineBeforeReplacement);
+assert.equal(JSON.stringify(markDependentBuffersStale(orphanedLineState.features, 'line-1', false).find(feature => feature.id === orphanedLineBuffer.id)), orphanedLineBeforeReplacement);
+console.log('PASS orphaned LineString source identity stays reserved and immutable through unrelated replacement edit/delete');
+
+for (const scenario of [
+  {
+    prefix: 'point',
+    source: createAuthoredPoint('point-1', [100.5, 13.75], 1),
+    action: { type: 'createPoint' as const, coordinates: [100.6, 13.8] as [number, number] },
+  },
+  {
+    prefix: 'polygon',
+    source: createAuthoredPolygon('polygon-1', polygonCoordinates, 1),
+    action: { type: 'createGeometry' as const, geometry: { type: 'Polygon' as const, coordinates: polygonCoordinates } },
+  },
+] as const) {
+  const buffer = deriveBufferFeature(scenario.source, `${scenario.prefix}-buffer-1`, 80);
+  const orphaned = workspaceReducer({ features: [scenario.source, buffer], selectedFeatureId: scenario.source.id }, { type: 'delete', id: scenario.source.id });
+  const replacement = workspaceReducer(orphaned, scenario.action).features.find(feature => feature.lineage === 'authored' && feature.type === scenario.source.type);
+  assert.equal(replacement?.id, `${scenario.prefix}-2`);
+}
+console.log('PASS orphaned Point and Polygon source identities stay reserved for generated IDs');
+
+const historicalLine = createAuthoredLineString('historical-source', lineCoordinates, 1);
+const historicalGeneratedLine = createAuthoredLineString('line-1', lineCoordinates, 2);
+const historicalBuffers = [
+  deriveBufferFeature(historicalLine, 'buffer-historical-source', 80),
+  deriveBufferFeature(historicalGeneratedLine, 'buffer-line-1', 80),
+];
+let importCollisionState = { features: [historicalLine, historicalGeneratedLine, ...historicalBuffers], selectedFeatureId: null };
+importCollisionState = workspaceReducer(importCollisionState, { type: 'delete', id: historicalLine.id });
+importCollisionState = workspaceReducer(importCollisionState, { type: 'delete', id: historicalGeneratedLine.id });
+const orphanedImportSnapshots = historicalBuffers.map(buffer => JSON.stringify(importCollisionState.features.find(feature => feature.id === buffer.id)));
+const importedPoint = (id: string) => {
+  const point = createAuthoredPoint(id, [100.7, 13.85], 1);
+  return {
+    ...point,
+    lineage: 'imported' as const,
+    provenance: { ...point.provenance, method: 'GeoJSON import', source: 'Imported GeoJSON' },
+  };
+};
+const importedState = workspaceReducer(importCollisionState, {
+  type: 'import',
+  imported: [importedPoint('line-1'), importedPoint('historical-source')],
+});
+assert.deepEqual(importedState.features.filter(feature => feature.lineage === 'imported').map(feature => feature.id), ['line-1-2', 'historical-source-2']);
+historicalBuffers.forEach((buffer, index) => {
+  assert.equal(JSON.stringify(importedState.features.find(feature => feature.id === buffer.id)), orphanedImportSnapshots[index]);
+});
+console.log('PASS imported IDs collide deterministically with retained historical identities without mutating orphaned buffers');
 
 let created = workspaceReducer(initialWorkspaceState, { type: 'createGeometry', geometry: { type: 'LineString', coordinates: lineCoordinates } });
 assert.equal(created.features[0]?.type, 'LineString');
