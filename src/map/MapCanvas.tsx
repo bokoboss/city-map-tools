@@ -255,9 +255,13 @@ export function MapCanvas({
         <section className="data-actions" aria-label="Point GeoJSON data actions">
           <h2>Data</h2>
           <div className="file-actions">
-            <label className="file-button">
+            <label
+              className={`file-button${mode === 'select' ? '' : ' disabled'}`}
+              aria-disabled={mode === 'select' ? undefined : 'true'}
+              aria-describedby={mode === 'select' ? undefined : 'import-reason'}
+            >
               Import Points GeoJSON
-              <input type="file" accept=".geojson,.json,application/geo+json,application/json" onChange={event => {
+              <input type="file" accept=".geojson,.json,application/geo+json,application/json" disabled={mode !== 'select'} onChange={event => {
                 const file = event.target.files?.[0];
                 if (file) onImportFile(file);
                 event.target.value = '';
@@ -266,6 +270,7 @@ export function MapCanvas({
             <button type="button" onClick={onExport} disabled={!features.some(isPointFeature)}>Export Points GeoJSON</button>
           </div>
           <p className="control-help">Point-only import and export remain deliberate in this slice. Lines, polygons, and buffers are not included in exports.</p>
+          {mode !== 'select' && <p id="import-reason">Import Points GeoJSON is unavailable while an active geometry interaction is open. Finish or cancel it before importing.</p>}
           <output className="import-status" aria-live="polite">{importStatus}</output>
         </section>
 

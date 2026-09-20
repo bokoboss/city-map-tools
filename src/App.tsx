@@ -1,4 +1,4 @@
-import { useReducer, useState } from 'react';
+import { useReducer, useRef, useState } from 'react';
 import { deriveBufferFeature } from './features/buffer';
 import { importGeoJsonText, exportGeoJson, GEOJSON_MAX_TEXT_LENGTH } from './features/geojson';
 import {
@@ -32,8 +32,11 @@ export function App() {
   const { features, selectedFeatureId } = featureState;
   const [layers, setLayers] = useState<FeatureLayer[]>(createDefaultLayers);
   const [mode, setMode] = useState<EditorMode>('select');
+  const modeRef = useRef<EditorMode>(mode);
   const [importStatus, setImportStatus] = useState('No GeoJSON imported. Point-only import/export remains explicit.');
   const [pointPresentations, setPointPresentations] = useState<Record<string, PointPresentation>>({});
+
+  modeRef.current = mode;
 
   const handleMapPointClick = (coordinates: Wgs84Point) => {
     if (mode !== 'point') return;
@@ -100,12 +103,22 @@ export function App() {
   };
 
   const handleImportFile = async (file: File) => {
+    const importBlockedMessage = 'Import Points GeoJSON is unavailable while an active geometry interaction is open. Finish or cancel it before importing.';
+    const importRaceMessage = 'Import was not applied because a geometry interaction became active while the file was being read.';
+    if (modeRef.current !== 'select') {
+      setImportStatus(importBlockedMessage);
+      return;
+    }
     if (file.size > GEOJSON_MAX_TEXT_LENGTH * 4) {
       setImportStatus(`Import rejected: file exceeds the ${GEOJSON_MAX_TEXT_LENGTH}-character safety limit.`);
       return;
     }
     try {
       const imported = importGeoJsonText(await file.text(), pointCompatibleLayers(layers));
+      if (modeRef.current !== 'select') {
+        setImportStatus(importRaceMessage);
+        return;
+      }
       dispatchFeature({ type: 'import', imported });
       setMode('select');
       setImportStatus(`Imported ${imported.length} Point feature${imported.length === 1 ? '' : 's'}; imported values remain unvalidated.`);

@@ -72,6 +72,8 @@ h1 { font-size: 21px; margin: 0; letter-spacing: -0.4px; }
 .import-status { display: block; min-height: 18px; margin-top: 9px; }
 .file-button { border: 1px solid #afbec8; border-radius: 6px; background: var(--surface-panel); cursor: pointer; }
 .file-button:hover { background: var(--surface-selected); }
+.file-button.disabled { cursor: not-allowed; opacity: .62; }
+.file-button.disabled:hover { background: var(--surface-panel); }
 .file-button input { width: 1px; height: 1px; opacity: 0; position: absolute; }
 
 .layer-card { padding: 9px; margin-top: 8px; border: 1px solid #d4dfe4; border-radius: 6px; background: var(--surface-muted); }
