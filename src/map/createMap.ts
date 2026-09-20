@@ -50,6 +50,10 @@ const polygonFillLayerId = 'city-map-polygons-fill';
 const polygonOutlineLayerId = 'city-map-polygons-outline';
 const lineLayerId = 'city-map-lines';
 const interactiveGeometryLayerIds = [polygonFillLayerId, polygonOutlineLayerId, lineLayerId];
+const lineHitTolerance = 8;
+// Pixel-space epsilon only resolves visually coincident strokes. A materially
+// nearer line always wins before rendered/canonical topmost ordering applies.
+const lineHitTieEpsilon = 0.75;
 
 export interface MapPointOverlay {
   id: string;
@@ -340,9 +344,34 @@ export function createMap(container: HTMLDivElement, callbacks: MapCallbacks) {
         }
         return { feature, distance };
       })
-      .filter(candidate => candidate.distance <= 8)
-      .sort((left, right) => left.distance - right.distance);
-    return candidates[0]?.feature;
+      .filter(candidate => candidate.distance <= lineHitTolerance);
+    if (candidates.length === 0) return undefined;
+
+    const nearestDistance = Math.min(...candidates.map(candidate => candidate.distance));
+    const tied = candidates.filter(candidate => candidate.distance <= nearestDistance + lineHitTieEpsilon);
+    if (tied.length === 1) return tied[0]?.feature;
+
+    // Query the rendered line layer only for tied canonical candidates. The
+    // expanded pixel box preserves the 8px interaction target while allowing
+    // MapLibre's top-to-bottom order to resolve nearby coincident strokes.
+    try {
+      const rendered = map.queryRenderedFeatures([
+        [point.x - lineHitTolerance, point.y - lineHitTolerance],
+        [point.x + lineHitTolerance, point.y + lineHitTolerance],
+      ], { layers: [lineLayerId] });
+      for (const renderedFeature of rendered) {
+        const id = renderedFeature.properties?.id;
+        if (typeof id !== 'string') continue;
+        const candidate = tied.find(entry => entry.feature.id === id);
+        if (candidate) return candidate.feature;
+      }
+    } catch {
+      // During style replacement the rendered-feature index can be transiently unavailable.
+    }
+
+    // geometryData preserves workspace order in the GeoJSON source, so reverse
+    // traversal is the deterministic later/topmost fallback during rehydration.
+    return [...tied].reverse()[0]?.feature;
   };
 
   const findVisiblePolygonAtPoint = (point: ScreenPoint): PolygonFeature | undefined => {
