@@ -151,9 +151,10 @@ async (page) => {
   await createBuffer(70);
   await selectFeature('Buffer line buffer', 'derived');
   const originalLineSourceSnapshot = await page.getByLabel('Stored source geometry snapshot', { exact: true }).innerText();
+  const originalLineSourceProvenance = await page.getByLabel('Source provenance', { exact: true }).innerText();
   check(originalLineSourceSnapshot.includes('LineString'), 'buffer inspector exposes the exact LineString source snapshot');
   check((await page.getByLabel('Source validation status', { exact: true }).innerText()).includes('Functional but unvalidated'), 'buffer inspector exposes source validation status');
-  check((await page.getByLabel('Source provenance', { exact: true }).innerText()).includes('User-authored'), 'buffer inspector exposes source provenance');
+  check(originalLineSourceProvenance.includes('WGS84 longitude/latitude'), 'buffer inspector exposes source provenance units');
 
   await drawLine(0.7, 0.46, 0.82, 0.54);
   await renameSelected('Buffer line B');
@@ -175,6 +176,7 @@ async (page) => {
   await selectFeature('Buffer line buffer', 'derived');
   check((await inspectorText()).includes('Validation status Stale'), 'Line A edit makes only Line A buffer Stale');
   check(await page.getByLabel('Stored source geometry snapshot', { exact: true }).innerText() === originalLineSourceSnapshot, 'Line A buffer retains its original source snapshot after source edit');
+  check(await page.getByLabel('Source provenance', { exact: true }).innerText() === originalLineSourceProvenance, 'Line A buffer retains historical source provenance after source edit');
   await selectFeature('Buffer line B buffer', 'derived');
   check((await inspectorText()).includes('Validation status Functional but unvalidated'), 'Line B buffer remains current after Line A edit');
   check(await page.getByLabel('Stored source geometry snapshot', { exact: true }).innerText() === lineBSourceSnapshot, 'Line B geometry and source snapshot remain unchanged after Line A edit');

@@ -16,6 +16,7 @@ import {
   isPolygonFeature,
   type FeatureLayer,
   type GeometrySnapshot,
+  type Provenance,
   type SpatialFeature,
   type Wgs84Point,
 } from '../features/featureModel';
@@ -62,6 +63,15 @@ function modeLabel(mode: EditorMode): string {
   if (mode === 'polygon') return 'Polygon mode: click exterior vertices, then press Enter to finish. Escape cancels.';
   if (mode === 'editing') return 'Editing geometry draft: Apply commits it; Cancel restores the exact committed geometry.';
   return 'Select mode: choose a feature from the map or Layers.';
+}
+
+function provenanceDetails(provenance: Provenance, labels: { method: string; source: string; units: string; limitations: string }) {
+  return <>
+    <div className="provenance-row"><span>{labels.method}</span><output aria-label={labels.method}>{provenance.method}</output></div>
+    <div className="provenance-row"><span>{labels.source}</span><output aria-label={labels.source}>{provenance.source}</output></div>
+    <div className="provenance-row"><span>{labels.units}</span><output aria-label={labels.units}>{provenance.units}</output></div>
+    <div className="provenance-row"><span>{labels.limitations}</span><output aria-label={labels.limitations}>{provenance.limitations}</output></div>
+  </>;
 }
 
 export function MapCanvas({
@@ -328,10 +338,24 @@ export function MapCanvas({
             {selectedFeature.provenance.derivedFrom.type && <output aria-label="Source geometry type">Geometry type: {selectedFeature.provenance.derivedFrom.type}</output>}
             {selectedFeature.provenance.derivedFrom.validationStatus && <output aria-label="Source validation status">Source validation status: {selectedFeature.provenance.derivedFrom.validationStatus}</output>}
             {selectedFeature.provenance.derivedFrom.geometry && <pre aria-label="Stored source geometry snapshot">{JSON.stringify(selectedFeature.provenance.derivedFrom.geometry)}</pre>}
-            {selectedFeature.provenance.derivedFrom.provenance && <output aria-label="Source provenance">{selectedFeature.provenance.derivedFrom.provenance.method}; {selectedFeature.provenance.derivedFrom.provenance.source}; {selectedFeature.provenance.derivedFrom.provenance.limitations}</output>}
+            {selectedFeature.provenance.derivedFrom.provenance && <div className="provenance-details" aria-label="Source provenance">
+              {provenanceDetails(selectedFeature.provenance.derivedFrom.provenance, {
+                method: 'Source method',
+                source: 'Source source',
+                units: 'Source units',
+                limitations: 'Source limitations',
+              })}
+            </div>}
           </div>}
           {selectedFeature.provenance.buffer && <div className="inspector-field"><span>Buffer derivation</span><output>{selectedFeature.provenance.buffer.radius} {selectedFeature.provenance.buffer.units}; {selectedFeature.provenance.buffer.library}@{selectedFeature.provenance.buffer.libraryVersion}; {selectedFeature.provenance.buffer.steps} steps</output></div>}
-          <div className="inspector-field"><span>Provenance</span><p>{selectedFeature.provenance.method}; {selectedFeature.provenance.source}; {selectedFeature.provenance.limitations}</p></div>
+          <div className="inspector-field"><span>Provenance</span><div className="provenance-details" aria-label="Feature provenance">
+            {provenanceDetails(selectedFeature.provenance, {
+              method: 'Method',
+              source: 'Source',
+              units: 'Units',
+              limitations: 'Limitations',
+            })}
+          </div></div>
 
           {selectedPointPresentation && <section className="point-presentation" aria-label="Point presentation">
             <h3>Point presentation</h3>
