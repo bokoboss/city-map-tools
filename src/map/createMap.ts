@@ -348,10 +348,34 @@ export function createMap(container: HTMLDivElement, callbacks: MapCallbacks) {
   const findVisiblePolygonAtPoint = (point: ScreenPoint): PolygonFeature | undefined => {
     if (!map.getLayer(polygonFillLayerId) && !map.getLayer(polygonOutlineLayerId)) return undefined;
     const visibleLayerIds = new Set(latestGeometry.layers.filter(layer => layer.visible).map(layer => layer.id));
-    return latestGeometry.features
+    const isSelectable = (feature: SpatialFeature | undefined): feature is PolygonFeature => Boolean(feature &&
+      isPolygonFeature(feature) &&
+      feature.id !== editingSourceId &&
+      feature.visible &&
+      visibleLayerIds.has(feature.layerId));
+
+    // Rendered fill order owns normal Polygon hit selection. Reconcile each
+    // rendered ID to current canonical state before selecting it.
+    if (map.getLayer(polygonFillLayerId)) {
+      try {
+        const rendered = map.queryRenderedFeatures([point.x, point.y], { layers: [polygonFillLayerId] });
+        for (const renderedFeature of rendered) {
+          const id = renderedFeature.properties?.id;
+          if (typeof id !== 'string') continue;
+          const candidate = latestGeometry.features.find(feature => feature.id === id);
+          if (isSelectable(candidate)) return candidate;
+        }
+      } catch {
+        // During style replacement the rendered-feature index can be transiently unavailable.
+      }
+    }
+
+    // Canonical projection is the style-rehydration fallback. geometryData
+    // preserves feature order in the source, so reverse traversal matches the
+    // later/topmost Polygon draw order without adding a z-order subsystem.
+    return [...latestGeometry.features].reverse()
       .filter(isPolygonFeature)
-      .filter(feature => feature.id !== editingSourceId)
-      .filter(feature => feature.visible && visibleLayerIds.has(feature.layerId))
+      .filter(isSelectable)
       .find(feature => isInsideScreenRing(point, feature.coordinates[0].map(coordinates => map.project(coordinates))));
   };
 
@@ -492,9 +516,13 @@ export function createMap(container: HTMLDivElement, callbacks: MapCallbacks) {
     const hitIds = map.queryRenderedFeatures(event.point, { layers: renderedGeometryLayers })
       .map(feature => feature.properties?.id)
       .filter((id): id is string => typeof id === 'string');
+    const visibleLayerIds = new Set(latestGeometry.layers.filter(layer => layer.visible).map(layer => layer.id));
     const candidates = hitIds
       .map(id => latestGeometry.features.find(feature => feature.id === id))
-      .filter((feature): feature is SpatialFeature => feature !== undefined);
+      .filter((feature): feature is SpatialFeature => Boolean(feature &&
+        feature.id !== editingSourceId &&
+        feature.visible &&
+        visibleLayerIds.has(feature.layerId)));
     const selected = candidates[0];
     if (selected) callbacks.onGeometrySelect(selected.id);
     else callbacks.onMapBackgroundClick();

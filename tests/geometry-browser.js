@@ -62,7 +62,11 @@ async (page) => {
     throw new Error(`${scenario}: no selected inspector (provider ${provider}; ${mapStatus}; ${editorStatus}; features ${rows.join(' | ')})`);
   };
   const inspectorText = async () => (await page.locator('.inspector-field').allInnerTexts()).join(' ').replace(/\s+/g, ' ');
-  const geometryField = async () => page.locator('.inspector-field').filter({ hasText: 'Geometry' }).innerText();
+  const geometryField = async () => page.locator('.inspector-field').evaluateAll(fields => {
+    const field = fields.find(candidate => candidate.firstElementChild?.textContent === 'Geometry');
+    if (!field) throw new Error('Geometry inspector field is missing.');
+    return field.innerText;
+  });
   const dragMapPoint = async (xRatio, yRatio, nextXRatio, nextYRatio) => {
     const box = await mapBox();
     await page.mouse.move(box.x + box.width * xRatio, box.y + box.height * yRatio);
@@ -261,7 +265,8 @@ async (page) => {
   await mapClick(0.24, 0.28);
   await page.keyboard.press('Escape');
   await mapClick(0.67, 0.52);
-  check(await selectedInspectorId('Polygon source after Polygon cancel') === 'polygon-1', 'Polygon source reappears after Polygon draw cancellation');
+  check(await selectedInspectorId('topmost Polygon after Polygon cancel') === 'buffer-4', 'topmost Polygon buffer remains selectable after Polygon draw cancellation');
+  await selectFeature('Buffer polygon');
   check(await geometryField() === polygonOriginalGeometry, 'Polygon source canonical geometry is unchanged after edit-to-Polygon switch');
 
   await selectFeature('Buffer line');
@@ -286,7 +291,8 @@ async (page) => {
   await mapClick(0.9, 0.84);
   await page.keyboard.press('Enter');
   await mapClick(0.67, 0.52);
-  check(await selectedInspectorId('Polygon source after Line draw') === 'polygon-1', 'Polygon source reappears after cross-type Line draw');
+  check(await selectedInspectorId('topmost Polygon after Line draw') === 'buffer-4', 'topmost Polygon buffer remains selectable after cross-type Line draw');
+  await selectFeature('Buffer polygon');
   check(await geometryField() === polygonCrossTypeGeometry, 'Polygon source geometry survives cross-type draw switch');
 
   // Layer visibility stays truthful for committed geometry, and deleting a source preserves buffer traceability.
