@@ -16,7 +16,7 @@ import {
   deriveBufferFeature,
   validateBufferResult,
 } from '../src/features/buffer';
-import { initialWorkspaceState, workspaceReducer } from '../src/features/workspace';
+import { geometryEqual, initialWorkspaceState, workspaceReducer } from '../src/features/workspace';
 
 const lineCoordinates: Wgs84LineString = [[100.5, 13.75], [100.51, 13.76], [100.52, 13.75]];
 const polygonCoordinates: Wgs84Polygon = [[[100.5, 13.75], [100.51, 13.75], [100.51, 13.76], [100.5, 13.75]]];
@@ -34,6 +34,11 @@ console.log('PASS Polygon exterior-ring, closure, and distinct-vertex validation
 const point = createAuthoredPoint('point-1', [100.5, 13.75], 1);
 const line = createAuthoredLineString('line-1', lineCoordinates, 1);
 const polygon = createAuthoredPolygon('polygon-1', polygonCoordinates, 1);
+assert.equal(geometryEqual(line, { type: 'LineString', coordinates: lineCoordinates }), true);
+assert.equal(geometryEqual(line, { type: 'LineString', coordinates: [[100.5, 13.75], [100.53, 13.76]] }), false);
+assert.equal(geometryEqual(polygon, { type: 'Polygon', coordinates: polygonCoordinates }), true);
+assert.equal(geometryEqual(polygon, { type: 'Polygon', coordinates: [[[100.5, 13.75], [100.515, 13.75], [100.51, 13.76], [100.5, 13.75]]] }), false);
+console.log('PASS shared canonical geometry equality for identical/changed LineString and Polygon values');
 for (const [source, id] of [[point, 'buffer-point'], [line, 'buffer-line'], [polygon, 'buffer-polygon']] as const) {
   const derived = deriveBufferFeature(source, id, 125);
   assert.equal(derived.type, 'Polygon');

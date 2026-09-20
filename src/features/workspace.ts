@@ -66,7 +66,7 @@ function coordinatesEqual(left: readonly unknown[], right: readonly unknown[]): 
   });
 }
 
-function geometryEqual(target: SpatialFeature, geometry: GeometrySnapshot): boolean {
+export function geometryEqual(target: SpatialFeature, geometry: GeometrySnapshot): boolean {
   if (target.type !== geometry.type || geometry.type === 'Point') return false;
   if (target.type === 'LineString' && geometry.type === 'LineString') {
     return coordinatesEqual(target.coordinates, geometry.coordinates);

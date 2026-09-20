@@ -11,7 +11,7 @@ import {
   type GeometrySnapshot,
   type Wgs84Point,
 } from './features/featureModel';
-import { initialWorkspaceState, nextFeatureId, workspaceReducer } from './features/workspace';
+import { geometryEqual, initialWorkspaceState, nextFeatureId, workspaceReducer } from './features/workspace';
 import { MapCanvas } from './map/MapCanvas';
 import type { OperationResult } from './map/MapCanvas';
 import type { EditorMode } from './map/MapCanvas';
@@ -69,8 +69,11 @@ export function App() {
       if (validated.type === 'Point' || validated.type !== target.type) {
         throw new Error('Only an authored LineString or Polygon may receive a matching geometry edit.');
       }
+      const changed = !geometryEqual(target, validated);
       dispatchFeature({ type: 'applyGeometry', id, geometry: validated });
-      return success(`${validated.type} geometry applied. Directly dependent buffers are now marked Stale.`);
+      return success(changed
+        ? `${validated.type} geometry applied. Directly dependent buffers, if any, are now marked Stale.`
+        : `${validated.type} geometry unchanged. No dependent buffer status changed.`);
     } catch (error) {
       return failure(error);
     }

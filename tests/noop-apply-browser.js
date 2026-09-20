@@ -76,6 +76,9 @@ async (page) => {
   await page.getByRole('button', { name: 'No-op line authored', exact: true }).click();
   await page.getByRole('button', { name: 'Edit geometry', exact: true }).click();
   await page.getByRole('button', { name: 'Apply geometry', exact: true }).click();
+  const lineNoOpMessage = await page.locator('.editor-status').innerText();
+  check(lineNoOpMessage.includes('LineString geometry unchanged'), 'Line no-op Apply reports unchanged geometry');
+  check(!lineNoOpMessage.includes('marked Stale'), 'Line no-op Apply does not report Stale buffers');
   check(await page.locator('.inspector-id').innerText() === 'line-1', 'Line no-op Apply preserves deterministic source selection');
   await page.getByRole('button', { name: 'No-op line buffer derived', exact: true }).click();
   await expectCurrentBuffer(lineBufferBeforeNoOp, lineSnapshot, lineProvenance, 'Line no-op Apply');
@@ -85,12 +88,18 @@ async (page) => {
   await page.getByRole('button', { name: 'Edit geometry', exact: true }).click();
   await dragMapPoint(0.66, 0.58, 0.69, 0.6);
   await page.getByRole('button', { name: 'Apply geometry', exact: true }).click();
+  const lineRealEditMessage = await page.locator('.editor-status').innerText();
+  check(lineRealEditMessage.includes('LineString geometry applied'), 'Line real edit reports applied geometry');
+  check(lineRealEditMessage.includes('marked Stale'), 'Line real edit reports Stale dependent buffers');
   await page.getByRole('button', { name: 'No-op line buffer derived', exact: true }).click();
   await expectStaleBuffer(lineSnapshot, lineProvenance, 'Line real edit');
   const staleLineBeforeRepeat = await fields();
   await page.getByRole('button', { name: 'No-op line authored', exact: true }).click();
   await page.getByRole('button', { name: 'Edit geometry', exact: true }).click();
   await page.getByRole('button', { name: 'Apply geometry', exact: true }).click();
+  const repeatedLineMessage = await page.locator('.editor-status').innerText();
+  check(repeatedLineMessage.includes('LineString geometry unchanged'), 'Repeated Line Apply reports unchanged geometry');
+  check(!repeatedLineMessage.includes('marked Stale'), 'Repeated Line Apply does not report Stale buffers');
   await page.getByRole('button', { name: 'No-op line buffer derived', exact: true }).click();
   check(JSON.stringify(await fields()) === JSON.stringify(staleLineBeforeRepeat), 'repeated Line Apply does not append or mutate stale provenance');
 
@@ -105,6 +114,9 @@ async (page) => {
   await page.getByRole('button', { name: 'No-op polygon authored', exact: true }).click();
   await page.getByRole('button', { name: 'Edit geometry', exact: true }).click();
   await page.getByRole('button', { name: 'Apply geometry', exact: true }).click();
+  const polygonNoOpMessage = await page.locator('.editor-status').innerText();
+  check(polygonNoOpMessage.includes('Polygon geometry unchanged'), 'Polygon no-op Apply reports unchanged geometry');
+  check(!polygonNoOpMessage.includes('marked Stale'), 'Polygon no-op Apply does not report Stale buffers');
   check(await page.locator('.inspector-id').innerText() === 'polygon-1', 'Polygon no-op Apply preserves deterministic source selection');
   await page.getByRole('button', { name: 'No-op polygon buffer derived', exact: true }).click();
   await expectCurrentBuffer(polygonBufferBeforeNoOp, polygonSnapshot, polygonProvenance, 'Polygon no-op Apply');
@@ -113,6 +125,9 @@ async (page) => {
   await page.getByRole('button', { name: 'Edit geometry', exact: true }).click();
   await dragMapPoint(0.68, 0.38, 0.7, 0.39);
   await page.getByRole('button', { name: 'Apply geometry', exact: true }).click();
+  const polygonRealEditMessage = await page.locator('.editor-status').innerText();
+  check(polygonRealEditMessage.includes('Polygon geometry applied'), 'Polygon real edit reports applied geometry');
+  check(polygonRealEditMessage.includes('marked Stale'), 'Polygon real edit reports Stale dependent buffers');
   await page.getByRole('button', { name: 'No-op polygon buffer derived', exact: true }).click();
   await expectStaleBuffer(polygonSnapshot, polygonProvenance, 'Polygon real edit');
 
@@ -125,9 +140,11 @@ async (page) => {
     scenarios: [
       'LineString no-op Apply preserves current dependent buffer and selection',
       'LineString real edit stales dependent and preserves historical snapshot/provenance',
-      'repeated LineString Apply is provenance-neutral',
+      'LineString no-op and real-edit messages distinguish unchanged from Stale state',
+      'repeated LineString Apply is provenance-neutral and reports unchanged',
       'Polygon no-op Apply preserves current dependent buffer and selection',
       'Polygon real edit stales dependent and preserves historical snapshot/provenance',
+      'Polygon no-op and real-edit messages distinguish unchanged from Stale state',
     ],
   };
 }
