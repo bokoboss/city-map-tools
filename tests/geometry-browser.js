@@ -62,6 +62,14 @@ async (page) => {
     throw new Error(`${scenario}: no selected inspector (provider ${provider}; ${mapStatus}; ${editorStatus}; features ${rows.join(' | ')})`);
   };
   const inspectorText = async () => (await page.locator('.inspector-field').allInnerTexts()).join(' ').replace(/\s+/g, ' ');
+  const geometryField = async () => page.locator('.inspector-field').filter({ hasText: 'Geometry' }).innerText();
+  const dragMapPoint = async (xRatio, yRatio, nextXRatio, nextYRatio) => {
+    const box = await mapBox();
+    await page.mouse.move(box.x + box.width * xRatio, box.y + box.height * yRatio);
+    await page.mouse.down();
+    await page.mouse.move(box.x + box.width * nextXRatio, box.y + box.height * nextYRatio, { steps: 4 });
+    await page.mouse.up();
+  };
   const createBuffer = async radius => {
     await page.getByLabel('Buffer radius (metres)', { exact: true }).fill(String(radius));
     await page.getByRole('button', { name: 'Create derived buffer', exact: true }).click();
@@ -223,6 +231,64 @@ async (page) => {
   await selectFeature('Buffer polygon buffer', 'derived');
   check((await inspectorText()).includes('Validation status Stale'), 'polygon edit makes dependent buffer Stale');
 
+  // Switching directly from an edit into a draw must close the edit through
+  // the controller boundary, restoring the committed source before drawing.
+  const lineOriginalGeometry = await (async () => {
+    await selectFeature('Buffer line');
+    return geometryField();
+  })();
+  await page.getByRole('button', { name: 'Edit geometry', exact: true }).click();
+  await dragMapPoint(line.endX, line.endY, line.endX + 0.025, line.endY + 0.015);
+  check(await selectedInspectorId('Line edit before Line draw') === 'line-1', 'Line edit keeps deterministic selection before draw switch');
+  await page.getByRole('button', { name: 'Line tool', exact: true }).click();
+  check(await selectedInspectorId('Line edit to Line draw') === 'line-1', 'Line source remains selected during replacement draw');
+  await mapClick(0.2, 0.28);
+  await mapClick(0.3, 0.36);
+  await page.keyboard.press('Enter');
+  await mapClick(line.endX, line.endY);
+  check(await selectedInspectorId('Line source after Line draw') === 'line-1', 'Line source reappears after Line draw finishes');
+  check(await geometryField() === lineOriginalGeometry, 'Line source canonical geometry is unchanged after edit-to-Line switch');
+
+  const polygonOriginalGeometry = await (async () => {
+    await selectFeature('Buffer polygon');
+    return geometryField();
+  })();
+  await page.getByRole('button', { name: 'Edit geometry', exact: true }).click();
+  await dragMapPoint(0.62, 0.42, 0.645, 0.435);
+  check(await selectedInspectorId('Polygon edit before Polygon draw') === 'polygon-1', 'Polygon edit keeps deterministic selection before draw switch');
+  await page.getByRole('button', { name: 'Polygon tool', exact: true }).click();
+  check(await selectedInspectorId('Polygon edit to Polygon draw') === 'polygon-1', 'Polygon source remains selected during replacement draw');
+  await mapClick(0.24, 0.28);
+  await page.keyboard.press('Escape');
+  await mapClick(0.67, 0.52);
+  check(await selectedInspectorId('Polygon source after Polygon cancel') === 'polygon-1', 'Polygon source reappears after Polygon draw cancellation');
+  check(await geometryField() === polygonOriginalGeometry, 'Polygon source canonical geometry is unchanged after edit-to-Polygon switch');
+
+  await selectFeature('Buffer line');
+  const lineCrossTypeGeometry = await geometryField();
+  await page.getByRole('button', { name: 'Edit geometry', exact: true }).click();
+  await dragMapPoint(line.endX, line.endY, line.endX + 0.02, line.endY + 0.01);
+  await page.getByRole('button', { name: 'Polygon tool', exact: true }).click();
+  await mapClick(0.18, 0.72);
+  await mapClick(0.28, 0.78);
+  await mapClick(0.24, 0.88);
+  await page.keyboard.press('Enter');
+  await mapClick(line.endX, line.endY);
+  check(await selectedInspectorId('Line source after Polygon draw') === 'line-1', 'Line source reappears after cross-type Polygon draw');
+  check(await geometryField() === lineCrossTypeGeometry, 'Line source geometry survives cross-type draw switch');
+
+  await selectFeature('Buffer polygon');
+  const polygonCrossTypeGeometry = await geometryField();
+  await page.getByRole('button', { name: 'Edit geometry', exact: true }).click();
+  await dragMapPoint(0.62, 0.42, 0.64, 0.44);
+  await page.getByRole('button', { name: 'Line tool', exact: true }).click();
+  await mapClick(0.82, 0.76);
+  await mapClick(0.9, 0.84);
+  await page.keyboard.press('Enter');
+  await mapClick(0.67, 0.52);
+  check(await selectedInspectorId('Polygon source after Line draw') === 'polygon-1', 'Polygon source reappears after cross-type Line draw');
+  check(await geometryField() === polygonCrossTypeGeometry, 'Polygon source geometry survives cross-type draw switch');
+
   // Layer visibility stays truthful for committed geometry, and deleting a source preserves buffer traceability.
   await page.getByRole('button', { name: 'Hide Lines layer', exact: true }).click();
   check(await page.getByRole('button', { name: 'Show Lines layer', exact: true }).isVisible(), 'Line layer can be hidden');
@@ -258,6 +324,9 @@ async (page) => {
       'Point/LineString/Polygon map and list selection synchronization',
       'LineString map selection, edit/apply/cancel/delete',
       'Polygon edit/cancel/apply/delete',
+      'Line edit to Line draw finish restores exact committed source',
+      'Polygon edit to Polygon draw cancel restores exact committed source',
+      'Line edit to Polygon draw and Polygon edit to Line draw preserve sources',
       'layer visibility and OSM/CARTO style replacement',
       'Stale/orphan derived buffer state',
       'narrow toolbar and keyboard focus',

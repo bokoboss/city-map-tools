@@ -328,6 +328,7 @@ export function createMap(container: HTMLDivElement, callbacks: MapCallbacks) {
     const visibleLayerIds = new Set(latestGeometry.layers.filter(layer => layer.visible).map(layer => layer.id));
     const candidates = latestGeometry.features
       .filter(isLineStringFeature)
+      .filter(feature => feature.id !== editingSourceId)
       .filter(feature => feature.visible && visibleLayerIds.has(feature.layerId))
       .map(feature => {
         const projected = feature.coordinates.map(coordinates => map.project(coordinates));
@@ -349,6 +350,7 @@ export function createMap(container: HTMLDivElement, callbacks: MapCallbacks) {
     const visibleLayerIds = new Set(latestGeometry.layers.filter(layer => layer.visible).map(layer => layer.id));
     return latestGeometry.features
       .filter(isPolygonFeature)
+      .filter(feature => feature.id !== editingSourceId)
       .filter(feature => feature.visible && visibleLayerIds.has(feature.layerId))
       .find(feature => isInsideScreenRing(point, feature.coordinates[0].map(coordinates => map.project(coordinates))));
   };
@@ -540,6 +542,9 @@ export function createMap(container: HTMLDivElement, callbacks: MapCallbacks) {
         callbacks.onEditorError('Geometry editor is not ready yet. Wait for the map to finish loading.');
         return false;
       }
+      // Own the transition at the controller boundary so an edit cancellation
+      // also clears editingSourceId and restores committed geometry rendering.
+      cancelEditor();
       const started = editor.startDraw(mode === 'line' ? 'LineString' : 'Polygon');
       if (started) interactionMode = mode;
       return started;
