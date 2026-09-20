@@ -58,6 +58,25 @@ function createGeometry(features: readonly SpatialFeature[], geometry: GeometryS
   );
 }
 
+function coordinatesEqual(left: readonly unknown[], right: readonly unknown[]): boolean {
+  return left.length === right.length && left.every((value, index) => {
+    const other = right[index];
+    if (Array.isArray(value) && Array.isArray(other)) return coordinatesEqual(value, other);
+    return value === other;
+  });
+}
+
+function geometryEqual(target: SpatialFeature, geometry: GeometrySnapshot): boolean {
+  if (target.type !== geometry.type || geometry.type === 'Point') return false;
+  if (target.type === 'LineString' && geometry.type === 'LineString') {
+    return coordinatesEqual(target.coordinates, geometry.coordinates);
+  }
+  if (target.type === 'Polygon' && geometry.type === 'Polygon') {
+    return coordinatesEqual(target.coordinates, geometry.coordinates);
+  }
+  return false;
+}
+
 function applyGeometry(features: readonly SpatialFeature[], id: string, geometry: GeometrySnapshot): SpatialFeature[] {
   const target = features.find(feature => feature.id === id);
   if (!target) throw new Error('Selected feature no longer exists.');
@@ -65,6 +84,7 @@ function applyGeometry(features: readonly SpatialFeature[], id: string, geometry
   if (target.type !== geometry.type || geometry.type === 'Point') {
     throw new Error('Only authored LineString and Polygon geometry can be edited in this slice.');
   }
+  if (geometryEqual(target, geometry)) return features.slice();
   const updated = features.map(feature => {
     if (feature.id !== id) return feature;
     if (geometry.type === 'LineString' && feature.type === 'LineString') {

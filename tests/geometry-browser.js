@@ -226,6 +226,11 @@ async (page) => {
   await createBuffer(90);
   await selectFeature('Buffer polygon');
   const polygonBeforeCancel = await page.locator('.inspector-field').allInnerTexts();
+  await selectFeature('Buffer polygon buffer', 'derived');
+  const polygonBufferBeforeNoOp = await inspectorText();
+  const polygonSourceSnapshot = await page.getByLabel('Stored source geometry snapshot', { exact: true }).innerText();
+  const polygonSourceProvenance = await page.getByLabel('Source provenance', { exact: true }).innerText();
+  await selectFeature('Buffer polygon');
   await page.getByRole('button', { name: 'Edit geometry', exact: true }).click();
   await assertReloadBlocked('Polygon edit');
   await page.getByRole('button', { name: 'Cancel edit', exact: true }).click();
@@ -235,7 +240,20 @@ async (page) => {
   await page.locator('.editor-status').filter({ hasText: 'Polygon geometry applied' }).waitFor({ timeout: 5000 });
   check(await page.getByRole('button', { name: 'Select tool', exact: true }).getAttribute('aria-pressed') === 'true', 'Polygon Apply returns Select tool state');
   await selectFeature('Buffer polygon buffer', 'derived');
-  check((await inspectorText()).includes('Validation status Stale'), 'polygon edit makes dependent buffer Stale');
+  check(await inspectorText() === polygonBufferBeforeNoOp, 'Polygon no-op Apply preserves dependent buffer inspector state');
+  check((await inspectorText()).includes('Validation status Functional but unvalidated'), 'Polygon no-op Apply keeps dependent buffer current');
+  check(!(await inspectorText()).includes('Source geometry changed'), 'Polygon no-op Apply adds no source-change limitation');
+  check(await page.getByLabel('Stored source geometry snapshot', { exact: true }).innerText() === polygonSourceSnapshot, 'Polygon no-op Apply preserves source snapshot');
+  check(await page.getByLabel('Source provenance', { exact: true }).innerText() === polygonSourceProvenance, 'Polygon no-op Apply preserves source provenance');
+  await selectFeature('Buffer polygon');
+  await page.getByRole('button', { name: 'Edit geometry', exact: true }).click();
+  await dragMapPoint(0.62, 0.42, 0.645, 0.435);
+  await page.getByRole('button', { name: 'Apply geometry', exact: true }).click();
+  await selectFeature('Buffer polygon buffer', 'derived');
+  check((await inspectorText()).includes('Validation status Stale'), 'Polygon real edit makes dependent buffer Stale');
+  check((await inspectorText()).includes('Source geometry changed'), 'Polygon real edit records source-change limitation');
+  check(await page.getByLabel('Stored source geometry snapshot', { exact: true }).innerText() === polygonSourceSnapshot, 'Polygon real edit preserves historical source snapshot');
+  check(await page.getByLabel('Source provenance', { exact: true }).innerText() === polygonSourceProvenance, 'Polygon real edit preserves historical source provenance');
 
   // Switching directly from an edit into a draw must close the edit through
   // the controller boundary, restoring the committed source before drawing.

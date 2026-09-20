@@ -114,6 +114,64 @@ assert.throws(() => workspaceReducer({ features: [dependent], selectedFeatureId:
 }), /read-only/);
 console.log('PASS dependent buffers become Stale after source edit and Stale/orphaned after source delete; derived geometry stays read-only');
 
+const noOpLineSource = createAuthoredLineString('noop-line', lineCoordinates, 1);
+const noOpLineBuffer = deriveBufferFeature(noOpLineSource, 'noop-line-buffer', 80);
+const noOpLineBefore = JSON.stringify([noOpLineSource, noOpLineBuffer]);
+const noOpLineState = workspaceReducer({ features: [noOpLineSource, noOpLineBuffer], selectedFeatureId: noOpLineSource.id }, {
+  type: 'applyGeometry',
+  id: noOpLineSource.id,
+  geometry: { type: 'LineString', coordinates: noOpLineSource.coordinates },
+});
+assert.equal(JSON.stringify(noOpLineState.features), noOpLineBefore);
+assert.equal(noOpLineState.selectedFeatureId, noOpLineSource.id);
+assert.equal(noOpLineState.features.find(feature => feature.id === noOpLineBuffer.id)?.validationStatus, noOpLineBuffer.validationStatus);
+assert.ok(!noOpLineState.features.find(feature => feature.id === noOpLineBuffer.id)?.provenance.limitations.includes('Source geometry changed'));
+console.log('PASS LineString no-op Apply preserves source, dependent buffer, status, provenance, and selection');
+
+const changedLineCoordinates: Wgs84LineString = [[100.5, 13.75], [100.53, 13.76]];
+const changedLineState = workspaceReducer(noOpLineState, {
+  type: 'applyGeometry',
+  id: noOpLineSource.id,
+  geometry: { type: 'LineString', coordinates: changedLineCoordinates },
+});
+const changedLineBuffer = changedLineState.features.find(feature => feature.id === noOpLineBuffer.id);
+assert.deepEqual(changedLineState.features.find(feature => feature.id === noOpLineSource.id)?.type, 'LineString');
+assert.deepEqual(changedLineBuffer?.provenance.derivedFrom?.geometry, { type: 'LineString', coordinates: noOpLineSource.coordinates });
+assert.equal(changedLineBuffer?.validationStatus, 'Stale');
+assert.ok(changedLineBuffer?.provenance.limitations.includes('Source geometry changed'));
+const repeatedChangedLineState = workspaceReducer(changedLineState, {
+  type: 'applyGeometry',
+  id: noOpLineSource.id,
+  geometry: { type: 'LineString', coordinates: changedLineCoordinates },
+});
+assert.equal(JSON.stringify(repeatedChangedLineState.features), JSON.stringify(changedLineState.features));
+console.log('PASS LineString real edit stales dependents once and repeated Apply is a no-op');
+
+const noOpPolygonSource = createAuthoredPolygon('noop-polygon', polygonCoordinates, 1);
+const noOpPolygonBuffer = deriveBufferFeature(noOpPolygonSource, 'noop-polygon-buffer', 80);
+const noOpPolygonBefore = JSON.stringify([noOpPolygonSource, noOpPolygonBuffer]);
+const noOpPolygonState = workspaceReducer({ features: [noOpPolygonSource, noOpPolygonBuffer], selectedFeatureId: noOpPolygonSource.id }, {
+  type: 'applyGeometry',
+  id: noOpPolygonSource.id,
+  geometry: { type: 'Polygon', coordinates: noOpPolygonSource.coordinates },
+});
+assert.equal(JSON.stringify(noOpPolygonState.features), noOpPolygonBefore);
+assert.equal(noOpPolygonState.selectedFeatureId, noOpPolygonSource.id);
+assert.equal(noOpPolygonState.features.find(feature => feature.id === noOpPolygonBuffer.id)?.validationStatus, noOpPolygonBuffer.validationStatus);
+console.log('PASS Polygon no-op Apply preserves source, dependent buffer, status, provenance, and selection');
+
+const changedPolygonCoordinates: Wgs84Polygon = [[[100.5, 13.75], [100.515, 13.75], [100.51, 13.76], [100.5, 13.75]]];
+const changedPolygonState = workspaceReducer(noOpPolygonState, {
+  type: 'applyGeometry',
+  id: noOpPolygonSource.id,
+  geometry: { type: 'Polygon', coordinates: changedPolygonCoordinates },
+});
+const changedPolygonBuffer = changedPolygonState.features.find(feature => feature.id === noOpPolygonBuffer.id);
+assert.deepEqual(changedPolygonBuffer?.provenance.derivedFrom?.geometry, { type: 'Polygon', coordinates: noOpPolygonSource.coordinates });
+assert.equal(changedPolygonBuffer?.validationStatus, 'Stale');
+assert.ok(changedPolygonBuffer?.provenance.limitations.includes('Source geometry changed'));
+console.log('PASS Polygon real edit stales dependents while retaining the historical source snapshot');
+
 const orphanedLineSource = createAuthoredLineString('line-1', lineCoordinates, 1);
 const orphanedLineBuffer = deriveBufferFeature(orphanedLineSource, 'buffer-line-1', 80);
 const orphanedLineState = workspaceReducer({ features: [orphanedLineSource, orphanedLineBuffer], selectedFeatureId: orphanedLineSource.id }, {
