@@ -10,9 +10,30 @@ This record documents the bounded provenance review for the R0B truth and securi
 
 - [Space Syntax OpenMapping](https://github.com/spacesyntax/OpenMapping) was reviewed as methodology/prior-art research only. The current prototype does not use OpenMapping code, data, or content, and OpenMapping is not the local analytical engine. Public repository metadata was checked on 2026-09-12 and reports CC BY-SA 4.0; no OpenMapping material is redistributed here.
 
-## Runtime providers and libraries
+## Current shell runtime libraries
 
-The prototype uses MapLibre GL JS, Turf.js, Lucide, Tailwind CSS via CDN, Nominatim search, and optional OSM, Esri, CARTO, and OpenTopoMap basemap providers. Current UI attribution and provider failure behavior are part of the R0B capability contract; routing/accessibility providers are not active in this revision, and external provider terms and availability remain constraints.
+The current static shell records these direct npm runtime dependencies in its committed
+lockfile. Package metadata was checked on 2026-09-13; this is a dependency record, not
+a repository-wide license selection or a claim that provider data is redistributed.
+
+- `maplibre-gl` 6.9.0 — BSD-3-Clause.
+- `terra-draw` 1.31.0 — MIT. It supplies transient LineString/Polygon editor state.
+- `terra-draw-maplibre-gl-adapter` 1.4.1 — MIT.
+- `@turf/buffer` 7.4.0 — MIT. It supplies bounded, explicitly unvalidated derived
+  buffer geometry; the application preserves source/method/parameter provenance.
+- `react` 19.3.0 and `react-dom` 19.3.0 — MIT.
+
+The shell uses optional OpenStreetMap raster and CARTO Voyager basemap requests with
+visible attribution, capability/error state, and links to provider policy/terms. No
+provider dataset, map style, API key, or third-party source asset is vendored.
+
+## Legacy R0 prototype runtime inventory
+
+The preserved reference prototype uses MapLibre GL JS, Turf.js, Lucide, Tailwind CSS
+via CDN, Nominatim search, and optional OSM, Esri, CARTO, and OpenTopoMap basemap
+providers. That inventory belongs to the reference prototype, not the current shell.
+Routing/accessibility providers are not active in the current revision, and external
+provider terms and availability remain constraints.
 
 ## Bounded scan and license decision
 
