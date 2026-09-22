@@ -46,14 +46,21 @@ Derived buffers remain Polygon features on `layer-buffers` with:
 
 Stale buffers retain their derivation-time snapshot. An orphaned source ID must
 not resolve to a current feature; the loader rejects a live replacement that
-would silently reconnect historical provenance. A non-orphaned derived source
-must resolve to a live non-derived feature of the recorded type.
+would silently reconnect historical provenance, and every orphaned derived
+buffer must be `Stale`. A non-orphaned derived source must resolve to a live
+non-derived feature of the recorded type. If that derived buffer is not
+`Stale`, its live source geometry must exactly equal the recorded derivation
+snapshot using canonical coordinate equality; `Stale` is the explicit state
+that permits a preserved historical mismatch.
 
 ## Strict load and serialization rules
 
 `decodeProjectDocument(unknown)` validates and returns a detached v1 document.
 `parseProjectDocumentJson(text)` rejects malformed JSON or text above the
-2,000,000-character bound before parsing. `serializeProjectDocument(document)`
+2,000,000-character bound before parsing. The normalized serialized JSON of a
+schema-valid document must also be at or below that same bound during decode,
+create, and serialization, so a document produced by the serializer is always
+reopenable. No truncation is performed. `serializeProjectDocument(document)`
 revalidates before deterministic JSON serialization. No malformed field is
 trimmed, defaulted, truncated, or silently coerced, and unsupported properties
 are rejected at every v1 object boundary.

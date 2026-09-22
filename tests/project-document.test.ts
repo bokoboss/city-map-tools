@@ -109,15 +109,18 @@ console.log('PASS strict format/version/timestamp/CRS/layer/geometry/presentatio
 const stale = structuredClone(buffer) as SpatialFeature & { validationStatus: 'Stale' };
 stale.validationStatus = 'Stale';
 stale.provenance.limitations += '; Source geometry changed; regenerate this derived buffer before use.';
+const changedPoint = structuredClone(point);
+changedPoint.coordinates = [100.51, 13.75];
 const staleDocument = createProjectDocument({
   metadata: { id: 'stale-project', name: 'Stale', createdAt, updatedAt },
   layers: createDefaultLayers(),
-  features: [point, stale],
+  features: [changedPoint, stale],
 });
 const staleRoundTrip = parseProjectDocumentJson(serializeProjectDocument(staleDocument));
 assert.equal(staleRoundTrip.features[1]?.validationStatus, 'Stale');
 assert.equal(staleRoundTrip.features[1]?.provenance.derivedFrom?.orphaned, undefined);
 assert.deepEqual(staleRoundTrip.features[1]?.provenance.derivedFrom?.geometry, buffer.provenance.derivedFrom?.geometry);
+assert.deepEqual(staleRoundTrip.features[0]?.coordinates, changedPoint.coordinates);
 
 const orphaned = structuredClone(buffer) as SpatialFeature & { validationStatus: 'Stale' };
 orphaned.validationStatus = 'Stale';
@@ -136,6 +139,23 @@ assert.equal(orphanedRoundTrip.features[0]?.validationStatus, 'Stale');
 assert.equal(orphanedRoundTrip.features[0]?.provenance.derivedFrom?.orphaned, true);
 assert.deepEqual(orphanedRoundTrip.features[0]?.provenance.derivedFrom?.geometry, buffer.provenance.derivedFrom?.geometry);
 console.log('PASS stale and orphaned derived buffer state preserves source ID, snapshot, provenance, and status');
+
+rejects(value => {
+  value.features[3].provenance.derivedFrom.orphaned = true;
+}, /orphaned derived buffers must be Stale/);
+rejects(value => {
+  value.features[3].validationStatus = 'Experimental';
+  value.features[3].provenance.derivedFrom.orphaned = true;
+}, /orphaned derived buffers must be Stale/);
+rejects(value => {
+  value.features[0].coordinates = [100.51, 13.75];
+}, /must exactly match the live source geometry when the derived buffer is not Stale/);
+assert.equal(document.features[3]?.validationStatus, 'Functional but unvalidated');
+assert.deepEqual(document.features[3]?.provenance.derivedFrom?.geometry, {
+  type: 'Point',
+  coordinates: point.coordinates,
+}, 'an exact live source snapshot is accepted for a non-stale derived buffer');
+console.log('PASS orphaned status and live-source geometry consistency rules are strict while stale snapshots remain preserved');
 
 rejects(value => {
   value.features = [value.features[3]];
@@ -184,6 +204,74 @@ assert.throws(
   /exceeds the 2000000-character limit; input was not parsed or truncated/,
 );
 console.log('PASS over-limit native JSON rejects before parsing without truncation');
+
+function makeBulkDocument(featureCount: number): Record<string, any> {
+  const value = JSON.parse(encoded) as Record<string, any>;
+  const coordinates = Array.from({ length: 1_000 }, () => [100, 13]);
+  value.features = Array.from({ length: featureCount }, (_, index) => ({
+    ...structuredClone(line),
+    id: `bulk-line-${index}`,
+    coordinates,
+  }));
+  value.presentation.points = {};
+  return value;
+}
+
+const oversized = makeBulkDocument(500);
+assert.ok(JSON.stringify(oversized).length > PROJECT_DOCUMENT_MAX_TEXT_LENGTH, 'fixture must exceed the aggregate serialized size bound');
+assert.throws(
+  () => decodeProjectDocument(oversized),
+  /normalized serialized JSON exceeds the 2000000-character limit; the document was rejected without truncation/,
+);
+assert.throws(
+  () => serializeProjectDocument(oversized as never),
+  /normalized serialized JSON exceeds the 2000000-character limit; the document was rejected without truncation/,
+);
+assert.throws(
+  () => createProjectDocument({
+    metadata: oversized.metadata,
+    layers: oversized.layers,
+    features: oversized.features,
+    pointPresentations: {},
+  }),
+  /normalized serialized JSON exceeds the 2000000-character limit; the document was rejected without truncation/,
+);
+
+function findExactBoundaryDocument(): Record<string, any> {
+  for (let featureCount = 500; featureCount >= 1; featureCount -= 1) {
+    const candidate = makeBulkDocument(featureCount);
+    if (JSON.stringify(candidate).length > PROJECT_DOCUMENT_MAX_TEXT_LENGTH) continue;
+    const baseLength = serializeProjectDocument(candidate as never).length;
+
+    const oneDescription = structuredClone(candidate);
+    oneDescription.features[0].description = 'x';
+    const descriptionOverhead = serializeProjectDocument(oneDescription as never).length - baseLength - 1;
+    const descriptionUnit = descriptionOverhead + MAX_DESCRIPTION_LENGTH;
+    const remaining = PROJECT_DOCUMENT_MAX_TEXT_LENGTH - baseLength;
+    const completeDescriptions = Math.min(
+      candidate.features.length - 1,
+      Math.floor(Math.max(0, remaining - descriptionOverhead - 1) / descriptionUnit),
+    );
+    for (let index = 0; index < completeDescriptions; index += 1) {
+      candidate.features[index].description = 'x'.repeat(MAX_DESCRIPTION_LENGTH);
+    }
+    const afterComplete = serializeProjectDocument(candidate as never).length;
+    const finalDescriptionLength = PROJECT_DOCUMENT_MAX_TEXT_LENGTH - afterComplete - descriptionOverhead;
+    if (finalDescriptionLength < 1 || finalDescriptionLength > MAX_DESCRIPTION_LENGTH) continue;
+    candidate.features[completeDescriptions].description = 'x'.repeat(finalDescriptionLength);
+    if (serializeProjectDocument(candidate as never).length === PROJECT_DOCUMENT_MAX_TEXT_LENGTH) return candidate;
+  }
+  throw new Error('could not construct the exact aggregate-size boundary fixture');
+}
+
+const MAX_DESCRIPTION_LENGTH = 500;
+const exactBoundary = findExactBoundaryDocument();
+const exactBoundaryText = serializeProjectDocument(exactBoundary as never);
+assert.equal(exactBoundaryText.length, PROJECT_DOCUMENT_MAX_TEXT_LENGTH);
+assert.equal(serializeProjectDocument(parseProjectDocumentJson(exactBoundaryText)), exactBoundaryText);
+assert.ok(encoded.length < PROJECT_DOCUMENT_MAX_TEXT_LENGTH);
+assert.deepEqual(parseProjectDocumentJson(serializeProjectDocument(document)), document);
+console.log('PASS normalized serialized JSON accepts exact-at-limit and ordinary under-limit documents, and rejects valid oversized fixtures');
 
 const forgedValidatedSnapshot = JSON.parse(encoded) as Record<string, any>;
 forgedValidatedSnapshot.features[3].provenance.derivedFrom.validationStatus = 'Validated';

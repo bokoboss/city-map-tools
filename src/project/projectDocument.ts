@@ -14,6 +14,8 @@ import {
   isGeometryType,
   isRecord,
   isValidationStatus,
+  geometrySnapshot,
+  geometrySnapshotsEqual,
   validateWgs84LineString,
   validateWgs84Point,
   validateWgs84Polygon,
@@ -375,12 +377,19 @@ function validateDerivedFeatureRelationships(features: readonly SpatialFeature[]
       fail(`features[${index}].provenance.derivedFrom`, 'source type must match the source geometry snapshot.');
     }
     if (derivedFrom.orphaned === true) {
+      if (feature.validationStatus !== 'Stale') {
+        fail(`features[${index}].validationStatus`, 'orphaned derived buffers must be Stale.');
+      }
       if (live.has(derivedFrom.id)) fail(`features[${index}].provenance.derivedFrom.id`, 'orphaned source ID is currently live and would silently reconnect.');
     } else {
       const source = live.get(derivedFrom.id);
       if (!source) fail(`features[${index}].provenance.derivedFrom.id`, 'must resolve to a live source or be explicitly orphaned.');
       if (source.lineage === 'derived' || source.type !== derivedFrom.type) {
         fail(`features[${index}].provenance.derivedFrom.id`, 'resolves to an incompatible live source.');
+      }
+      if (feature.validationStatus !== 'Stale' &&
+          !geometrySnapshotsEqual(geometrySnapshot(source), derivedFrom.geometry)) {
+        fail(`features[${index}].provenance.derivedFrom.geometry`, 'must exactly match the live source geometry when the derived buffer is not Stale.');
       }
     }
   }
@@ -445,7 +454,7 @@ function cloneDocument(value: unknown): ProjectDocumentV1 {
   });
   validateDerivedFeatureRelationships(features);
 
-  return {
+  const document: ProjectDocumentV1 = {
     format: PROJECT_DOCUMENT_FORMAT,
     schemaVersion: PROJECT_DOCUMENT_SCHEMA_VERSION,
     metadata,
@@ -458,6 +467,15 @@ function cloneDocument(value: unknown): ProjectDocumentV1 {
     features,
     presentation: clonePresentation(required(source, 'presentation', 'project document'), features),
   };
+  assertSerializedDocumentSize(document);
+  return document;
+}
+
+function assertSerializedDocumentSize(document: ProjectDocumentV1): void {
+  const normalizedText = JSON.stringify(document);
+  if (normalizedText.length > PROJECT_DOCUMENT_MAX_TEXT_LENGTH) {
+    fail('project document', `normalized serialized JSON exceeds the ${PROJECT_DOCUMENT_MAX_TEXT_LENGTH}-character limit; the document was rejected without truncation.`);
+  }
 }
 
 export function createEmptyProjectDocument(input: CreateEmptyProjectDocumentInput): ProjectDocumentV1 {
@@ -509,5 +527,7 @@ export function parseProjectDocumentJson(text: string): ProjectDocumentV1 {
 }
 
 export function serializeProjectDocument(document: ProjectDocumentV1): string {
-  return JSON.stringify(decodeProjectDocument(document));
+  const normalized = decodeProjectDocument(document);
+  assertSerializedDocumentSize(normalized);
+  return JSON.stringify(normalized);
 }

@@ -268,6 +268,17 @@ export function geometrySnapshot(feature: SpatialFeature): GeometrySnapshot {
   return { type: 'Polygon', coordinates: validateWgs84Polygon(feature.coordinates) };
 }
 
+export function geometrySnapshotsEqual(left: GeometrySnapshot, right: GeometrySnapshot): boolean {
+  if (left.type !== right.type) return false;
+  const coordinatesEqual = (first: readonly unknown[], second: readonly unknown[]): boolean =>
+    first.length === second.length && first.every((value, index) => {
+      const other = second[index];
+      if (Array.isArray(value) && Array.isArray(other)) return coordinatesEqual(value, other);
+      return value === other;
+    });
+  return coordinatesEqual(left.coordinates, right.coordinates);
+}
+
 export function validateGeometrySnapshot(value: GeometrySnapshot): GeometrySnapshot {
   if (value.type === 'Point') return { type: 'Point', coordinates: validateWgs84Point(value.coordinates) };
   if (value.type === 'LineString') return { type: 'LineString', coordinates: validateWgs84LineString(value.coordinates) };
