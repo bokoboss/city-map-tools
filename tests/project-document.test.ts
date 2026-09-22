@@ -20,6 +20,7 @@ import {
   createProjectDocument,
   decodeProjectDocument,
   parseProjectDocumentJson,
+  ProjectDocumentValidationError,
   serializeProjectDocument,
 } from '../src/project/projectDocument';
 
@@ -86,6 +87,16 @@ function rejects(mutator: (value: Record<string, any>) => void, message: RegExp)
   assert.throws(() => decodeProjectDocument(value), message);
 }
 
+function rejectsValidation(mutator: (value: Record<string, any>) => void, message: RegExp): void {
+  const value = mutableDocument();
+  mutator(value);
+  assert.throws(() => decodeProjectDocument(value), error => {
+    if (!(error instanceof ProjectDocumentValidationError)) return false;
+    assert.match(error.message, message);
+    return true;
+  });
+}
+
 rejects(value => { value.format = 'other-format'; }, /format: must be city-map-tools-project/);
 rejects(value => { delete value.schemaVersion; }, /project document: missing required property "schemaVersion"/);
 rejects(value => { value.schemaVersion = 2; }, /future schema version 2 is unsupported/);
@@ -104,6 +115,23 @@ rejects(value => { value.features[3].provenance.buffer.radius = 0; }, /provenanc
 rejects(value => { delete value.features[3].provenance.derivedFrom.geometry; }, /derivedFrom: must preserve id, name, type, geometry/);
 rejects(value => { value.features[0].validationStatus = 'Validated'; }, /Validated is not an active status/);
 rejects(value => { value.apiKey = 'must-not-be-persisted'; }, /project document: unsupported property "apiKey"/);
+rejectsValidation(value => { delete value.layers[0]; }, /layers: must be a dense array/);
+rejectsValidation(value => { delete value.features[0]; }, /features: must be a dense array/);
+rejectsValidation(value => {
+  value.features[0].provenance.importChain = ['first', 'second'];
+  delete value.features[0].provenance.importChain[0];
+}, /features\[0\]\.provenance\.importChain: must be a dense array/);
+rejectsValidation(value => {
+  const coordinates = [[100.5, 13.75], [100.53, 13.76]];
+  delete coordinates[0];
+  value.features[1].coordinates = coordinates;
+}, /features\[1\]\.coordinates: LineString coordinates must be a dense array/);
+rejectsValidation(value => {
+  const ring = [[100.5, 13.75], [100.515, 13.75], [100.51, 13.76], [100.5, 13.75]];
+  delete ring[1];
+  value.features[2].coordinates = [ring];
+}, /features\[2\]\.coordinates: Polygon exterior ring must be a dense array/);
+assert.doesNotThrow(() => decodeProjectDocument(JSON.parse(encoded)), 'dense native arrays remain accepted');
 console.log('PASS strict format/version/timestamp/CRS/layer/geometry/presentation/buffer/trust rejection');
 
 const stale = structuredClone(buffer) as SpatialFeature & { validationStatus: 'Stale' };

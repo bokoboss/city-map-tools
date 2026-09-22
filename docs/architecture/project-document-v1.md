@@ -63,7 +63,9 @@ create, and serialization, so a document produced by the serializer is always
 reopenable. No truncation is performed. `serializeProjectDocument(document)`
 revalidates before deterministic JSON serialization. No malformed field is
 trimmed, defaulted, truncated, or silently coerced, and unsupported properties
-are rejected at every v1 object boundary.
+are rejected at every v1 object boundary. Every native v1 array must be dense;
+missing indices are rejected explicitly before normalization, so serialization
+cannot turn an accepted array hole into a non-reopenable `null`.
 
 The loader rejects missing/wrong format, missing/non-integer/unsupported or
 future schema versions, non-canonical timestamps, reversed metadata times,

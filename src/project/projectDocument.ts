@@ -12,6 +12,7 @@ import {
   createDefaultLayers,
   isFeatureLineage,
   isGeometryType,
+  isDenseArray,
   isRecord,
   isValidationStatus,
   geometrySnapshot,
@@ -248,6 +249,9 @@ function cloneProvenance(value: unknown, path: string, depth = 0): Provenance {
     if (!Array.isArray(source.importChain) || source.importChain.length > 20) {
       fail(`${path}.importChain`, 'must contain at most 20 strings.');
     }
+    if (!isDenseArray(source.importChain)) {
+      fail(`${path}.importChain`, 'must be a dense array; sparse arrays are not accepted.');
+    }
     provenance.importChain = source.importChain.map((entry, index) =>
       boundedString(entry, `${path}.importChain[${index}]`, 160));
   }
@@ -432,6 +436,7 @@ function cloneDocument(value: unknown): ProjectDocumentV1 {
   if (!Array.isArray(layersValue) || layersValue.length === 0 || layersValue.length > PROJECT_DOCUMENT_MAX_LAYERS) {
     fail('layers', `must contain 1-${PROJECT_DOCUMENT_MAX_LAYERS} layers.`);
   }
+  if (!isDenseArray(layersValue)) fail('layers', 'must be a dense array; sparse arrays are not accepted.');
   const layers = layersValue.map(cloneLayer);
   const layerIds = new Set<string>();
   layers.forEach((layer, index) => {
@@ -443,6 +448,7 @@ function cloneDocument(value: unknown): ProjectDocumentV1 {
   if (!Array.isArray(featuresValue) || featuresValue.length > PROJECT_DOCUMENT_MAX_FEATURES) {
     fail('features', `must contain at most ${PROJECT_DOCUMENT_MAX_FEATURES} features.`);
   }
+  if (!isDenseArray(featuresValue)) fail('features', 'must be a dense array; sparse arrays are not accepted.');
   const features = featuresValue.map(cloneFeature);
   const featureIds = new Set<string>();
   features.forEach((feature, index) => {
