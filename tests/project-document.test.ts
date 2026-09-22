@@ -6,6 +6,8 @@ import {
   createAuthoredPolygon,
   createDefaultLayers,
   defaultProvenance,
+  validateWgs84LineString,
+  validateWgs84Polygon,
   type SpatialFeature,
 } from '../src/features/featureModel';
 import { deriveBufferFeature } from '../src/features/buffer';
@@ -132,6 +134,45 @@ rejectsValidation(value => {
   value.features[2].coordinates = [ring];
 }, /features\[2\]\.coordinates: Polygon exterior ring must be a dense array/);
 assert.doesNotThrow(() => decodeProjectDocument(JSON.parse(encoded)), 'dense native arrays remain accepted');
+const oversizedSparseLineString = new Proxy(new Array(1_001), {
+  getOwnPropertyDescriptor() {
+    throw new Error('density scan should not run before the LineString bound check');
+  },
+});
+assert.throws(
+  () => validateWgs84LineString(oversizedSparseLineString),
+  /LineString exceeds the 1000-vertex operational limit/,
+);
+const oversizedSparsePolygonRing = new Proxy(new Array(1_002), {
+  getOwnPropertyDescriptor() {
+    throw new Error('density scan should not run before the Polygon ring bound check');
+  },
+});
+assert.throws(
+  () => validateWgs84Polygon([oversizedSparsePolygonRing]),
+  /Polygon exceeds the 1000-vertex operational limit/,
+);
+const sparsePolygonWrapper = new Array(1);
+const inheritedRing = polygonCoordinates[0];
+const originalArrayPrototypeZero = Object.getOwnPropertyDescriptor(Array.prototype, '0');
+try {
+  Object.defineProperty(Array.prototype, '0', {
+    configurable: true,
+    enumerable: false,
+    writable: true,
+    value: inheritedRing,
+  });
+  assert.throws(
+    () => validateWgs84Polygon(sparsePolygonWrapper),
+    /Polygon coordinates must be a dense array/,
+  );
+} finally {
+  if (originalArrayPrototypeZero) {
+    Object.defineProperty(Array.prototype, '0', originalArrayPrototypeZero);
+  } else {
+    Reflect.deleteProperty(Array.prototype, '0');
+  }
+}
 console.log('PASS strict format/version/timestamp/CRS/layer/geometry/presentation/buffer/trust rejection');
 
 const stale = structuredClone(buffer) as SpatialFeature & { validationStatus: 'Stale' };

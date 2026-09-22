@@ -231,11 +231,11 @@ export function validateWgs84LineString(value: unknown): Wgs84LineString {
   if (!Array.isArray(value) || value.length < 2) {
     throw new Error('LineString must contain at least 2 WGS84 vertices.');
   }
-  if (!isDenseArray(value)) {
-    throw new Error('LineString coordinates must be a dense array; sparse arrays are not accepted.');
-  }
   if (value.length > MAX_LINE_VERTICES) {
     throw new Error(`LineString exceeds the ${MAX_LINE_VERTICES}-vertex operational limit.`);
+  }
+  if (!isDenseArray(value)) {
+    throw new Error('LineString coordinates must be a dense array; sparse arrays are not accepted.');
   }
   return value.map(validateWgs84Point);
 }
@@ -249,18 +249,24 @@ function samePoint(first: Wgs84Point, second: Wgs84Point): boolean {
 }
 
 export function validateWgs84Polygon(value: unknown): Wgs84Polygon {
-  if (!Array.isArray(value) || value.length !== 1 || !Array.isArray(value[0])) {
+  if (!Array.isArray(value) || value.length !== 1) {
     throw new Error('Polygon must contain exactly one closed exterior ring; holes are unsupported.');
   }
+  if (!isDenseArray(value)) {
+    throw new Error('Polygon coordinates must be a dense array; sparse arrays are not accepted.');
+  }
   const ring = value[0];
-  if (!isDenseArray(ring)) {
-    throw new Error('Polygon exterior ring must be a dense array; sparse arrays are not accepted.');
+  if (!Array.isArray(ring)) {
+    throw new Error('Polygon must contain exactly one closed exterior ring; holes are unsupported.');
   }
   if (ring.length < 4) {
     throw new Error('Polygon exterior ring must contain at least 3 distinct vertices plus its closing vertex.');
   }
   if (ring.length > MAX_POLYGON_VERTICES + 1) {
     throw new Error(`Polygon exceeds the ${MAX_POLYGON_VERTICES}-vertex operational limit.`);
+  }
+  if (!isDenseArray(ring)) {
+    throw new Error('Polygon exterior ring must be a dense array; sparse arrays are not accepted.');
   }
   const coordinates = ring.map(validateWgs84Point);
   const first = coordinates[0];
