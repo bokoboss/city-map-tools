@@ -6,8 +6,10 @@ import {
 } from '../features/buffer';
 import {
   BUFFER_LAYER_ID,
+  LINE_LAYER_ID,
   MAX_FEATURE_ID_LENGTH,
   MAX_TEXT_LENGTH,
+  POLYGON_LAYER_ID,
   POINT_LAYER_ID,
   createDefaultLayers,
   isFeatureLineage,
@@ -456,6 +458,8 @@ function cloneDocument(value: unknown): ProjectDocumentV1 {
     featureIds.add(feature.id);
     if (!layerIds.has(feature.layerId)) fail(`features[${index}].layerId`, 'references a missing layer.');
     if (feature.layerId === POINT_LAYER_ID && feature.type !== 'Point') fail(`features[${index}].layerId`, 'layer-points accepts Point features only.');
+    if (feature.layerId === LINE_LAYER_ID && feature.type !== 'LineString') fail(`features[${index}].layerId`, 'layer-lines accepts LineString features only.');
+    if (feature.layerId === POLYGON_LAYER_ID && feature.type !== 'Polygon') fail(`features[${index}].layerId`, 'layer-polygons accepts Polygon features only.');
     if (feature.layerId === BUFFER_LAYER_ID && (feature.type !== 'Polygon' || feature.lineage !== 'derived')) fail(`features[${index}].layerId`, 'layer-buffers accepts derived Polygon buffers only.');
   });
   validateDerivedFeatureRelationships(features);

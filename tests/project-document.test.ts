@@ -1,6 +1,8 @@
 import assert from 'node:assert/strict';
 import {
   BUFFER_LAYER_ID,
+  LINE_LAYER_ID,
+  POLYGON_LAYER_ID,
   createAuthoredLineString,
   createAuthoredPoint,
   createAuthoredPolygon,
@@ -110,6 +112,10 @@ rejects(value => { value.features.push({ ...value.features[0] }); }, /features\[
 rejects(value => { value.layers.push({ ...value.layers[0] }); }, /layers\[4\]\.id: is duplicated/);
 rejects(value => { value.features[0].layerId = 'missing-layer'; }, /features\[0\]\.layerId: references a missing layer/);
 rejects(value => { value.features[1].layerId = 'layer-points'; }, /layer-points accepts Point features only/);
+rejects(value => { value.features[0].layerId = LINE_LAYER_ID; }, /layer-lines accepts LineString features only/);
+rejects(value => { value.features[0].layerId = POLYGON_LAYER_ID; }, /layer-polygons accepts Polygon features only/);
+rejects(value => { value.features[1].layerId = POLYGON_LAYER_ID; }, /layer-polygons accepts Polygon features only/);
+rejects(value => { value.features[2].layerId = LINE_LAYER_ID; }, /layer-lines accepts LineString features only/);
 rejects(value => { value.features[1].coordinates = Array.from({ length: 1_001 }, () => [100, 13]); }, /LineString exceeds the 1000-vertex/);
 rejects(value => { value.presentation.points['missing-point'] = { marker: 'dot', markerSize: 18, labelVisible: true, labelPosition: 'bottom' }; }, /references a missing feature/);
 rejects(value => { value.presentation.points['point-1'].marker = 'html'; }, /marker: is not a supported marker kind/);

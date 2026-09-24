@@ -29,9 +29,13 @@ state migration, or history.
 }
 ```
 
-`FeatureLayer` is the current `{ id, name, visible, color }` shape. Current
-`SpatialFeature` records preserve Point, LineString, and single-exterior-ring
-Polygon geometry, authored/imported/derived lineage, visibility, names,
+`FeatureLayer` is the current `{ id, name, visible, color }` shape. Reserved
+built-in layers accept only their matching geometry: `layer-points` accepts
+Point, `layer-lines` accepts LineString, `layer-polygons` accepts Polygon, and
+`layer-buffers` accepts only derived Polygon buffers. Other layer IDs remain
+custom and are not forced into the built-in mapping. Current `SpatialFeature`
+records preserve Point, LineString, and single-exterior-ring Polygon geometry,
+authored/imported/derived lineage, visibility, names,
 optional descriptions, validation status, and the complete current provenance
 shape. Point presentation preserves only the accepted dot/pin, 18/24/32 px,
 label visibility, and eight-position choices.
@@ -81,6 +85,10 @@ current product has no accepted validation-authority workflow that can create
 that claim. A historical `derivedFrom.validationStatus: "Validated"` value may
 be retained as provenance evidence, but it never promotes the active derived
 result or source record.
+
+The native v1 trust boundary is bounded JSON text and plain JSON-compatible
+data. Stateful ECMAScript Proxy/getter mutation during validation is outside
+the v1 guarantee and is not hardened here.
 
 The native document has no fields for selected feature, active tool/mode,
 Terra Draw drafts, hover/focus/modal state, import status, map loading/error
