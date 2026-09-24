@@ -8,13 +8,15 @@
 - Package version: `2.2.0` (package label, not a production-readiness claim)
 
 ## Current accepted baseline
-- Accepted pre-#20 main: `8c5ac1c1648a54370017977be38f88ed2a05dd71`
-- Accepted date: 2026-09-13, project timezone UTC+07:00
+- Accepted main after #20: `95939893f1e449a578c232b7131c6580a0932543`
+- Accepted date: 2026-09-21, project timezone UTC+07:00
 - #2 workflow baseline, #3 R0B truth/security/quarantine remediation (PR #25), and
   #6 Phase A deterministic install/CI (PR #26) are accepted and merged.
 - Durable program record: Issue #1. Latest checkpoint: Issue #23.
 - Issue #18 is accepted and merged (PR #27); Issue #19 is accepted and merged
-  (PR #28). Issue #20 is the current bounded geometry-editor implementation slice.
+  (PR #28); Issue #20 is accepted and merged (PR #35).
+- Issue #5A + Issue #6 Phase B1 are the current bounded project-contract/test-gate
+  slice. Issue #5B/#5C/#5D still own runtime state, history, persistence, and workflow.
 
 ## Current implemented stack
 - Vite 6 + React + strict TypeScript + npm/ESM MapLibre GL JS v6.
@@ -30,11 +32,18 @@
   stale/orphan state, and read-only derived geometry.
 - Point presentation is a deliberately small runtime-only layer: dot center or pin-tip
   hotspot, 18/24/32 px marker size, and visible label placement in eight named positions.
-  Presentation never changes canonical coordinates, buffer input, provenance, or exports.
+  Presentation never changes canonical coordinates, buffer input, or provenance. The
+  pure #5A Project Document v1 contract can represent this bounded presentation; the
+  current app does not yet persist or workflow-integrate it.
+- Issue #5A adds a pure strict Project Document v1 schema/validator/parser/serializer
+  for current layers, Point/LineString/Polygon features, provenance, derived-buffer
+  snapshots/stale-orphan state, and point presentation. It rejects future versions and
+  active Validated claims and does not migrate runtime ownership.
 - Accepted R0 monolithic prototype preserved unchanged as non-production reference
   at `legacy/r0-safe-prototype.html`; excluded from `dist/`.
 - No persistence, history, multi-ring/MultiPolygon editor, full icon catalogue, or
-  analytical engine. Workspace and point presentation state are in-memory only.
+  analytical engine. Workspace and runtime point presentation state are still in-memory
+  only; native document storage/workflow is not implemented.
 - Focused pure and production-preview browser fixtures cover the bounded spatial and
   MapLibre boundary behavior; they are not a claim of a general automated E2E suite.
 
@@ -52,12 +61,14 @@ Future direction is not a claim of implemented capability.
 - npm with a committed deterministic `package-lock.json`; `npm ci` is established.
 - Direct runtime dependencies: React, ReactDOM, MapLibre GL JS, Terra Draw,
   `terra-draw-maplibre-gl-adapter`, and `@turf/buffer`.
-- Tooling: Vite 6, compatible plugin-react 4, TypeScript, React types.
+- Tooling: Vite 6, compatible plugin-react 4, TypeScript, React types, and dev-only
+  `tsx@4.20.5` for the deterministic pure test gate.
 - Exact installed versions are recorded by the lockfile.
 - Node 22 is the CI baseline.
 
 ```text
 npm ci
+npm test
 npm run dev
 npm run typecheck
 npm run build
@@ -65,7 +76,8 @@ npm run preview -- --host 127.0.0.1 --port 4173 --strictPort
 git diff --check
 ```
 
-Typecheck is a real strict `tsc --noEmit` gate. No lint/unit/E2E script exists.
+Typecheck is a real strict `tsc --noEmit` gate. `npm test` runs the committed pure
+TypeScript suites through pinned dev-only `tsx`; no lint or browser E2E script exists.
 Production preview URL: `http://127.0.0.1:4173/city-map-tools/`.
 
 ## Architecture / protected invariants
@@ -95,6 +107,7 @@ Production preview URL: `http://127.0.0.1:4173/city-map-tools/`.
 
 ## Important paths
 - Production: `index.html`, `src/main.tsx`, `src/App.tsx`, `src/map/`, `src/styles.css`
+- Project contract: `src/project/projectDocument.ts`, `docs/architecture/project-document-v1.md`
 - Legacy reference: `legacy/r0-safe-prototype.html`, `legacy/README.md`
 - Build/dependencies: `vite.config.ts`, `tsconfig.json`, `package.json`, `package-lock.json`
 - Documentation: `README.md`, `PRD.md`, `ACKNOWLEDGEMENTS.md`, `DEVELOPMENT_LOG.md`
@@ -106,11 +119,12 @@ Production preview URL: `http://127.0.0.1:4173/city-map-tools/`.
 | Gate | Method | Required |
 |---|---|---|
 | Deterministic install | `npm ci` | Yes |
+| Pure/unit contract | `npm test` | Yes for #5A / #6 Phase B1 |
 | Strict TypeScript | `npm run typecheck` | Yes |
 | Production artifact | `npm run build` | Yes |
 | Diff hygiene | `git diff --check` | Yes |
 | Browser | Production preview at configured base path; map/navigation/style/capability/error/cleanup plus focused geometry/hotspot fixtures | For runtime changes |
-| CI | Exact PR-head stable `build` check: install + typecheck + build on Node 22 | Yes |
+| CI | Exact PR-head stable check: install + unit + typecheck + build on Node 22 | Yes |
 | Independent review | Actual diff/evidence according to applicable Issue/workflow risk | As required |
 | Analytical/reference data | Method-specific deterministic/open fixtures | Before any analytical acceptance |
 
@@ -129,8 +143,8 @@ is still a separate human-controlled blocker; do not alter it as part of #18.
 - Report external writes and global/system changes explicitly.
 
 ## Current objective and remaining limitations
-Complete/review #20 from accepted main.
-Sequence: #18 → #19 → #20 → (#5 + #6 Phase B) → #21.
+Complete/review #5A Project Document v1 and #6 Phase B1 from accepted main.
+Sequence: #18 → #19 → #20 → #5A + #6 Phase B1 → #5B/#5C → #21.
 
 Provider availability/coverage is best-effort, 3D is visualization only, project
 storage/history is absent, GeoJSON remains Point-only, and no engineering analytics

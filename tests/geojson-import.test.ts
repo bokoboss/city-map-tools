@@ -1,4 +1,4 @@
-// Run: npx --yes --package tsx tsx tests/geojson-import.test.ts
+// Included by the deterministic npm test script through tests/run-unit-tests.ts.
 import assert from 'node:assert/strict';
 import { createAuthoredPoint, createDefaultLayers, defaultProvenance, importFeaturesIntoWorkspace, pointCompatibleLayers } from '../src/features/featureModel';
 import { exportGeoJson, GEOJSON_MAX_FEATURES, importGeoJsonText } from '../src/features/geojson';
