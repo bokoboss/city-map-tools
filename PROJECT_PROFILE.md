@@ -8,15 +8,16 @@
 - Package version: `2.2.0` (package label, not a production-readiness claim)
 
 ## Current accepted baseline
-- Accepted main after #20: `95939893f1e449a578c232b7131c6580a0932543`
-- Accepted date: 2026-09-21, project timezone UTC+07:00
+- Accepted main after #5A and #6 Phase B1: `bf3129730d78843142d4f96cd9aef369bff562e8`
+- Accepted date: 2026-09-27, project timezone UTC+07:00
 - #2 workflow baseline, #3 R0B truth/security/quarantine remediation (PR #25), and
   #6 Phase A deterministic install/CI (PR #26) are accepted and merged.
 - Durable program record: Issue #1. Latest checkpoint: Issue #23.
 - Issue #18 is accepted and merged (PR #27); Issue #19 is accepted and merged
   (PR #28); Issue #20 is accepted and merged (PR #35).
-- Issue #5A + Issue #6 Phase B1 are the current bounded project-contract/test-gate
-  slice. Issue #5B/#5C/#5D still own runtime state, history, persistence, and workflow.
+- Issue #5A and Issue #6 Phase B1 are accepted. Issue #5B adds Project Document-backed
+  runtime ownership and bounded in-memory history. Issue #5C owns durable persistence;
+  Issue #5D owns the later project workflow.
 
 ## Current implemented stack
 - Vite 6 + React + strict TypeScript + npm/ESM MapLibre GL JS v6.
@@ -30,20 +31,23 @@
   workspace features; transient Terra Draw line/polygon creation and edit sessions;
   derived Turf buffers with explicit source snapshots, metres, library version, steps,
   stale/orphan state, and read-only derived geometry.
-- Point presentation is a deliberately small runtime-only layer: dot center or pin-tip
+- Point presentation is a deliberately small project-state layer: dot center or pin-tip
   hotspot, 18/24/32 px marker size, and visible label placement in eight named positions.
-  Presentation never changes canonical coordinates, buffer input, or provenance. The
-  pure #5A Project Document v1 contract can represent this bounded presentation; the
-  current app does not yet persist or workflow-integrate it.
+  Presentation never changes canonical coordinates, buffer input, or provenance. It is
+  represented by Project Document v1 and remains outside GeoJSON export.
 - Issue #5A adds a pure strict Project Document v1 schema/validator/parser/serializer
   for current layers, Point/LineString/Polygon features, provenance, derived-buffer
   snapshots/stale-orphan state, and point presentation. It rejects future versions and
-  active Validated claims and does not migrate runtime ownership.
+  active Validated claims. Issue #5B makes the v1 document authoritative for runtime
+  project state and validates each command candidate before commit.
+- Issue #5B adds pure project commands, one-action history, transaction draft semantics,
+  a 20-snapshot bound, and Undo/Redo controls. Selection, tools, drafts, map runtime,
+  import status, and other transient UI state stay outside project history.
 - Accepted R0 monolithic prototype preserved unchanged as non-production reference
   at `legacy/r0-safe-prototype.html`; excluded from `dist/`.
-- No persistence, history, multi-ring/MultiPolygon editor, full icon catalogue, or
-  analytical engine. Workspace and runtime point presentation state are still in-memory
-  only; native document storage/workflow is not implemented.
+- No durable persistence/autosave, multi-ring/MultiPolygon editor, full icon catalogue,
+  or analytical engine. Project state/history are in-memory and are lost on reload;
+  native document storage/workflow is not implemented.
 - Focused pure and production-preview browser fixtures cover the bounded spatial and
   MapLibre boundary behavior; they are not a claim of a general automated E2E suite.
 
@@ -143,12 +147,12 @@ is still a separate human-controlled blocker; do not alter it as part of #18.
 - Report external writes and global/system changes explicitly.
 
 ## Current objective and remaining limitations
-Complete/review #5A Project Document v1 and #6 Phase B1 from accepted main.
+Complete/review #5B from accepted main. Next: #5C persistence, then #21 migration.
 Sequence: #18 → #19 → #20 → #5A + #6 Phase B1 → #5B/#5C → #21.
 
 Provider availability/coverage is best-effort, 3D is visualization only, project
-storage/history is absent, GeoJSON remains Point-only, and no engineering analytics
-are validated. Derived buffers are bounded, read-only, structurally checked, and
+storage is absent and history is runtime-only, GeoJSON remains Point-only, and no
+engineering analytics are validated. Derived buffers are bounded, read-only, structurally checked, and
 explicitly unvalidated; they do not support antimeridian/pathological spans or
 MultiPolygon output. The legacy reference retains prototype behavior and quarantine
 but is not the current production app.

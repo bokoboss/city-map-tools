@@ -62,6 +62,7 @@ async (page) => {
   await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
   check(await count() === 1, 'point creation');
   await page.getByLabel('Name', { exact: true }).fill('Local <point>');
+  await page.getByLabel('Name', { exact: true }).press('Enter');
   check(await page.locator('.stored-value').innerText() === 'Stored value: Local <point>', 'rename exact value');
   const authoredExport = await exported();
   check(authoredExport.features[0].properties.lineage === 'authored', 'local creation remains authored');

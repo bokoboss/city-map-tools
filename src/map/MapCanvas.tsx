@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import type { KeyboardEvent as ReactKeyboardEvent } from 'react';
 import { basemaps } from './basemaps';
 import type { BasemapId } from './basemaps';
 import { createMap, initialMapState } from './createMap';
@@ -38,15 +39,15 @@ interface MapCanvasProps {
   onModeChange: (mode: EditorMode) => void;
   onPointSelect: (id: string) => void;
   onMapPointClick: (coordinates: Wgs84Point) => void;
-  onLayerVisibilityChange: (id: string) => void;
-  onFeatureVisibilityChange: (id: string) => void;
+  onLayerVisibilityChange: (id: string) => OperationResult;
+  onFeatureVisibilityChange: (id: string) => OperationResult;
   onFeatureSelect: (id: string | null) => void;
-  onFeatureRename: (id: string, name: string) => void;
+  onFeatureRename: (id: string, name: string) => OperationResult;
   onGeometryCreate: (geometry: GeometrySnapshot) => OperationResult;
   onGeometryApply: (id: string, geometry: GeometrySnapshot) => OperationResult;
   onFeatureDelete: (id: string) => OperationResult;
   onCreateBuffer: (id: string, radius: number) => OperationResult;
-  onPointPresentationChange: (id: string, patch: Partial<PointPresentation>) => void;
+  onPointPresentationChange: (id: string, patch: Partial<PointPresentation>) => OperationResult;
   onImportFile: (file: File) => void;
   onExport: () => void;
 }
@@ -109,6 +110,7 @@ export function MapCanvas({
   const [editorStatus, setEditorStatus] = useState('Select mode: choose a feature from the map or Layers.');
   const [deleteConfirmationId, setDeleteConfirmationId] = useState<string | null>(null);
   const [bufferRadius, setBufferRadius] = useState('100');
+  const [featureNameDraft, setFeatureNameDraft] = useState('');
 
   modeRef.current = mode;
   pointSelectRef.current = onPointSelect;
@@ -198,6 +200,32 @@ export function MapCanvas({
   const selectedPointPresentation = selectedFeature && isPointFeature(selectedFeature)
     ? pointPresentationFor(pointPresentations, selectedFeature.id)
     : null;
+
+  useEffect(() => {
+    setFeatureNameDraft(selectedFeature?.name ?? '');
+  }, [selectedFeature?.id, selectedFeature?.name]);
+
+  const commitFeatureName = (name: string) => {
+    if (!selectedFeature) return;
+    setFeatureNameDraft(name);
+    const result = onFeatureRename(selectedFeature.id, name);
+    if (!result.ok) {
+      setFeatureNameDraft(selectedFeature.name);
+      setEditorStatus(result.message);
+    }
+  };
+
+  const handleFeatureNameKeyDown = (event: ReactKeyboardEvent<HTMLInputElement>) => {
+    if (!selectedFeature) return;
+    if (event.key === 'Enter') {
+      event.preventDefault();
+      commitFeatureName(event.currentTarget.value);
+    } else if (event.key === 'Escape') {
+      event.preventDefault();
+      event.stopPropagation();
+      setFeatureNameDraft(selectedFeature.name);
+    }
+  };
 
   const selectTool = (nextMode: Exclude<EditorMode, 'editing'>) => {
     const accepted = controller.current?.setEditorMode(nextMode);
@@ -298,7 +326,10 @@ export function MapCanvas({
                     aria-label={`${layer.visible ? 'Hide' : 'Show'} ${layer.name} layer`}
                     aria-pressed={layer.visible}
                     data-layer-id={layer.id}
-                    onClick={() => onLayerVisibilityChange(layer.id)}
+                    onClick={() => {
+                      const result = onLayerVisibilityChange(layer.id);
+                      if (!result.ok) setEditorStatus(result.message);
+                    }}
                   >{layer.visible ? 'Visible' : 'Hidden'}</button>
                 </div>
                 {layerFeatures.length > 0 && <ul className="feature-list">
@@ -312,7 +343,10 @@ export function MapCanvas({
                       className="feature-visibility"
                       aria-label={`${feature.visible ? 'Hide' : 'Show'} ${feature.name}`}
                       aria-pressed={feature.visible}
-                      onClick={() => onFeatureVisibilityChange(feature.id)}
+                      onClick={() => {
+                        const result = onFeatureVisibilityChange(feature.id);
+                        if (!result.ok) setEditorStatus(result.message);
+                      }}
                     >{feature.visible ? 'On' : 'Off'}</button>
                   </li>)}
                 </ul>}
@@ -325,7 +359,14 @@ export function MapCanvas({
           <h2>Inspector</h2>
           <p className="inspector-id">{selectedFeature.id}</p>
           <label htmlFor="feature-name">Name</label>
-          <input id="feature-name" value={selectedFeature.name} maxLength={500} onChange={event => onFeatureRename(selectedFeature.id, event.target.value)} />
+          <input
+            id="feature-name"
+            value={featureNameDraft}
+            maxLength={500}
+            onChange={event => setFeatureNameDraft(event.target.value)}
+            onBlur={event => commitFeatureName(event.currentTarget.value)}
+            onKeyDown={handleFeatureNameKeyDown}
+          />
           <output className="stored-value" aria-label="Stored feature name">Stored value: {selectedFeature.name}</output>
           {selectedFeature.description !== undefined && <div className="inspector-field"><span>Description</span><p>{selectedFeature.description}</p></div>}
           <div className="inspector-field"><span>Geometry</span><output>{selectedFeature.type}: {geometrySummary(selectedFeature)}</output></div>
@@ -359,29 +400,33 @@ export function MapCanvas({
 
           {selectedPointPresentation && <section className="point-presentation" aria-label="Point presentation">
             <h3>Point presentation</h3>
-            <p>Presentation only: it is not saved, exported, or used for geometry or buffers.</p>
+            <p>Presentation only: part of current project state, not exported or used for geometry or buffers.</p>
             <label htmlFor="point-marker-kind">Marker type</label>
-            <select id="point-marker-kind" value={selectedPointPresentation.marker} onChange={event => onPointPresentationChange(selectedFeature.id, {
-              marker: event.target.value as PointMarkerKind,
-            })}>
+            <select id="point-marker-kind" value={selectedPointPresentation.marker} onChange={event => {
+              const result = onPointPresentationChange(selectedFeature.id, { marker: event.target.value as PointMarkerKind });
+              if (!result.ok) setEditorStatus(result.message);
+            }}>
               {POINT_MARKER_KINDS.map(kind => <option key={kind} value={kind}>{kind === 'dot' ? 'Dot — center hotspot' : 'Pin — tip hotspot'}</option>)}
             </select>
             <label htmlFor="point-marker-size">Marker size</label>
-            <select id="point-marker-size" value={selectedPointPresentation.markerSize} onChange={event => onPointPresentationChange(selectedFeature.id, {
-              markerSize: Number(event.target.value) as PointMarkerSize,
-            })}>
+            <select id="point-marker-size" value={selectedPointPresentation.markerSize} onChange={event => {
+              const result = onPointPresentationChange(selectedFeature.id, { markerSize: Number(event.target.value) as PointMarkerSize });
+              if (!result.ok) setEditorStatus(result.message);
+            }}>
               {POINT_MARKER_SIZES.map(size => <option key={size} value={size}>{size} px</option>)}
             </select>
             <label className="presentation-checkbox" htmlFor="point-label-visible">
-              <input id="point-label-visible" type="checkbox" checked={selectedPointPresentation.labelVisible} onChange={event => onPointPresentationChange(selectedFeature.id, {
-                labelVisible: event.target.checked,
-              })} />
+              <input id="point-label-visible" type="checkbox" checked={selectedPointPresentation.labelVisible} onChange={event => {
+                const result = onPointPresentationChange(selectedFeature.id, { labelVisible: event.target.checked });
+                if (!result.ok) setEditorStatus(result.message);
+              }} />
               Show point label
             </label>
             <label htmlFor="point-label-position">Label position</label>
-            <select id="point-label-position" value={selectedPointPresentation.labelPosition} onChange={event => onPointPresentationChange(selectedFeature.id, {
-              labelPosition: event.target.value as PointPresentation['labelPosition'],
-            })}>
+            <select id="point-label-position" value={selectedPointPresentation.labelPosition} onChange={event => {
+              const result = onPointPresentationChange(selectedFeature.id, { labelPosition: event.target.value as PointPresentation['labelPosition'] });
+              if (!result.ok) setEditorStatus(result.message);
+            }}>
               {POINT_LABEL_POSITIONS.map(position => <option key={position} value={position}>{position}</option>)}
             </select>
           </section>}
@@ -402,7 +447,7 @@ export function MapCanvas({
             {deleteConfirmationId !== selectedFeature.id
               ? <button type="button" className="danger-button" onClick={() => setDeleteConfirmationId(selectedFeature.id)}>Delete feature</button>
               : <div className="delete-confirmation" role="alert">
-                <p>Delete is irreversible until history is separately implemented.</p>
+                <p>This project edit can be reversed with Undo.</p>
                 <button type="button" className="danger-button" onClick={deleteSelected}>Confirm delete</button>
                 <button type="button" onClick={() => setDeleteConfirmationId(null)}>Keep feature</button>
               </div>}
