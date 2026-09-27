@@ -52,6 +52,8 @@ p { margin: 6px 0 0; line-height: 1.5; }
 .reload-control p { max-width: 300px; color: var(--text-muted); font-size: 11px; }
 h1 { font-size: 21px; margin: 0; letter-spacing: -0.4px; }
 .app-header p { font-size: 13px; color: var(--text-muted); }
+.app-header .project-save-state { font-size: 12px; max-width: 430px; }
+.project-save-error { color: var(--danger) !important; }
 
 .map-workspace { flex: 1; min-height: 0; display: flex; }
 .map-controls {

@@ -82,10 +82,14 @@ implement the prototype's history behavior or UI.
 
 Space Syntax, routing/accessibility, synthetic isochrones, elevation, and OD
 analytics remain unavailable. No analytical engine is migrated or reactivated.
-There is no durable project persistence/workflow, API-key input, generic GIS
-import/export, or full icon catalogue in this slice. Project state and its 20-snapshot
-history are runtime-only and are lost on reload. Issue #5C owns IndexedDB, autosave,
-and crash recovery; Issue #5D owns the later project workflow.
+The committed Project Document v1 is saved locally in IndexedDB after a 500 ms
+debounce. The header reports Loading, Unsaved, Saving, Saved, or Error. A valid
+last-saved project returns on reload with fresh, empty Undo/Redo history; active
+drawings, selection, tools, and map state do not return. A corrupt or unsupported
+stored record is preserved, and autosave pauses with an Error while the user can
+continue in a memory-only session. There is no New/Open/Save project workflow,
+API-key input, generic GIS import/export, or full icon catalogue in this slice.
+Issue #5D owns the later project workflow and explicit recovery controls.
 
 ## Development and verification
 
@@ -113,11 +117,15 @@ PR/main; deploy also typechecks before building and uploading only `dist/`. The
 deterministic `npm test` script runs the committed pure TypeScript suites; no
 ESLint, Playwright, or general E2E CI matrix is claimed.
 
-Focused Issue #19/#20/#5A/#5B regression fixtures are committed under `tests/`:
+Focused Issue #19/#20/#5A/#5B/#5C regression fixtures are committed under `tests/`:
 
 ```sh
 npm test
 # With the production preview running and a playwright-cli browser open:
+npx --yes --package @playwright/cli playwright-cli run-code --filename tests/project-persistence-browser.js
+# The persistence fixture leaves a corrupt test record. Reset the test database
+# before each older fixture, which assumes a new project:
+npx --yes --package @playwright/cli playwright-cli run-code --filename tests/reset-project-database-browser.js
 npx --yes --package @playwright/cli playwright-cli run-code --filename tests/geojson-browser.js
 npx --yes --package @playwright/cli playwright-cli run-code --filename tests/geometry-browser.js
 npx --yes --package @playwright/cli playwright-cli run-code --filename tests/marker-hotspot-browser.js
