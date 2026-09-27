@@ -2,6 +2,7 @@ import {
   createAuthoredLineString,
   createAuthoredPoint,
   createAuthoredPolygon,
+  geometrySnapshotsEqual,
   importFeaturesIntoWorkspace,
   markDependentBuffersStale,
   renameFeature,
@@ -58,21 +59,13 @@ function createGeometry(features: readonly SpatialFeature[], geometry: GeometryS
   );
 }
 
-function coordinatesEqual(left: readonly unknown[], right: readonly unknown[]): boolean {
-  return left.length === right.length && left.every((value, index) => {
-    const other = right[index];
-    if (Array.isArray(value) && Array.isArray(other)) return coordinatesEqual(value, other);
-    return value === other;
-  });
-}
-
 export function geometryEqual(target: SpatialFeature, geometry: GeometrySnapshot): boolean {
   if (target.type !== geometry.type || geometry.type === 'Point') return false;
   if (target.type === 'LineString' && geometry.type === 'LineString') {
-    return coordinatesEqual(target.coordinates, geometry.coordinates);
+    return geometrySnapshotsEqual({ type: 'LineString', coordinates: target.coordinates }, geometry);
   }
   if (target.type === 'Polygon' && geometry.type === 'Polygon') {
-    return coordinatesEqual(target.coordinates, geometry.coordinates);
+    return geometrySnapshotsEqual({ type: 'Polygon', coordinates: target.coordinates }, geometry);
   }
   return false;
 }

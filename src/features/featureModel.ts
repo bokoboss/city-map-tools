@@ -142,6 +142,14 @@ export function isRecord(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === 'object' && !Array.isArray(value);
 }
 
+export function isDenseArray(value: unknown): value is unknown[] {
+  if (!Array.isArray(value)) return false;
+  for (let index = 0; index < value.length; index += 1) {
+    if (!Object.hasOwn(value, index)) return false;
+  }
+  return true;
+}
+
 export function boundedText(value: string, maxLength = MAX_TEXT_LENGTH): string {
   return value.slice(0, maxLength);
 }
@@ -205,6 +213,9 @@ export function validateWgs84Point(value: unknown): Wgs84Point {
   if (!Array.isArray(value) || value.length !== 2) {
     throw new Error('Point coordinates must be a 2-item [longitude, latitude] array.');
   }
+  if (!isDenseArray(value)) {
+    throw new Error('Point coordinates must be a dense array; sparse arrays are not accepted.');
+  }
   const [longitude, latitude] = value;
   if (typeof longitude !== 'number' || typeof latitude !== 'number' ||
       !Number.isFinite(longitude) || !Number.isFinite(latitude)) {
@@ -223,6 +234,9 @@ export function validateWgs84LineString(value: unknown): Wgs84LineString {
   if (value.length > MAX_LINE_VERTICES) {
     throw new Error(`LineString exceeds the ${MAX_LINE_VERTICES}-vertex operational limit.`);
   }
+  if (!isDenseArray(value)) {
+    throw new Error('LineString coordinates must be a dense array; sparse arrays are not accepted.');
+  }
   return value.map(validateWgs84Point);
 }
 
@@ -235,15 +249,24 @@ function samePoint(first: Wgs84Point, second: Wgs84Point): boolean {
 }
 
 export function validateWgs84Polygon(value: unknown): Wgs84Polygon {
-  if (!Array.isArray(value) || value.length !== 1 || !Array.isArray(value[0])) {
+  if (!Array.isArray(value) || value.length !== 1) {
     throw new Error('Polygon must contain exactly one closed exterior ring; holes are unsupported.');
   }
+  if (!isDenseArray(value)) {
+    throw new Error('Polygon coordinates must be a dense array; sparse arrays are not accepted.');
+  }
   const ring = value[0];
+  if (!Array.isArray(ring)) {
+    throw new Error('Polygon must contain exactly one closed exterior ring; holes are unsupported.');
+  }
   if (ring.length < 4) {
     throw new Error('Polygon exterior ring must contain at least 3 distinct vertices plus its closing vertex.');
   }
   if (ring.length > MAX_POLYGON_VERTICES + 1) {
     throw new Error(`Polygon exceeds the ${MAX_POLYGON_VERTICES}-vertex operational limit.`);
+  }
+  if (!isDenseArray(ring)) {
+    throw new Error('Polygon exterior ring must be a dense array; sparse arrays are not accepted.');
   }
   const coordinates = ring.map(validateWgs84Point);
   const first = coordinates[0];
@@ -266,6 +289,17 @@ export function geometrySnapshot(feature: SpatialFeature): GeometrySnapshot {
     return { type: 'LineString', coordinates: validateWgs84LineString(feature.coordinates) };
   }
   return { type: 'Polygon', coordinates: validateWgs84Polygon(feature.coordinates) };
+}
+
+export function geometrySnapshotsEqual(left: GeometrySnapshot, right: GeometrySnapshot): boolean {
+  if (left.type !== right.type) return false;
+  const coordinatesEqual = (first: readonly unknown[], second: readonly unknown[]): boolean =>
+    first.length === second.length && first.every((value, index) => {
+      const other = second[index];
+      if (Array.isArray(value) && Array.isArray(other)) return coordinatesEqual(value, other);
+      return value === other;
+    });
+  return coordinatesEqual(left.coordinates, right.coordinates);
 }
 
 export function validateGeometrySnapshot(value: GeometrySnapshot): GeometrySnapshot {

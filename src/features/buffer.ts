@@ -1,7 +1,9 @@
 import turfBuffer from '@turf/buffer';
 import {
   BUFFER_LAYER_ID,
+  boundedText,
   geometrySnapshot,
+  MAX_TEXT_LENGTH,
   type GeometrySnapshot,
   type PolygonFeature,
   type SpatialFeature,
@@ -100,7 +102,7 @@ function toBufferInput(geometry: GeometrySnapshot): BufferInputFeature {
   return { type: 'Feature', properties: {}, geometry };
 }
 
-function conservativeDerivedStatus(sourceStatus: ValidationStatus): ValidationStatus {
+export function conservativeDerivedStatus(sourceStatus: ValidationStatus): ValidationStatus {
   if (sourceStatus === 'Stale' || sourceStatus === 'Experimental') return sourceStatus;
   // The buffer method itself is not validated, so even a Validated source cannot
   // upgrade a derived result to Validated.
@@ -116,11 +118,12 @@ export function deriveBufferFeature(
   const sourceGeometry = assertSupportedBufferSource(source, radius);
   const result = implementation(toBufferInput(sourceGeometry), radius, { units: 'meters', steps: BUFFER_STEPS });
   const coordinates = validateBufferResult(result);
+  const nameSuffix = ' buffer';
   return {
     id,
     type: 'Polygon',
     coordinates,
-    name: `${source.name} buffer`,
+    name: `${boundedText(source.name, MAX_TEXT_LENGTH - nameSuffix.length)}${nameSuffix}`,
     layerId: BUFFER_LAYER_ID,
     visible: true,
     lineage: 'derived',

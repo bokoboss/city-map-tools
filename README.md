@@ -1,8 +1,9 @@
 ﻿# City Map Tools
 
 Static-first map workspace. This revision carries the modular shell from Issue #18,
-the Point/layer/GeoJSON slice from Issue #19, and the bounded geometry-editor slice
-from Issue #20; it does not provide validated engineering analysis.
+the Point/layer/GeoJSON slice from Issue #19, the bounded geometry-editor slice
+from Issue #20, and the pure native Project Document v1 contract from Issue #5A;
+it does not provide validated engineering analysis or runtime project persistence.
 
 Repository: <https://github.com/bokoboss/city-map-tools>
 Intended Pages URL: <https://bokoboss.github.io/city-map-tools/>.
@@ -39,8 +40,9 @@ Pages configuration remains a separate human-controlled deployment gate.
   derived spatial output—not surveyed, cadastral, or validated engineering geometry.
 - Point presentation has only bounded runtime controls: dot (center hotspot) or pin
   (tip/bottom-center hotspot), 18/24/32 px size, label visible/hidden, and one of eight
-  named label positions. It is presentation-only and is not saved, exported, used for
-  buffering, or added to provenance.
+  named label positions. It never changes canonical geometry, buffer input, or
+  provenance. The #5A native contract can represent this bounded presentation, but
+  the current app still owns it in memory and has no project workflow/persistence.
 - Import and export GeoJSON FeatureCollections for Point geometry only. Supported
   properties are `name`, `description`, `layerId`, `visible`, `lineage`,
   `validationStatus`, and the bounded R0 provenance object. Unknown properties,
@@ -72,8 +74,10 @@ implemented; later Issues #5 and #21 remain separately authorized work.
 
 Space Syntax, routing/accessibility, synthetic isochrones, elevation, and OD
 analytics remain unavailable. No analytical engine is migrated or reactivated.
-There is no project storage, API-key input, generic GIS import/export, or full icon
-catalogue in this slice.
+There is no project persistence/workflow, API-key input, generic GIS import/export,
+or full icon catalogue in this slice. Issue #5A defines only the pure, strict,
+versioned native Project Document v1 contract; IndexedDB, autosave, history, and
+runtime state migration remain later #5B–#5D work.
 
 ## Development and verification
 
@@ -81,6 +85,7 @@ Use Node.js 22 (the CI version) and npm:
 
 ```sh
 npm ci
+npm test
 npm run dev
 ```
 
@@ -95,16 +100,15 @@ npm run preview -- --host 127.0.0.1 --port 4173 --strictPort
 Browse <http://127.0.0.1:4173/city-map-tools/>. Browser smoke must cover real map
 rendering, pan/zoom, both basemaps, provider error/recovery, incompatible 3D,
 compatible 3D on/off, reload cleanup, geometry style remount, and marker hotspot
-alignment. CI's stable `build` check runs clean install, typecheck, and build on
-PR/main; deploy also typechecks before building and uploading only `dist/`. No
-general lint/unit/E2E script is claimed.
+alignment. CI's stable check runs clean install, unit tests, typecheck, and build on
+PR/main; deploy also typechecks before building and uploading only `dist/`. The
+deterministic `npm test` script runs the committed pure TypeScript suites; no
+ESLint, Playwright, or general E2E CI matrix is claimed.
 
-Focused Issue #19/#20 regression fixtures are committed under `tests/`:
+Focused Issue #19/#20/#5A regression fixtures are committed under `tests/`:
 
 ```sh
-npx --yes --package tsx tsx tests/geojson-import.test.ts
-npx --yes --package tsx tsx tests/geometry-buffer.test.ts
-npx --yes --package tsx tsx tests/point-presentation.test.ts
+npm test
 # With the production preview running and a playwright-cli browser open:
 npx --yes --package @playwright/cli playwright-cli run-code --filename tests/geojson-browser.js
 npx --yes --package @playwright/cli playwright-cli run-code --filename tests/geometry-browser.js
@@ -116,8 +120,9 @@ npx --yes --package @playwright/cli playwright-cli run-code --filename tests/map
 
 These check import trust, count limits, transactional state preservation, XSS,
 provenance round-trips, canonical geometry/buffer behavior, point hotspot presentation,
-and Point/layer/basemap controls. The GeoJSON browser fixture uses generated File objects
-through the file input and reads actual export downloads.
+the strict native Project Document v1 contract, and Point/layer/basemap controls. The
+GeoJSON browser fixture uses generated File objects through the file input and reads
+actual export downloads.
 
 `map-tile-server.cjs` is a loopback-only test helper that serves one valid 256px PNG.
 The lifecycle fixture uses it only for normal OSM-tile readiness, then deliberately
