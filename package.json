@@ -6,11 +6,13 @@
   "scripts": {
     "dev": "vite",
     "test": "tsx tests/run-unit-tests.ts",
+    "test:browser:ci": "playwright test --config=playwright.config.ts",
     "typecheck": "tsc --noEmit",
     "build": "vite build",
     "preview": "vite preview"
   },
   "devDependencies": {
+    "@playwright/test": "1.63.0",
     "@types/react": "19.3.0",
     "@types/react-dom": "19.3.0",
     "@vitejs/plugin-react": "4.7.0",
