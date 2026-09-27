@@ -44,7 +44,10 @@ async (page) => {
     await page.keyboard.press('Enter');
   };
   const renameSelected = async name => {
-    await page.getByLabel('Name', { exact: true }).fill(name);
+    const nameInput = page.getByLabel('Name', { exact: true });
+    await nameInput.fill(name);
+    await nameInput.press('Enter');
+    await page.getByText(`Stored value: ${name}`, { exact: true }).waitFor({ timeout: 5000 });
     check(await page.locator('.stored-value').innerText() === `Stored value: ${name}`, `rename ${name}`);
   };
   const selectFeature = async (name, lineage = 'authored') => {
@@ -166,7 +169,10 @@ async (page) => {
   // Apply must stay bound to Line A even if the Layers surface selects Line B.
   await page.getByRole('button', { name: 'Edit geometry', exact: true }).click();
   await assertReloadBlocked('Line edit');
+  check(await page.getByRole('button', { name: 'Undo project edit', exact: true }).isDisabled(), 'active geometry edit disables Undo');
+  check(await page.getByRole('button', { name: 'Redo project edit', exact: true }).isDisabled(), 'active geometry edit disables Redo');
   await selectFeature('Buffer line B');
+  check(await page.getByRole('button', { name: 'Undo project edit', exact: true }).isDisabled(), 'changing selection does not unlock history during an edit');
   const lineBBox = await mapBox();
   await page.mouse.move(lineBBox.x + lineBBox.width * line.startX, lineBBox.y + lineBBox.height * line.startY);
   await page.mouse.down();
@@ -175,6 +181,10 @@ async (page) => {
   await page.getByRole('button', { name: 'Apply geometry', exact: true }).click();
   await selectFeature('Buffer line buffer', 'derived');
   check((await inspectorText()).includes('Validation status Stale'), 'Line A edit makes only Line A buffer Stale');
+  await page.getByRole('button', { name: 'Undo project edit', exact: true }).click();
+  check((await inspectorText()).includes('Validation status Functional but unvalidated'), 'Undo restores the pre-Apply geometry and current buffer state');
+  await page.getByRole('button', { name: 'Redo project edit', exact: true }).click();
+  check((await inspectorText()).includes('Validation status Stale'), 'Redo restores the applied geometry and stale buffer state');
   check(await page.getByLabel('Stored source geometry snapshot', { exact: true }).innerText() === originalLineSourceSnapshot, 'Line A buffer retains its original source snapshot after source edit');
   check(await page.getByLabel('Source provenance', { exact: true }).innerText() === originalLineSourceProvenance, 'Line A buffer retains historical source provenance after source edit');
   await selectFeature('Buffer line B buffer', 'derived');
@@ -237,7 +247,7 @@ async (page) => {
   check(JSON.stringify(await page.locator('.inspector-field').allInnerTexts()) === JSON.stringify(polygonBeforeCancel), 'Polygon cancel restores exact committed inspector state');
   await page.getByRole('button', { name: 'Edit geometry', exact: true }).click();
   await page.getByRole('button', { name: 'Apply geometry', exact: true }).click();
-  await page.locator('.editor-status').filter({ hasText: 'Polygon geometry applied' }).waitFor({ timeout: 5000 });
+  await page.locator('.editor-status').filter({ hasText: 'Polygon geometry unchanged' }).waitFor({ timeout: 5000 });
   check(await page.getByRole('button', { name: 'Select tool', exact: true }).getAttribute('aria-pressed') === 'true', 'Polygon Apply returns Select tool state');
   await selectFeature('Buffer polygon buffer', 'derived');
   check(await inspectorText() === polygonBufferBeforeNoOp, 'Polygon no-op Apply preserves dependent buffer inspector state');

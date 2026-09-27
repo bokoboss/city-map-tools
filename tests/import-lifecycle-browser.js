@@ -145,6 +145,18 @@ async (page) => {
   await page.getByRole('button', { name: 'Cancel edit', exact: true }).click();
   check(!(await importInput().isDisabled()), 'import is available after cancelling edit-race session');
 
+  await page.reload();
+  await ready();
+  await installDelayedFileText();
+  await upload(pointDocument('stale-project-import'), true);
+  await page.getByRole('button', { name: 'Point tool', exact: true }).click();
+  await mapClick(0.48, 0.48);
+  check(await page.locator('.feature-row').count() === 1, 'new project edit commits while import parsing is pending');
+  await releaseDelayedFileText();
+  await page.getByText('Import was not applied because the project changed while the file was being read. Choose the file again to import it against the current project.', { exact: true }).waitFor({ timeout: 5000 });
+  check(await page.locator('.feature-row').count() === 1, 'stale project-revision import adds no Point');
+  check(await page.locator('.inspector-id').innerText() === 'point-1', 'stale import preserves the current project selection');
+
   check(pageErrors.length === 0, `page errors: ${pageErrors.join('; ')}`);
   check(consoleProblems.length === 0, `console problems: ${consoleProblems.join('; ')}`);
   return {
@@ -156,6 +168,7 @@ async (page) => {
       'Line/Polygon edit import guard and Apply/Cancel recovery',
       'delayed File.text draw race aborts transactionally without cancelling draft',
       'delayed File.text edit race aborts transactionally without changing committed geometry',
+      'delayed File.text import is rejected after the authoritative project revision changes',
     ],
   };
 }

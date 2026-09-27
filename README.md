@@ -2,8 +2,9 @@
 
 Static-first map workspace. This revision carries the modular shell from Issue #18,
 the Point/layer/GeoJSON slice from Issue #19, the bounded geometry-editor slice
-from Issue #20, and the pure native Project Document v1 contract from Issue #5A;
-it does not provide validated engineering analysis or runtime project persistence.
+from Issue #20, the Project Document v1 contract from Issue #5A, and the v1-backed
+runtime state and bounded history from Issue #5B. It does not provide validated
+engineering analysis or durable project persistence.
 
 Repository: <https://github.com/bokoboss/city-map-tools>
 Intended Pages URL: <https://bokoboss.github.io/city-map-tools/>.
@@ -38,11 +39,18 @@ Pages configuration remains a separate human-controlled deployment gate.
   derivation. Antimeridian/pathological spans and unsupported/MultiPolygon Turf output
   fail closed without changing workspace state. Buffers are functional but unvalidated
   derived spatial output—not surveyed, cadastral, or validated engineering geometry.
-- Point presentation has only bounded runtime controls: dot (center hotspot) or pin
+- Point presentation has only bounded controls: dot (center hotspot) or pin
   (tip/bottom-center hotspot), 18/24/32 px size, label visible/hidden, and one of eight
-  named label positions. It never changes canonical geometry, buffer input, or
-  provenance. The #5A native contract can represent this bounded presentation, but
-  the current app still owns it in memory and has no project workflow/persistence.
+  named label positions. It is part of the current Project Document state, never
+  changes canonical geometry, buffer input, or provenance, and is not included in
+  GeoJSON export.
+- Project Document v1 is the single source for current metadata, ordered layers,
+  features, and PointPresentation. Every accepted edit is validated against v1 before
+  commit. Undo/Redo keeps at most 20 project snapshots; create/import/delete, geometry
+  Apply, rename, visibility, PointPresentation, and buffer creation each form one action.
+  Feature rename commits on blur or Enter. Selection, tools, drawing/edit drafts, camera,
+  basemap, buffer text, and import status stay transient. History controls are disabled
+  during active drawing/editing.
 - Import and export GeoJSON FeatureCollections for Point geometry only. Supported
   properties are `name`, `description`, `layerId`, `visible`, `lineage`,
   `validationStatus`, and the bounded R0 provenance object. Unknown properties,
@@ -68,16 +76,16 @@ the deterministic ID collision mapping. `Validated` claims remain demoted to
 The accepted R0 annotation prototype is preserved unchanged at
 [`legacy/r0-safe-prototype.html`](legacy/r0-safe-prototype.html), with a
 [reference-only marker](legacy/README.md). It is not included in the production
-build. Its search, history, UI patterns, and unconstrained prototype behavior are not
-available in this shell. Only the bounded #20 geometry behavior described above is
-implemented; later Issues #5 and #21 remain separately authorized work.
+build. Its search and unconstrained prototype behavior are not available in this shell.
+The current app uses only the bounded project history described above; it does not
+implement the prototype's history behavior or UI.
 
 Space Syntax, routing/accessibility, synthetic isochrones, elevation, and OD
 analytics remain unavailable. No analytical engine is migrated or reactivated.
-There is no project persistence/workflow, API-key input, generic GIS import/export,
-or full icon catalogue in this slice. Issue #5A defines only the pure, strict,
-versioned native Project Document v1 contract; IndexedDB, autosave, history, and
-runtime state migration remain later #5B–#5D work.
+There is no durable project persistence/workflow, API-key input, generic GIS
+import/export, or full icon catalogue in this slice. Project state and its 20-snapshot
+history are runtime-only and are lost on reload. Issue #5C owns IndexedDB, autosave,
+and crash recovery; Issue #5D owns the later project workflow.
 
 ## Development and verification
 
@@ -105,7 +113,7 @@ PR/main; deploy also typechecks before building and uploading only `dist/`. The
 deterministic `npm test` script runs the committed pure TypeScript suites; no
 ESLint, Playwright, or general E2E CI matrix is claimed.
 
-Focused Issue #19/#20/#5A regression fixtures are committed under `tests/`:
+Focused Issue #19/#20/#5A/#5B regression fixtures are committed under `tests/`:
 
 ```sh
 npm test
@@ -113,6 +121,8 @@ npm test
 npx --yes --package @playwright/cli playwright-cli run-code --filename tests/geojson-browser.js
 npx --yes --package @playwright/cli playwright-cli run-code --filename tests/geometry-browser.js
 npx --yes --package @playwright/cli playwright-cli run-code --filename tests/marker-hotspot-browser.js
+npx --yes --package @playwright/cli playwright-cli run-code --filename tests/import-lifecycle-browser.js
+npx --yes --package @playwright/cli playwright-cli run-code --filename tests/project-history-browser.js
 # In a second terminal, before the deterministic lifecycle fixture:
 node tests/map-tile-server.cjs
 npx --yes --package @playwright/cli playwright-cli run-code --filename tests/map-lifecycle-browser.js
@@ -120,9 +130,10 @@ npx --yes --package @playwright/cli playwright-cli run-code --filename tests/map
 
 These check import trust, count limits, transactional state preservation, XSS,
 provenance round-trips, canonical geometry/buffer behavior, point hotspot presentation,
-the strict native Project Document v1 contract, and Point/layer/basemap controls. The
-GeoJSON browser fixture uses generated File objects through the file input and reads
-actual export downloads.
+the strict native Project Document v1 contract, Project Document-backed undo/redo,
+stale async import rejection, and Point/layer/basemap controls. The GeoJSON browser
+fixture uses generated File objects through the file input and reads actual export
+downloads.
 
 `map-tile-server.cjs` is a loopback-only test helper that serves one valid 256px PNG.
 The lifecycle fixture uses it only for normal OSM-tile readiness, then deliberately

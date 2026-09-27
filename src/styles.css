@@ -48,6 +48,7 @@ p { margin: 6px 0 0; line-height: 1.5; }
   border-bottom: 1px solid var(--border);
 }
 .reload-control { display: flex; align-items: center; gap: 8px; }
+.reload-control .history-button { padding: 6px 9px; font-size: 12px; }
 .reload-control p { max-width: 300px; color: var(--text-muted); font-size: 11px; }
 h1 { font-size: 21px; margin: 0; letter-spacing: -0.4px; }
 .app-header p { font-size: 13px; color: var(--text-muted); }

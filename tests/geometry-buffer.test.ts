@@ -4,11 +4,17 @@ import {
   createAuthoredLineString,
   createAuthoredPoint,
   createAuthoredPolygon,
+  createDefaultLayers,
+  importFeaturesIntoWorkspace,
   markDependentBuffersStale,
+  reservedWorkspaceIds,
   validateWgs84LineString,
   validateWgs84Polygon,
   type Wgs84LineString,
   type Wgs84Polygon,
+  type SpatialFeature,
+  type PointFeature,
+  type GeometrySnapshot,
 } from '../src/features/featureModel';
 import {
   BUFFER_LIBRARY_VERSION,
@@ -16,10 +22,82 @@ import {
   deriveBufferFeature,
   validateBufferResult,
 } from '../src/features/buffer';
-import { geometryEqual, initialWorkspaceState, workspaceReducer } from '../src/features/workspace';
+import { geometryEqual, nextFeatureId } from '../src/features/workspace';
+import { createProjectDocument } from '../src/project/projectDocument';
+import { applyProjectCommand, type ProjectCommand } from '../src/project/projectHistory';
 
 const lineCoordinates: Wgs84LineString = [[100.5, 13.75], [100.51, 13.76], [100.52, 13.75]];
 const polygonCoordinates: Wgs84Polygon = [[[100.5, 13.75], [100.51, 13.75], [100.51, 13.76], [100.5, 13.75]]];
+
+interface WorkspaceTestState {
+  features: SpatialFeature[];
+  selectedFeatureId: string | null;
+}
+
+type WorkspaceTestAction =
+  | { type: 'createPoint'; coordinates: [number, number] }
+  | { type: 'createGeometry'; geometry: Exclude<GeometrySnapshot, { type: 'Point' }> }
+  | { type: 'applyGeometry'; id: string; geometry: Exclude<GeometrySnapshot, { type: 'Point' }> }
+  | { type: 'insert'; feature: SpatialFeature }
+  | { type: 'import'; imported: readonly PointFeature[] }
+  | { type: 'select'; id: string | null }
+  | { type: 'toggleVisibility'; id: string }
+  | { type: 'rename'; id: string; name: string }
+  | { type: 'delete'; id: string };
+
+const initialWorkspaceState: WorkspaceTestState = { features: [], selectedFeatureId: null };
+const fixtureTime = '2026-09-21T00:00:00.000Z';
+
+function workspaceDocument(features: readonly SpatialFeature[]) {
+  return createProjectDocument({
+    metadata: { id: 'geometry-test-project', name: 'Geometry test', createdAt: fixtureTime, updatedAt: fixtureTime },
+    layers: createDefaultLayers(),
+    features,
+  });
+}
+
+function workspaceReducer(state: WorkspaceTestState, action: WorkspaceTestAction): WorkspaceTestState {
+  if (action.type === 'select') return { ...state, selectedFeatureId: action.id };
+  if (action.type === 'insert') {
+    if (reservedWorkspaceIds(state.features).has(action.feature.id)) throw new Error('New feature ID collides with an existing workspace feature.');
+    return {
+      features: workspaceDocument([...state.features, action.feature]).features,
+      selectedFeatureId: action.feature.id,
+    };
+  }
+
+  const document = workspaceDocument(state.features);
+  let command: ProjectCommand;
+  let selectedFeatureId = state.selectedFeatureId;
+  switch (action.type) {
+    case 'createPoint':
+      command = { type: 'createPoint', coordinates: action.coordinates };
+      selectedFeatureId = nextFeatureId(state.features, 'point');
+      break;
+    case 'createGeometry':
+      command = action;
+      selectedFeatureId = nextFeatureId(state.features, action.geometry.type === 'LineString' ? 'line' : 'polygon');
+      break;
+    case 'applyGeometry':
+      command = action;
+      break;
+    case 'import':
+      command = { type: 'importPoints', features: action.imported };
+      selectedFeatureId = importFeaturesIntoWorkspace(action.imported, state.features).selectedFeatureId;
+      break;
+    case 'toggleVisibility':
+      command = { type: 'toggleFeatureVisibility', id: action.id };
+      break;
+    case 'rename':
+      command = { type: 'renameFeature', id: action.id, name: action.name };
+      break;
+    case 'delete':
+      command = { type: 'deleteFeature', id: action.id };
+      if (selectedFeatureId === action.id) selectedFeatureId = null;
+      break;
+  }
+  return { features: applyProjectCommand(document, command).features, selectedFeatureId };
+}
 
 assert.deepEqual(validateWgs84LineString(lineCoordinates), lineCoordinates);
 assert.throws(() => validateWgs84LineString([[100.5, 13.75]]), /at least 2/);
@@ -112,7 +190,7 @@ const staleAfterDelete = state.features.find(feature => feature.id === dependent
 assert.equal(staleAfterDelete?.validationStatus, 'Stale');
 assert.equal(staleAfterDelete?.provenance.derivedFrom?.orphaned, true);
 assert.ok(staleAfterDelete?.provenance.limitations.includes('orphaned'));
-assert.throws(() => workspaceReducer({ features: [dependent], selectedFeatureId: dependent.id }, {
+assert.throws(() => workspaceReducer({ features: [source, dependent], selectedFeatureId: dependent.id }, {
   type: 'applyGeometry',
   id: dependent.id,
   geometry: { type: 'Polygon', coordinates: polygonCoordinates },
@@ -121,7 +199,7 @@ console.log('PASS dependent buffers become Stale after source edit and Stale/orp
 
 const noOpLineSource = createAuthoredLineString('noop-line', lineCoordinates, 1);
 const noOpLineBuffer = deriveBufferFeature(noOpLineSource, 'noop-line-buffer', 80);
-const noOpLineBefore = JSON.stringify([noOpLineSource, noOpLineBuffer]);
+const noOpLineBefore = JSON.stringify(workspaceDocument([noOpLineSource, noOpLineBuffer]).features);
 const noOpLineState = workspaceReducer({ features: [noOpLineSource, noOpLineBuffer], selectedFeatureId: noOpLineSource.id }, {
   type: 'applyGeometry',
   id: noOpLineSource.id,
@@ -154,7 +232,7 @@ console.log('PASS LineString real edit stales dependents once and repeated Apply
 
 const noOpPolygonSource = createAuthoredPolygon('noop-polygon', polygonCoordinates, 1);
 const noOpPolygonBuffer = deriveBufferFeature(noOpPolygonSource, 'noop-polygon-buffer', 80);
-const noOpPolygonBefore = JSON.stringify([noOpPolygonSource, noOpPolygonBuffer]);
+const noOpPolygonBefore = JSON.stringify(workspaceDocument([noOpPolygonSource, noOpPolygonBuffer]).features);
 const noOpPolygonState = workspaceReducer({ features: [noOpPolygonSource, noOpPolygonBuffer], selectedFeatureId: noOpPolygonSource.id }, {
   type: 'applyGeometry',
   id: noOpPolygonSource.id,
