@@ -39,19 +39,25 @@ function createTile() {
 
 const tile = createTile();
 
-const server = http.createServer((request, response) => {
-  if (request.url !== '/tile.png') {
-    response.writeHead(404).end();
-    return;
-  }
-  response.writeHead(200, {
-    'Content-Type': 'image/png',
-    'Access-Control-Allow-Origin': '*',
-    'Cache-Control': 'no-store',
+function createTileServer() {
+  return http.createServer((request, response) => {
+    if (request.url !== '/tile.png') {
+      response.writeHead(404).end();
+      return;
+    }
+    response.writeHead(200, {
+      'Content-Type': 'image/png',
+      'Access-Control-Allow-Origin': '*',
+      'Cache-Control': 'no-store',
+    });
+    response.end(tile);
   });
-  response.end(tile);
-});
+}
 
-server.listen(4175, '127.0.0.1', () => {
-  process.stdout.write('Map lifecycle tile fixture listening on http://127.0.0.1:4175/tile.png\n');
-});
+if (require.main === module) {
+  createTileServer().listen(4175, '127.0.0.1', () => {
+    process.stdout.write('Map lifecycle tile fixture listening on http://127.0.0.1:4175/tile.png\n');
+  });
+}
+
+module.exports = { createTileServer };
