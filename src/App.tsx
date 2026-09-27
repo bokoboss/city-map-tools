@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { importGeoJsonText, exportGeoJson, GEOJSON_MAX_TEXT_LENGTH } from './features/geojson';
 import {
   importFeaturesIntoWorkspace,
@@ -25,6 +25,8 @@ import {
   type ProjectHistoryState,
 } from './project/projectHistory';
 import { createEmptyProjectDocument } from './project/projectDocument';
+import { IndexedDbProjectStorage } from './project/indexedDbProjectStorage';
+import { ProjectPersistence } from './project/projectPersistence';
 
 function success(message: string): OperationResult {
   return { ok: true, message };
@@ -47,6 +49,9 @@ export function App() {
   const [mapSession, setMapSession] = useState(0);
   const [historyState, setHistoryState] = useState<ProjectHistoryState>(createInitialHistory);
   const historyRef = useRef(historyState);
+  const [persistence] = useState(() => new ProjectPersistence(historyState.present, new IndexedDbProjectStorage()));
+  const [saveStatus, setSaveStatus] = useState(persistence.getStatus());
+  const [bootstrapComplete, setBootstrapComplete] = useState(false);
   const project = currentProjectDocument(historyState);
   const { features, layers } = project;
   const [selectedFeatureId, setSelectedFeatureId] = useState<string | null>(null);
@@ -56,6 +61,19 @@ export function App() {
 
   modeRef.current = mode;
 
+  useEffect(() => {
+    let active = true;
+    const unsubscribe = persistence.subscribe(setSaveStatus);
+    void persistence.bootstrap().then(restored => {
+      if (!active) return;
+      const root = createProjectHistory(restored);
+      historyRef.current = root;
+      setHistoryState(root);
+      setBootstrapComplete(true);
+    });
+    return () => { active = false; unsubscribe(); };
+  }, [persistence]);
+
   const changeMode = useCallback((nextMode: EditorMode) => {
     modeRef.current = nextMode;
     setMode(nextMode);
@@ -63,6 +81,7 @@ export function App() {
 
   const acceptHistory = (next: ProjectHistoryState) => {
     if (next === historyRef.current) return;
+    if (next.present !== historyRef.current.present) persistence.commit(next.present);
     historyRef.current = next;
     setHistoryState(next);
     const nextProject = currentProjectDocument(next);
@@ -216,10 +235,14 @@ export function App() {
     }
   };
 
+  if (!bootstrapComplete) {
+    return <main className="app"><header className="app-header"><h1>City Map Tools</h1><p className="project-save-state" role="status" aria-live="polite">Loading · {saveStatus.message}</p></header></main>;
+  }
+
   return (
     <main className="app">
       <header className="app-header">
-        <div><h1>City Map Tools</h1><p>Project workspace · R1B preview</p></div>
+        <div><h1>City Map Tools</h1><p>Project workspace · R1B preview</p><p className={`project-save-state project-save-${saveStatus.state.toLowerCase()}`} role="status" aria-live="polite"><strong>{saveStatus.state}</strong> · {saveStatus.message}</p></div>
         <div className="reload-control">
           <button
             type="button"

@@ -8,7 +8,7 @@
 - Package version: `2.2.0` (package label, not a production-readiness claim)
 
 ## Current accepted baseline
-- Accepted main after #5A and #6 Phase B1: `bf3129730d78843142d4f96cd9aef369bff562e8`
+- Accepted main after #5B: `4dcf0be42da30bb14a26e7ca54b92b9ff7a92b5c`
 - Accepted date: 2026-09-27, project timezone UTC+07:00
 - #2 workflow baseline, #3 R0B truth/security/quarantine remediation (PR #25), and
   #6 Phase A deterministic install/CI (PR #26) are accepted and merged.
@@ -45,9 +45,11 @@
   import status, and other transient UI state stay outside project history.
 - Accepted R0 monolithic prototype preserved unchanged as non-production reference
   at `legacy/r0-safe-prototype.html`; excluded from `dist/`.
-- No durable persistence/autosave, multi-ring/MultiPolygon editor, full icon catalogue,
-  or analytical engine. Project state/history are in-memory and are lost on reload;
-  native document storage/workflow is not implemented.
+- #5C branch adds native IndexedDB storage for canonical serialized Project Document
+  v1, 500 ms committed-state autosave, visible status, strict restore, and preservation
+  of invalid recovery records. This is pending PR review and acceptance. History and
+  transient UI state remain memory-only and reset on reload. No project workflow,
+  multi-ring/MultiPolygon editor, full icon catalogue, or analytical engine exists.
 - Focused pure and production-preview browser fixtures cover the bounded spatial and
   MapLibre boundary behavior; they are not a claim of a general automated E2E suite.
 
@@ -123,7 +125,7 @@ Production preview URL: `http://127.0.0.1:4173/city-map-tools/`.
 | Gate | Method | Required |
 |---|---|---|
 | Deterministic install | `npm ci` | Yes |
-| Pure/unit contract | `npm test` | Yes for #5A / #6 Phase B1 |
+| Pure/unit contract | `npm test` | Yes for #5A / #5B / #5C / #6 Phase B1 |
 | Strict TypeScript | `npm run typecheck` | Yes |
 | Production artifact | `npm run build` | Yes |
 | Diff hygiene | `git diff --check` | Yes |
@@ -147,11 +149,11 @@ is still a separate human-controlled blocker; do not alter it as part of #18.
 - Report external writes and global/system changes explicitly.
 
 ## Current objective and remaining limitations
-Complete/review #5B from accepted main. Next: #5C persistence, then #21 migration.
+Complete/review #5C from accepted #5B main. Next: #5D project workflow and #21 migration.
 Sequence: #18 → #19 → #20 → #5A + #6 Phase B1 → #5B/#5C → #21.
 
 Provider availability/coverage is best-effort, 3D is visualization only, project
-storage is absent and history is runtime-only, GeoJSON remains Point-only, and no
+storage is local to the browser origin and history is runtime-only, GeoJSON remains Point-only, and no
 engineering analytics are validated. Derived buffers are bounded, read-only, structurally checked, and
 explicitly unvalidated; they do not support antimeridian/pathological spans or
 MultiPolygon output. The legacy reference retains prototype behavior and quarantine
