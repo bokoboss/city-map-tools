@@ -141,8 +141,12 @@ export function App() {
       const bufferId = nextFeatureId(current.features, 'buffer');
       const result = runProjectCommand({ type: 'createBuffer', sourceId: id, radius });
       if (!result.ok) return result;
+      const createdBuffer = currentProjectDocument(historyRef.current).features.find(feature => feature.id === bufferId);
+      if (!createdBuffer || createdBuffer.lineage !== 'derived') {
+        return failure('The created buffer could not be read from the committed project.');
+      }
       setSelectedFeatureId(bufferId);
-      return success(`Created derived buffer at ${radius} meters with explicit @turf/buffer@7.4.0 provenance. It is Functional but unvalidated and read-only.`);
+      return success(`Created derived buffer at ${radius} meters with explicit @turf/buffer@7.4.0 provenance. It is ${createdBuffer.validationStatus} and read-only.`);
     } catch (error) {
       return failure(error);
     }

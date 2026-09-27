@@ -17,15 +17,17 @@ async (page) => {
   const upload = async (document, expected = { kind: 'imported', count: document.features.length }) => {
     const status = page.locator('.import-status');
     const previousStatus = await status.innerText();
-    const completion = page.waitForFunction(({ previous, expectedStatus }) => {
+    const previousCount = await count();
+    const completion = page.waitForFunction(({ previous, previousCount, expectedStatus }) => {
       const current = document.querySelector('.import-status').textContent;
-      if (current === previous) return false;
+      const currentCount = document.querySelectorAll('.feature-row').length;
       if (expectedStatus.kind === 'imported') {
         const suffix = expectedStatus.count === 1 ? 'feature' : 'features';
-        return current === `Imported ${expectedStatus.count} Point ${suffix}; imported values remain unvalidated.`;
+        return current === `Imported ${expectedStatus.count} Point ${suffix}; imported values remain unvalidated.`
+          && currentCount === previousCount + expectedStatus.count;
       }
-      return current.startsWith('Import rejected:') && current.includes(expectedStatus.reason);
-    }, { previous: previousStatus, expectedStatus: expected });
+      return current !== previous && current.startsWith('Import rejected:') && current.includes(expectedStatus.reason);
+    }, { previous: previousStatus, previousCount, expectedStatus: expected });
     await page.locator('input[type=file]').evaluate((input, text) => {
       const transfer = new DataTransfer();
       transfer.items.add(new File([text], 'fixture.geojson', { type: 'application/geo+json' }));
@@ -96,6 +98,12 @@ async (page) => {
   check(child.properties.provenance.sourceLineageClaim.lineage === 'derived' && child.properties.provenance.sourceLineageClaim.trust === 'untrusted', 'typed untrusted claim');
   await page.getByRole('button', { name: 'Forged derived imported', exact: true }).click();
   check(await page.getByText('Source lineage claim (untrusted)', { exact: true }).isVisible(), 'claim visibly untrusted');
+
+  await upload(collection([point('experimental-source', { validationStatus: 'Experimental' })]));
+  check((await page.locator('.inspector-field').filter({ hasText: 'Validation status' }).first().innerText()).includes('Experimental'), 'import preserves an accepted Experimental Point status');
+  await page.getByRole('button', { name: 'Create derived buffer', exact: true }).click();
+  check((await page.locator('.inspector-field').filter({ hasText: 'Validation status' }).first().innerText()).includes('Experimental'), 'derived buffer inherits the Experimental source status');
+  check((await page.locator('.editor-status').innerText()).includes('It is Experimental and read-only.'), 'buffer success message reports the committed validation status');
 
   const malicious = '<img src=x onerror=window.__issue19Xss=1>';
   const script = '<script>window.__issue19Xss=2</script>';

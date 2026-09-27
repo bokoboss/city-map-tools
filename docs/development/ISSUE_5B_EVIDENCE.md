@@ -74,7 +74,7 @@ Production preview: `http://127.0.0.1:4173/city-map-tools/`.
 | `tests/project-history-browser.js` | PASS; no page errors or console warnings/errors. Point creation, commit-on-Enter rename, rename undo/redo, PointPresentation undo/redo, layer/feature visibility undo/redo, buffer undo/redo and read-only state, drawing history lock/draft retention, LineString and Polygon creation. |
 | `tests/geometry-browser.js` | PASS; no page errors or console warnings/errors. Geometry Apply undo/redo, edit history lock, buffer stale semantics, OSM/CARTO style replacement, cancellation, selection, and derived read-only behavior. |
 | `tests/import-lifecycle-browser.js` | PASS; no page errors or console warnings/errors. Existing interaction guards and delayed import rejection after the authoritative project revision changes. |
-| `tests/geojson-browser.js` | PASS; no page errors. Import trust, round-trip, XSS inertness, transactional rejection, and 500 accepted / 501 rejected. |
+| `tests/geojson-browser.js` | PASS; no page errors. Import trust, round-trip, XSS inertness, transactional rejection, 500 accepted / 501 rejected, and imported Experimental Point buffer status/message consistency. |
 | `tests/marker-hotspot-browser.js` | PASS; no page errors or console warnings/errors. Point presentation preserves canonical geometry and hotspot through style replacement. |
 | `tests/map-lifecycle-browser.js` | PASS; no page errors or unexpected console warnings/errors. Provider failure was intentionally injected and the UI recovered through CARTO. |
 | `tests/terradraw-compat-browser.js` | PASS; no page errors or console warnings/errors. MapLibre 6/Terra Draw create, edit, finish, cancel, clear, and teardown. |
@@ -82,6 +82,15 @@ Production preview: `http://127.0.0.1:4173/city-map-tools/`.
 The existing GeoJSON browser assertion was updated to commit rename on Enter. The
 geometry browser assertion was updated to expect the existing no-op Apply status. Both
 fixtures passed after those expectation updates.
+
+The targeted Code Review of the initial PR head found one P1: buffer creation's
+success message hard-coded `Functional but unvalidated` even when v1 conservatively
+propagated an imported source's `Experimental` or `Stale` status. The integration now
+reads the committed buffer's actual status, and the GeoJSON browser fixture verifies
+the inspector and success message for an imported `Experimental` Point. Unit,
+typecheck, build, GeoJSON-browser, and project-history-browser gates passed on this
+remediation candidate. Exact-head CI and Code Review for that updated candidate remain
+pending.
 
 ## Pre-push audit and remaining remote gates
 
