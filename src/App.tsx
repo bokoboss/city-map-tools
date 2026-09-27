@@ -299,7 +299,7 @@ export function App() {
   };
 
   const handleExport = () => {
-    const current = currentProjectDocument(historyRef.current);
+    const current = historyRef.current.present;
     const pointFeatures = current.features.filter(isPointFeature);
     const blob = new Blob([exportGeoJson(pointFeatures)], { type: 'application/geo+json' });
     const url = URL.createObjectURL(blob);

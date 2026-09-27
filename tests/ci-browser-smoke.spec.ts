@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test';
+import { readFile } from 'node:fs/promises';
 
 const tileServerUrl = 'http://127.0.0.1:4175/tile.png';
 const tileHost = 'tile.openstreetmap.org';
@@ -171,6 +172,19 @@ test('hosted app commits authored Point drags once and preserves history and rec
   await expect(undo).toBeDisabled();
   await page.waitForTimeout(600);
   expect(await readStoredProject()).toBe(projectBeforeDragAfterNoOp);
+  const exportDownloadPromise = page.waitForEvent('download');
+  await page.getByRole('button', { name: 'Export Points GeoJSON', exact: true }).evaluate(button => (button as HTMLButtonElement).click());
+  const exportDownload = await exportDownloadPromise;
+  const exportPath = await exportDownload.path();
+  expect(exportPath).not.toBeNull();
+  const exportedProject = JSON.parse(await readFile(exportPath!, 'utf8')) as {
+    features: Array<{ properties: { name: string }; geometry: { coordinates: number[] } }>;
+  };
+  const exportedPoint = exportedProject.features.find(feature => feature.properties.name === 'Point 1');
+  expect(exportedPoint).toBeDefined();
+  expect(exportedPoint!.geometry.coordinates).toEqual(originalCoordinates);
+  expect(await readStoredProject()).toBe(projectBeforeDragAfterNoOp);
+  await expect(undo).toBeDisabled();
   await page.mouse.up();
   await expect(undo).toBeEnabled();
   await expect(page.locator('.project-save-state strong')).toHaveText('Saved');
