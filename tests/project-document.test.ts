@@ -8,16 +8,20 @@ import {
   createAuthoredPolygon,
   createDefaultLayers,
   defaultProvenance,
+  MAX_TEXT_LENGTH,
   markDependentBuffersStale,
+  renameFeature,
   validateWgs84LineString,
   validateWgs84Polygon,
   type SpatialFeature,
+  type Provenance,
 } from '../src/features/featureModel';
 import { deriveBufferFeature } from '../src/features/buffer';
 import {
   PROJECT_DOCUMENT_AXIS_ORDER,
   PROJECT_DOCUMENT_CRS,
   PROJECT_DOCUMENT_FORMAT,
+  PROJECT_DOCUMENT_MAX_PROVENANCE_DEPTH,
   PROJECT_DOCUMENT_MAX_TEXT_LENGTH,
   PROJECT_DOCUMENT_UNITS,
   PROJECT_DOCUMENT_SCHEMA_VERSION,
@@ -28,6 +32,7 @@ import {
   ProjectDocumentValidationError,
   serializeProjectDocument,
 } from '../src/project/projectDocument';
+import { importGeoJsonText } from '../src/features/geojson';
 
 const createdAt = '2026-09-21T00:00:00.000Z';
 const updatedAt = '2026-09-21T00:00:01.000Z';
@@ -70,6 +75,92 @@ assert.deepEqual(parsed.features, document.features);
 assert.deepEqual(parsed.presentation.points['point-1'], document.presentation.points['point-1']);
 assert.equal(serializeProjectDocument(parsed), encoded, 'valid current state serializes deterministically after parse');
 console.log('PASS Point, LineString, Polygon, derived buffer, layers, PointPresentation, and provenance round-trip');
+
+const ordinaryNamedSource = renameFeature(point, 'Road A');
+const ordinaryNamedBuffer = deriveBufferFeature(ordinaryNamedSource, 'buffer-road-a', 80);
+assert.equal(ordinaryNamedBuffer.name, 'Road A buffer');
+
+const maximumLengthSource = renameFeature(point, 'R'.repeat(MAX_TEXT_LENGTH));
+const maximumLengthBuffer = deriveBufferFeature(maximumLengthSource, 'buffer-maximum-name', 80);
+assert.equal(maximumLengthSource.name.length, MAX_TEXT_LENGTH);
+assert.ok(maximumLengthBuffer.name.length <= MAX_TEXT_LENGTH);
+assert.ok(maximumLengthBuffer.name.endsWith(' buffer'));
+assert.equal(maximumLengthBuffer.name, `${maximumLengthSource.name.slice(0, MAX_TEXT_LENGTH - ' buffer'.length)} buffer`);
+const boundedBufferDocument = createProjectDocument({
+  metadata: { id: 'bounded-buffer-name', name: 'Bounded buffer name', createdAt, updatedAt },
+  layers: createDefaultLayers(),
+  features: [maximumLengthSource, maximumLengthBuffer],
+});
+const boundedBufferRoundTrip = parseProjectDocumentJson(serializeProjectDocument(boundedBufferDocument));
+assert.equal(boundedBufferRoundTrip.features[1]!.name, maximumLengthBuffer.name);
+console.log('PASS ordinary buffer names stay unchanged and maximum-length source names produce a serializable bounded buffer name');
+
+function provenanceWithDepth(depth: number): Provenance {
+  const provenance = defaultProvenance('derived');
+  return depth === 0
+    ? provenance
+    : { ...provenance, derivedFrom: { id: `nested-${depth}`, provenance: provenanceWithDepth(depth - 1) } };
+}
+
+const importedAtMaximumProvenanceDepth = importGeoJsonText(JSON.stringify({
+  type: 'FeatureCollection',
+  features: [{
+    type: 'Feature',
+    id: 'imported-depth-two',
+    geometry: { type: 'Point', coordinates: [100.7, 13.85] },
+    properties: { provenance: provenanceWithDepth(2) },
+  }],
+}), createDefaultLayers())[0]!;
+const maximumDepthBuffer = deriveBufferFeature(importedAtMaximumProvenanceDepth, 'buffer-imported-depth-two', 80);
+const maximumDepthDocument = createProjectDocument({
+  metadata: { id: 'buffer-source-depth-two', name: 'Buffer source depth two', createdAt, updatedAt },
+  layers: createDefaultLayers(),
+  features: [importedAtMaximumProvenanceDepth, maximumDepthBuffer],
+});
+const maximumDepthRoundTrip = parseProjectDocumentJson(serializeProjectDocument(maximumDepthDocument));
+assert.deepEqual(
+  maximumDepthRoundTrip.features[1]!.provenance.derivedFrom!.provenance,
+  importedAtMaximumProvenanceDepth.provenance,
+);
+console.log('PASS maximum-depth GeoJSON provenance survives import, buffer derivation, and native project round-trip');
+
+const overDepthProvenance = provenanceWithDepth(PROJECT_DOCUMENT_MAX_PROVENANCE_DEPTH + 1);
+assert.throws(() => importGeoJsonText(JSON.stringify({
+  type: 'FeatureCollection',
+  features: [{
+    type: 'Feature',
+    id: 'imported-depth-three',
+    geometry: { type: 'Point', coordinates: [100.7, 13.85] },
+    properties: { provenance: overDepthProvenance },
+  }],
+}), createDefaultLayers()), /bounded provenance object/);
+
+const overDepthBuffer = deriveBufferFeature({
+  ...importedAtMaximumProvenanceDepth,
+  provenance: overDepthProvenance,
+}, 'buffer-imported-depth-three', 80);
+assert.throws(() => createProjectDocument({
+  metadata: { id: 'buffer-source-depth-three', name: 'Buffer source depth three', createdAt, updatedAt },
+  layers: createDefaultLayers(),
+  features: [importedAtMaximumProvenanceDepth, overDepthBuffer],
+}), /exceeds the 2-level provenance depth limit/);
+
+const ordinaryMaximumDepthPoint = { ...point, provenance: provenanceWithDepth(PROJECT_DOCUMENT_MAX_PROVENANCE_DEPTH) };
+const ordinaryMaximumDepthDocument = createProjectDocument({
+  metadata: { id: 'ordinary-provenance-depth-two', name: 'Ordinary provenance depth two', createdAt, updatedAt },
+  layers: createDefaultLayers(),
+  features: [ordinaryMaximumDepthPoint],
+});
+assert.deepEqual(
+  parseProjectDocumentJson(serializeProjectDocument(ordinaryMaximumDepthDocument)).features[0]!.provenance,
+  ordinaryMaximumDepthPoint.provenance,
+);
+assert.throws(() => createProjectDocument({
+  metadata: { id: 'ordinary-provenance-depth-three', name: 'Ordinary provenance depth three', createdAt, updatedAt },
+  layers: createDefaultLayers(),
+  features: [{ ...point, provenance: overDepthProvenance }],
+}), /exceeds the 2-level provenance depth limit/);
+console.log('PASS only the buffer source-snapshot wrapper is depth-neutral; GeoJSON and ordinary provenance limits remain strict');
 
 const empty = createEmptyProjectDocument({ id: 'empty-project', name: 'Empty', createdAt, updatedAt });
 assert.deepEqual(empty.metadata, { id: 'empty-project', name: 'Empty', createdAt, updatedAt });

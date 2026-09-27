@@ -1,7 +1,9 @@
 import turfBuffer from '@turf/buffer';
 import {
   BUFFER_LAYER_ID,
+  boundedText,
   geometrySnapshot,
+  MAX_TEXT_LENGTH,
   type GeometrySnapshot,
   type PolygonFeature,
   type SpatialFeature,
@@ -116,11 +118,12 @@ export function deriveBufferFeature(
   const sourceGeometry = assertSupportedBufferSource(source, radius);
   const result = implementation(toBufferInput(sourceGeometry), radius, { units: 'meters', steps: BUFFER_STEPS });
   const coordinates = validateBufferResult(result);
+  const nameSuffix = ' buffer';
   return {
     id,
     type: 'Polygon',
     coordinates,
-    name: `${source.name} buffer`,
+    name: `${boundedText(source.name, MAX_TEXT_LENGTH - nameSuffix.length)}${nameSuffix}`,
     layerId: BUFFER_LAYER_ID,
     visible: true,
     lineage: 'derived',

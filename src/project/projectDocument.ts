@@ -195,7 +195,12 @@ function cloneBuffer(value: unknown, path: string): BufferDerivation {
   return { library, libraryVersion, radius, units: 'meters', steps };
 }
 
-function cloneDerivedFrom(value: unknown, path: string, depth: number): DerivedFrom {
+function cloneDerivedFrom(
+  value: unknown,
+  path: string,
+  depth: number,
+  sourceProvenanceDepth = depth + 1,
+): DerivedFrom {
   if (depth > PROJECT_DOCUMENT_MAX_PROVENANCE_DEPTH) {
     fail(path, `exceeds the ${PROJECT_DOCUMENT_MAX_PROVENANCE_DEPTH}-level provenance depth limit.`);
   }
@@ -215,12 +220,17 @@ function cloneDerivedFrom(value: unknown, path: string, depth: number): DerivedF
   }
   if (hasOwn(source, 'orphaned')) derivedFrom.orphaned = booleanValue(source.orphaned, `${path}.orphaned`);
   if (hasOwn(source, 'provenance')) {
-    derivedFrom.provenance = cloneProvenance(source.provenance, `${path}.provenance`, depth + 1);
+    derivedFrom.provenance = cloneProvenance(source.provenance, `${path}.provenance`, sourceProvenanceDepth);
   }
   return derivedFrom;
 }
 
-function cloneProvenance(value: unknown, path: string, depth = 0): Provenance {
+function cloneProvenance(
+  value: unknown,
+  path: string,
+  depth = 0,
+  preserveBufferSourceProvenanceDepth = false,
+): Provenance {
   if (depth > PROJECT_DOCUMENT_MAX_PROVENANCE_DEPTH) {
     fail(path, `exceeds the ${PROJECT_DOCUMENT_MAX_PROVENANCE_DEPTH}-level provenance depth limit.`);
   }
@@ -260,7 +270,15 @@ function cloneProvenance(value: unknown, path: string, depth = 0): Provenance {
       boundedString(entry, `${path}.importChain[${index}]`, 160));
   }
   if (hasOwn(source, 'derivedFrom')) {
-    provenance.derivedFrom = cloneDerivedFrom(source.derivedFrom, `${path}.derivedFrom`, depth);
+    // A derived buffer wraps its source provenance in a snapshot. Keep the
+    // source's original depth budget while still counting its own nested data.
+    const sourceProvenanceDepth = depth + (preserveBufferSourceProvenanceDepth ? 0 : 1);
+    provenance.derivedFrom = cloneDerivedFrom(
+      source.derivedFrom,
+      `${path}.derivedFrom`,
+      depth,
+      sourceProvenanceDepth,
+    );
     const derived = provenance.derivedFrom;
     if (derived.type && derived.geometry && derived.type !== derived.geometry.type) {
       fail(`${path}.derivedFrom`, 'type must match the stored geometry snapshot type.');
@@ -305,7 +323,14 @@ function cloneFeature(value: unknown, index: number): SpatialFeature {
   if (validationStatus === 'Validated') {
     fail(`${path}.validationStatus`, 'Validated is not an active status that native v1 can create or trust.');
   }
-  const provenance = cloneProvenance(required(source, 'provenance', path), `${path}.provenance`);
+  const provenanceValue = required(source, 'provenance', path);
+  const isDerivedBuffer = lineage === 'derived' && isRecord(provenanceValue) && hasOwn(provenanceValue, 'buffer');
+  const provenance = cloneProvenance(
+    provenanceValue,
+    `${path}.provenance`,
+    0,
+    isDerivedBuffer,
+  );
   const base = {
     id,
     name,
