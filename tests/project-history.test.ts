@@ -232,6 +232,21 @@ assert.equal(noOpTransaction.past.length, 0);
 assert.equal(noOpTransaction.present.metadata.updatedAt, createdAt);
 console.log('PASS cancelling a transaction restores the exact pre-transaction project and no-op commit creates no history');
 
+let rejectedMove = beginProjectTransaction(createProjectHistory(transactionStart));
+const rejectedMoveRoot = rejectedMove.present;
+const rejectedMoveDraft = currentProjectDocument(rejectedMove);
+assert.throws(
+  () => applyProjectTransactionCommand(rejectedMove, { type: 'movePoint', id: point.id, coordinates: [100.6, 91] }),
+  /valid WGS84 longitude\/latitude/,
+);
+assert.strictEqual(currentProjectDocument(rejectedMove), rejectedMoveDraft, 'invalid drag coordinates do not mutate the active draft');
+assert.strictEqual(rejectedMove.present, rejectedMoveRoot, 'invalid drag coordinates do not mutate committed state');
+rejectedMove = cancelProjectTransaction(rejectedMove);
+assert.strictEqual(rejectedMove.present, rejectedMoveRoot, 'validation failure can cancel back to the exact rollback root');
+assert.equal(rejectedMove.transaction, null);
+assert.equal(rejectedMove.past.length, 0);
+console.log('PASS invalid Point drag coordinates leave state untouched and the active transaction can fail closed');
+
 let replaceHistory = createProjectHistory(documentWith([point]));
 replaceHistory = executeProjectCommand(replaceHistory, { type: 'renameFeature', id: point.id, name: 'Changed' }, commandTime(0));
 replaceHistory = undoProject(replaceHistory, commandTime(1));

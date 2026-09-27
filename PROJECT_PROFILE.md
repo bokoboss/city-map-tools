@@ -8,16 +8,18 @@
 - Package version: `2.2.0` (package label, not a production-readiness claim)
 
 ## Current accepted baseline
-- Accepted main after #5B: `4dcf0be42da30bb14a26e7ca54b92b9ff7a92b5c`
+- Accepted main after #5C and #6 Phase B2: `5d7456d70807f57bda91811ecf76fc1b093d5434`
 - Accepted date: 2026-09-27, project timezone UTC+07:00
 - #2 workflow baseline, #3 R0B truth/security/quarantine remediation (PR #25), and
-  #6 Phase A deterministic install/CI (PR #26) are accepted and merged.
+  #6 Phase A deterministic install/CI (PR #26), Phase B2 Chromium browser smoke
+  (PR #39), and #5C IndexedDB persistence (PR #38) are accepted and merged.
 - Durable program record: Issue #1. Latest checkpoint: Issue #23.
 - Issue #18 is accepted and merged (PR #27); Issue #19 is accepted and merged
   (PR #28); Issue #20 is accepted and merged (PR #35).
-- Issue #5A and Issue #6 Phase B1 are accepted. Issue #5B adds Project Document-backed
-  runtime ownership and bounded in-memory history. Issue #5C owns durable persistence;
-  Issue #5D owns the later project workflow.
+- Issue #5A, #5B, #5C, and #6 Phases B1/B2 are accepted. Issue #5B adds
+  Project Document-backed runtime ownership and bounded in-memory history; #5C adds
+  committed-state IndexedDB persistence and strict recovery; #5D owns the later
+  New/Open/Save project workflow.
 
 ## Current implemented stack
 - Vite 6 + React + strict TypeScript + npm/ESM MapLibre GL JS v6.
@@ -45,13 +47,17 @@
   import status, and other transient UI state stay outside project history.
 - Accepted R0 monolithic prototype preserved unchanged as non-production reference
   at `legacy/r0-safe-prototype.html`; excluded from `dist/`.
-- #5C branch adds native IndexedDB storage for canonical serialized Project Document
+- Issue #5C provides native IndexedDB storage for canonical serialized Project Document
   v1, 500 ms committed-state autosave, visible status, strict restore, and preservation
-  of invalid recovery records. This is pending PR review and acceptance. History and
-  transient UI state remain memory-only and reset on reload. No project workflow,
+  of invalid recovery records. History and transient UI state remain memory-only and
+  reset on reload. Issue #6 Phase B2 adds a deterministic hosted Chromium smoke for
+  production-preview browser behavior. The current Issue #21 branch adds transactional
+  dragging for visible authored Points in Select mode; imported Points remain fixed.
+  No project workflow,
   multi-ring/MultiPolygon editor, full icon catalogue, or analytical engine exists.
-- Focused pure and production-preview browser fixtures cover the bounded spatial and
-  MapLibre boundary behavior; they are not a claim of a general automated E2E suite.
+- Focused pure and production-preview browser fixtures plus the hosted Chromium CI
+  smoke cover bounded spatial and MapLibre lifecycle behavior; they are not a claim
+  of a general automated E2E suite.
 
 ## Accepted target direction
 - Modular UI/application structure with pure TypeScript domain/analysis modules
@@ -129,8 +135,8 @@ Production preview URL: `http://127.0.0.1:4173/city-map-tools/`.
 | Strict TypeScript | `npm run typecheck` | Yes |
 | Production artifact | `npm run build` | Yes |
 | Diff hygiene | `git diff --check` | Yes |
-| Browser | Production preview at configured base path; map/navigation/style/capability/error/cleanup plus focused geometry/hotspot fixtures | For runtime changes |
-| CI | Exact PR-head stable check: install + unit + typecheck + build on Node 22 | Yes |
+| Browser | `npm run test:browser:ci` plus affected production-preview geometry/hotspot/lifecycle fixtures | For runtime changes |
+| CI | Exact PR-head `build` and `browser-smoke` checks on Node 22 | Yes |
 | Independent review | Actual diff/evidence according to applicable Issue/workflow risk | As required |
 | Analytical/reference data | Method-specific deterministic/open fixtures | Before any analytical acceptance |
 
@@ -149,8 +155,8 @@ is still a separate human-controlled blocker; do not alter it as part of #18.
 - Report external writes and global/system changes explicitly.
 
 ## Current objective and remaining limitations
-Complete/review #5C from accepted #5B main. Next: #5D project workflow and #21 migration.
-Sequence: #18 → #19 → #20 → #5A + #6 Phase B1 → #5B/#5C → #21.
+Complete/review #21 from accepted #5C + #6 Phase B2 main. Next: #5D project workflow.
+Sequence: #18 → #19 → #20 → #5A + #6 Phase B1 → #5B/#5C → #6 Phase B2 → #21.
 
 Provider availability/coverage is best-effort, 3D is visualization only, project
 storage is local to the browser origin and history is runtime-only, GeoJSON remains Point-only, and no

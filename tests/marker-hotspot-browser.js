@@ -60,8 +60,23 @@ async (page) => {
   await page.getByRole('button', { name: 'Create derived buffer', exact: true }).click();
   await page.getByRole('button', { name: 'Point authored', exact: true }).click();
 
+  const geometryBeforeDrag = await canonicalGeometry();
+  const markerForDrag = page.locator('.point-marker');
+  const dragBox = await markerForDrag.boundingBox();
+  if (!dragBox) throw new Error('Authored Point marker has no bounds.');
+  const dragStartX = dragBox.x + dragBox.width / 2;
+  const dragStartY = dragBox.y + dragBox.height / 2;
+  await page.mouse.move(dragStartX, dragStartY);
+  await page.mouse.down();
+  await page.mouse.move(dragStartX + 48, dragStartY + 32, { steps: 6 });
+  await page.mouse.up();
+  await page.locator('.project-save-state strong').filter({ hasText: /^Saved$/ }).waitFor({ timeout: 10000 });
+  const geometryAfterDrag = await canonicalGeometry();
+  check(geometryAfterDrag !== geometryBeforeDrag, 'authored marker drag changes canonical WGS84 Point geometry');
+
   const baseline = await markerMetrics();
   const baselineGeometry = await canonicalGeometry();
+  check(baselineGeometry === geometryAfterDrag, 'marker hotspot checks start from the committed dragged coordinate');
   check(baseline.hotspot === 'center' && baseline.markerKind === 'dot', 'dot declares center hotspot');
   close(baseline.dotX, baseline.rootX, 'dot center aligns with hotspot x');
   close(baseline.dotY, baseline.rootY, 'dot center aligns with hotspot y');
@@ -121,6 +136,7 @@ async (page) => {
     pageErrors,
     consoleProblems,
     scenarios: [
+      'authored Point drag changes canonical WGS84 geometry before hotspot/style checks',
       'dot center and pin tip align with hotspot-root',
       'label visibility/text/all eight positions preserve hotspot and canonical geometry',
       'marker size and dot/pin switches preserve hotspot and canonical geometry',

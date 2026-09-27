@@ -14,8 +14,12 @@ import { MapCanvas } from './map/MapCanvas';
 import type { OperationResult } from './map/MapCanvas';
 import type { EditorMode } from './map/MapCanvas';
 import {
+  applyProjectTransactionCommand,
+  beginProjectTransaction,
+  cancelProjectTransaction,
   canRedoProject,
   canUndoProject,
+  commitProjectTransaction,
   createProjectHistory,
   currentProjectDocument,
   executeProjectCommand,
@@ -49,6 +53,7 @@ export function App() {
   const [mapSession, setMapSession] = useState(0);
   const [historyState, setHistoryState] = useState<ProjectHistoryState>(createInitialHistory);
   const historyRef = useRef(historyState);
+  const activePointDragRef = useRef<{ id: string; coordinates: Wgs84Point } | null>(null);
   const [persistence] = useState(() => new ProjectPersistence(historyState.present, new IndexedDbProjectStorage()));
   const [saveStatus, setSaveStatus] = useState(persistence.getStatus());
   const [bootstrapComplete, setBootstrapComplete] = useState(false);
@@ -74,11 +79,6 @@ export function App() {
     return () => { active = false; unsubscribe(); };
   }, [persistence]);
 
-  const changeMode = useCallback((nextMode: EditorMode) => {
-    modeRef.current = nextMode;
-    setMode(nextMode);
-  }, []);
-
   const acceptHistory = (next: ProjectHistoryState) => {
     if (next === historyRef.current) return;
     if (next.present !== historyRef.current.present) persistence.commit(next.present);
@@ -90,11 +90,95 @@ export function App() {
       : null);
   };
 
+  const cancelPointDrag = (id: string) => {
+    if (activePointDragRef.current?.id !== id) return;
+    activePointDragRef.current = null;
+    const current = historyRef.current;
+    if (current.transaction) acceptHistory(cancelProjectTransaction(current));
+  };
+
+  const changeMode = useCallback((nextMode: EditorMode) => {
+    const activeDrag = activePointDragRef.current;
+    if (nextMode !== 'select' && activeDrag) cancelPointDrag(activeDrag.id);
+    modeRef.current = nextMode;
+    setMode(nextMode);
+  }, []);
+
   const runProjectCommand = (command: ProjectCommand): OperationResult => {
     try {
       acceptHistory(executeProjectCommand(historyRef.current, command, new Date().toISOString()));
       return success('Project edit accepted.');
     } catch (error) {
+      return failure(error);
+    }
+  };
+
+  const handlePointDragStart = (id: string): OperationResult => {
+    const current = historyRef.current;
+    if (modeRef.current !== 'select' || current.transaction) {
+      return failure(new Error('Point markers can only be moved in Select mode when no other project transaction is active.'));
+    }
+    const point = current.present.features.find(feature => feature.id === id);
+    const layer = point && current.present.layers.find(candidate => candidate.id === point.layerId);
+    if (!point || !isPointFeature(point) || point.lineage !== 'authored' || !point.visible || !layer?.visible) {
+      return failure(new Error('Only visible authored Points can be moved. Imported and hidden Points remain fixed.'));
+    }
+    try {
+      acceptHistory(beginProjectTransaction(current));
+      activePointDragRef.current = {
+        id,
+        coordinates: [point.coordinates[0], point.coordinates[1]],
+      };
+      setSelectedFeatureId(id);
+      return success('Point move started. Release to commit this gesture.');
+    } catch (error) {
+      return failure(error);
+    }
+  };
+
+  const handlePointDragMove = (id: string, coordinates: Wgs84Point): OperationResult => {
+    const drag = activePointDragRef.current;
+    const current = historyRef.current;
+    if (modeRef.current !== 'select' || !drag || drag.id !== id || !current.transaction) {
+      return failure(new Error('The Point move is no longer active. The committed position will be restored.'));
+    }
+    try {
+      const point = current.transaction.draft.features.find(feature => feature.id === id);
+      if (!point || !isPointFeature(point) || point.lineage !== 'authored') {
+        throw new Error('Only an authored Point can be moved in this gesture.');
+      }
+      const validated = validateWgs84Point(coordinates);
+      acceptHistory(applyProjectTransactionCommand(current, { type: 'movePoint', id, coordinates: validated }));
+      return success('');
+    } catch (error) {
+      return failure(error);
+    }
+  };
+
+  const handlePointDragEnd = (id: string, coordinates: Wgs84Point): OperationResult => {
+    const drag = activePointDragRef.current;
+    let current = historyRef.current;
+    if (!drag || drag.id !== id || !current.transaction) {
+      cancelPointDrag(id);
+      return failure(new Error('The Point move could not be committed because its transaction was no longer active.'));
+    }
+    try {
+      const point = current.transaction.draft.features.find(feature => feature.id === id);
+      if (!point || !isPointFeature(point) || point.lineage !== 'authored') {
+        throw new Error('Only an authored Point can be committed by this gesture.');
+      }
+      const validated = validateWgs84Point(coordinates);
+      current = applyProjectTransactionCommand(current, { type: 'movePoint', id, coordinates: validated });
+      if (validated[0] === drag.coordinates[0] && validated[1] === drag.coordinates[1]) {
+        activePointDragRef.current = null;
+        acceptHistory(cancelProjectTransaction(current));
+        return success('Point returned to its original WGS84 position. No project edit was saved.');
+      }
+      acceptHistory(commitProjectTransaction(current, new Date().toISOString()));
+      activePointDragRef.current = null;
+      return success('Point move committed. Dependent buffers, if any, are now Stale.');
+    } catch (error) {
+      cancelPointDrag(id);
       return failure(error);
     }
   };
@@ -277,6 +361,10 @@ export function App() {
         pointPresentations={project.presentation.points}
         onModeChange={changeMode}
         onPointSelect={setSelectedFeatureId}
+        onPointDragStart={handlePointDragStart}
+        onPointDragMove={handlePointDragMove}
+        onPointDragEnd={handlePointDragEnd}
+        onPointDragCancel={cancelPointDrag}
         onMapPointClick={handleMapPointClick}
         onLayerVisibilityChange={id => runProjectCommand({ type: 'toggleLayerVisibility', layerId: id })}
         onFeatureVisibilityChange={id => runProjectCommand({ type: 'toggleFeatureVisibility', id })}

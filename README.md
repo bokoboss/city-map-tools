@@ -2,9 +2,11 @@
 
 Static-first map workspace. This revision carries the modular shell from Issue #18,
 the Point/layer/GeoJSON slice from Issue #19, the bounded geometry-editor slice
-from Issue #20, the Project Document v1 contract from Issue #5A, and the v1-backed
-runtime state and bounded history from Issue #5B. It does not provide validated
-engineering analysis or durable project persistence.
+from Issue #20, the Project Document v1 contract from Issue #5A, v1-backed runtime
+history from Issue #5B, local IndexedDB persistence from Issue #5C, and the
+representative Chromium CI smoke from Issue #6 Phase B2. Issue #21 adds
+transactional dragging for authored Points. The app does not provide validated
+engineering analysis or a New/Open/Save project workflow (#5D).
 
 Repository: <https://github.com/bokoboss/city-map-tools>
 Intended Pages URL: <https://bokoboss.github.io/city-map-tools/>.
@@ -24,7 +26,10 @@ Pages configuration remains a separate human-controlled deployment gate.
   load or explicit reload; no fallback data is generated.
 - Create and select Point features, rename them in the inspector, and toggle the
   Points layer visibility. New points are authored and remain `Functional but
-  unvalidated` with explicit WGS84 longitude/latitude provenance.
+  unvalidated` with explicit WGS84 longitude/latitude provenance. In Select mode,
+  visible authored Points can be dragged as one undoable project edit; imported
+  Points stay fixed. Marker pixels and hotspot presentation never change stored
+  WGS84 coordinates.
 - Create, select, rename, edit, hide/show, and delete authored WGS84 LineString and
   single-exterior-ring Polygon features. Terra Draw is transient editor state only:
   a line/polygon becomes workspace data only on finish, and editing needs an explicit
@@ -50,7 +55,9 @@ Pages configuration remains a separate human-controlled deployment gate.
   Apply, rename, visibility, PointPresentation, and buffer creation each form one action.
   Feature rename commits on blur or Enter. Selection, tools, drawing/edit drafts, camera,
   basemap, buffer text, and import status stay transient. History controls are disabled
-  during active drawing/editing.
+  during active drawing/editing and Point-move transactions. A Point drag commits as
+  one history action; draft positions are not persisted, and a cancelled/no-op drag
+  creates no save.
 - Import and export GeoJSON FeatureCollections for Point geometry only. Supported
   properties are `name`, `description`, `layerId`, `visible`, `lineage`,
   `validationStatus`, and the bounded R0 provenance object. Unknown properties,
@@ -114,13 +121,16 @@ rendering, pan/zoom, both basemaps, provider error/recovery, incompatible 3D,
 compatible 3D on/off, reload cleanup, geometry style remount, and marker hotspot
 alignment. CI's stable check runs clean install, unit tests, typecheck, and build on
 PR/main; deploy also typechecks before building and uploading only `dist/`. The
-deterministic `npm test` script runs the committed pure TypeScript suites; no
-ESLint, Playwright, or general E2E CI matrix is claimed.
+deterministic `npm test` script runs the committed pure TypeScript suites. CI also
+runs `npm run test:browser:ci`, a focused production-preview Chromium smoke for map,
+history, persistence/recovery, and authored Point dragging. This is not a general
+end-to-end matrix.
 
-Focused Issue #19/#20/#5A/#5B/#5C regression fixtures are committed under `tests/`:
+Focused Issue #19/#20/#5A/#5B/#5C/#21 regression fixtures are committed under `tests/`:
 
 ```sh
 npm test
+npm run test:browser:ci
 # With the production preview running and a playwright-cli browser open:
 npx --yes --package @playwright/cli playwright-cli run-code --filename tests/project-persistence-browser.js
 # The persistence fixture leaves a corrupt test record. Reset the test database
