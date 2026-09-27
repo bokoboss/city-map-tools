@@ -61,6 +61,7 @@ export interface MapPointOverlay {
   name: string;
   visible: boolean;
   layerVisible: boolean;
+  draggable: boolean;
   color: string;
   selected: boolean;
   presentation: PointPresentation;
@@ -80,6 +81,11 @@ interface ScreenPoint {
 interface MapCallbacks {
   onState: (state: MapState) => void;
   onPointSelect: (id: string) => void;
+  onPointDragStart: (id: string, coordinates: PointFeature['coordinates']) => { ok: boolean; message: string };
+  onPointDragMove: (id: string, coordinates: PointFeature['coordinates']) => { ok: boolean; message: string };
+  onPointDragEnd: (id: string, coordinates: PointFeature['coordinates']) => { ok: boolean; message: string };
+  onPointDragCancel: (id: string, message?: string) => void;
+  onPointDragStatus: (message: string) => void;
   onGeometrySelect: (id: string) => void;
   onMapPointClick: (coordinates: PointFeature['coordinates']) => void;
   onMapBackgroundClick: () => void;
@@ -189,6 +195,15 @@ export function createMap(container: HTMLDivElement, callbacks: MapCallbacks) {
     selectedFeatureId: string | null;
   } = { features: [], layers: [], selectedFeatureId: null };
   const pointMarkers = new globalThis.Map<string, Marker>();
+  const draggablePointIds = new Set<string>();
+  const canonicalPointCoordinates = new globalThis.Map<string, PointFeature['coordinates']>();
+  type ActivePointDrag = {
+    id: string;
+    marker: Marker;
+    startCoordinates: PointFeature['coordinates'];
+  };
+  let activePointDrag: ActivePointDrag | null = null;
+  let cancelledPointDrag: ActivePointDrag | null = null;
 
   const publish = (patch: Partial<MapState>) => {
     if (disposed) return;
@@ -205,29 +220,145 @@ export function createMap(container: HTMLDivElement, callbacks: MapCallbacks) {
     attributionControl: { compact: false },
   });
 
+  const markerCoordinates = (marker: Marker): PointFeature['coordinates'] => {
+    const coordinates = marker.getLngLat();
+    return [coordinates.lng, coordinates.lat];
+  };
+
+  const syncPointMarkerDraggability = () => {
+    pointMarkers.forEach((marker, id) => {
+      marker.setDraggable(interactionMode === 'select' && draggablePointIds.has(id));
+    });
+  };
+
+  const cancelActivePointDrag = (message?: string) => {
+    const drag = activePointDrag;
+    if (!drag) return;
+    activePointDrag = null;
+    cancelledPointDrag = drag;
+    try {
+      drag.marker.setLngLat(drag.startCoordinates);
+    } catch {
+      // The controller may already be tearing down. The project callback still
+      // cancels the transaction so history cannot remain locked.
+    }
+    callbacks.onPointDragCancel(drag.id, message);
+    syncPointMarkerDraggability();
+  };
+
+  const setInteractionMode = (mode: EditorMode) => {
+    if (interactionMode !== mode) {
+      cancelActivePointDrag('Point move cancelled because the editor mode changed. The committed WGS84 position was restored.');
+    }
+    interactionMode = mode;
+    syncPointMarkerDraggability();
+  };
+
+  const beginPointDrag = (id: string, marker: Marker) => {
+    if (interactionMode !== 'select' || !draggablePointIds.has(id) || activePointDrag) {
+      const coordinates = canonicalPointCoordinates.get(id);
+      if (coordinates) marker.setLngLat(coordinates);
+      callbacks.onPointDragStatus('Only visible authored Points can be moved in Select mode.');
+      return;
+    }
+    const coordinates = canonicalPointCoordinates.get(id) ?? markerCoordinates(marker);
+    const drag = { id, marker, startCoordinates: [coordinates[0], coordinates[1]] as PointFeature['coordinates'] };
+    activePointDrag = drag;
+    cancelledPointDrag = null;
+    try {
+      const result = callbacks.onPointDragStart(id, drag.startCoordinates);
+      if (!result.ok) cancelActivePointDrag(result.message);
+    } catch {
+      cancelActivePointDrag('Point move could not start. The committed WGS84 position was restored.');
+    }
+  };
+
+  const movePointDrag = (id: string, marker: Marker) => {
+    const drag = activePointDrag;
+    if (!drag || drag.id !== id || drag.marker !== marker) {
+      if (cancelledPointDrag?.marker === marker) marker.setLngLat(cancelledPointDrag.startCoordinates);
+      return;
+    }
+    try {
+      const result = callbacks.onPointDragMove(id, markerCoordinates(marker));
+      if (!result.ok) cancelActivePointDrag(result.message);
+    } catch {
+      cancelActivePointDrag('Point move failed validation. The committed WGS84 position was restored.');
+    }
+  };
+
+  const endPointDrag = (id: string, marker: Marker) => {
+    const drag = activePointDrag;
+    if (!drag || drag.id !== id || drag.marker !== marker) {
+      if (cancelledPointDrag?.marker === marker) {
+        marker.setLngLat(cancelledPointDrag.startCoordinates);
+        cancelledPointDrag = null;
+        syncPointMarkerDraggability();
+      }
+      return;
+    }
+    try {
+      const coordinates = markerCoordinates(marker);
+      const projectedStart = map.project(drag.startCoordinates);
+      const projectedEnd = map.project(coordinates);
+      // MapLibre's screen-to-coordinate round trip can add subpixel drift when
+      // a drag returns to its origin. Compare projected canonical positions
+      // within one CSS pixel to recognize that no-op; never derive stored
+      // WGS84 from pixels or marker presentation offsets.
+      const returnedToOrigin = Math.hypot(
+        projectedEnd.x - projectedStart.x,
+        projectedEnd.y - projectedStart.y,
+      ) <= 1;
+      const result = callbacks.onPointDragEnd(id, returnedToOrigin ? drag.startCoordinates : coordinates);
+      if (!result.ok) {
+        cancelActivePointDrag(result.message);
+        return;
+      }
+      activePointDrag = null;
+      cancelledPointDrag = null;
+      callbacks.onPointDragStatus(result.message);
+      syncPointMarkerDraggability();
+    } catch {
+      cancelActivePointDrag('Point move could not be committed. The committed WGS84 position was restored.');
+    }
+  };
+
   const removePointMarker = (id: string) => {
+    if (activePointDrag?.id === id) {
+      cancelActivePointDrag('Point move cancelled because the marker became unavailable. The committed WGS84 position was restored.');
+    }
     pointMarkers.get(id)?.remove();
     pointMarkers.delete(id);
+    draggablePointIds.delete(id);
+    canonicalPointCoordinates.delete(id);
   };
 
   const renderPointOverlays = (overlays: readonly MapPointOverlay[]) => {
     if (disposed) return;
     const activeIds = new Set<string>();
     overlays.forEach(overlay => {
+      canonicalPointCoordinates.set(overlay.id, overlay.coordinates);
       if (!overlay.visible || !overlay.layerVisible) {
         removePointMarker(overlay.id);
         return;
       }
       activeIds.add(overlay.id);
+      if (overlay.draggable) draggablePointIds.add(overlay.id);
+      else draggablePointIds.delete(overlay.id);
       let marker = pointMarkers.get(overlay.id);
       if (!marker) {
         const root = createPointMarkerRoot(overlay, callbacks.onPointSelect);
         // The root has zero dimensions and represents the canonical geographic hotspot.
         // Icon and label presentation is absolutely positioned from that fixed root.
-        marker = new Marker({ element: root, anchor: 'center' }).setLngLat(overlay.coordinates).addTo(map);
+        const createdMarker = new Marker({ element: root, anchor: 'center' }).setLngLat(overlay.coordinates).addTo(map);
+        createdMarker.on('dragstart', () => beginPointDrag(overlay.id, createdMarker));
+        createdMarker.on('drag', () => movePointDrag(overlay.id, createdMarker));
+        createdMarker.on('dragend', () => endPointDrag(overlay.id, createdMarker));
+        marker = createdMarker;
         pointMarkers.set(overlay.id, marker);
       }
       marker.setLngLat(overlay.coordinates);
+      marker.setDraggable(interactionMode === 'select' && overlay.draggable);
       const root = marker.getElement();
       const element = root.querySelector<HTMLButtonElement>('.point-marker');
       const dot = root.querySelector<HTMLElement>('.point-marker-dot');
@@ -249,6 +380,7 @@ export function createMap(container: HTMLDivElement, callbacks: MapCallbacks) {
     [...pointMarkers.keys()].forEach(id => {
       if (!activeIds.has(id)) removePointMarker(id);
     });
+    syncPointMarkerDraggability();
   };
 
   const ensureGeometryLayers = (): boolean => {
@@ -322,7 +454,7 @@ export function createMap(container: HTMLDivElement, callbacks: MapCallbacks) {
   const cancelEditor = (): GeometryEditorSession | null => {
     const previous = editor?.cancel() || null;
     if (previous?.kind === 'edit') editingSourceId = null;
-    interactionMode = 'select';
+    setInteractionMode('select');
     renderGeometry();
     return previous;
   };
@@ -413,13 +545,13 @@ export function createMap(container: HTMLDivElement, callbacks: MapCallbacks) {
     try {
       editor = createGeometryEditor(map, {
         onFinish(geometry) {
-          interactionMode = 'select';
+          setInteractionMode('select');
           renderGeometry();
           callbacks.onGeometryFinish(geometry);
         },
         onError(message) {
           if (!editor?.hasActiveSession() && (interactionMode === 'line' || interactionMode === 'polygon')) {
-            interactionMode = 'select';
+            setInteractionMode('select');
           }
           callbacks.onEditorError(message);
         },
@@ -568,6 +700,7 @@ export function createMap(container: HTMLDivElement, callbacks: MapCallbacks) {
         callbacks.onBasemapBlocked('Finish or cancel the active geometry draft before switching basemap; no work was discarded.');
         return false;
       }
+      cancelActivePointDrag('Point move cancelled because the basemap changed. The committed WGS84 position was restored.');
       editor?.destroy();
       editor = null;
       pendingStyleGeometryHydration = true;
@@ -592,7 +725,7 @@ export function createMap(container: HTMLDivElement, callbacks: MapCallbacks) {
     setEditorMode(mode: Exclude<EditorMode, 'editing'>): boolean {
       if (mode === 'select' || mode === 'point') {
         cancelEditor();
-        interactionMode = mode;
+        setInteractionMode(mode);
         return true;
       }
       if (!editor) {
@@ -603,7 +736,7 @@ export function createMap(container: HTMLDivElement, callbacks: MapCallbacks) {
       // also clears editingSourceId and restores committed geometry rendering.
       cancelEditor();
       const started = editor.startDraw(mode === 'line' ? 'LineString' : 'Polygon');
-      if (started) interactionMode = mode;
+      if (started) setInteractionMode(mode);
       return started;
     },
     beginEdit(feature: LineStringFeature | PolygonFeature): boolean {
@@ -611,7 +744,7 @@ export function createMap(container: HTMLDivElement, callbacks: MapCallbacks) {
       const started = editor.beginEdit(feature);
       if (started) {
         editingSourceId = feature.id;
-        interactionMode = 'editing';
+        setInteractionMode('editing');
         renderGeometry();
       }
       return started;
@@ -622,7 +755,7 @@ export function createMap(container: HTMLDivElement, callbacks: MapCallbacks) {
     completeEdit() {
       editor?.completeEdit();
       editingSourceId = null;
-      interactionMode = 'select';
+      setInteractionMode('select');
       renderGeometry();
     },
     cancelEditor,
@@ -645,6 +778,7 @@ export function createMap(container: HTMLDivElement, callbacks: MapCallbacks) {
       }
     },
     destroy() {
+      cancelActivePointDrag();
       disposed = true;
       clearTimeout(loadingTimer);
       editor?.destroy();

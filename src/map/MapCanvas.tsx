@@ -38,6 +38,10 @@ interface MapCanvasProps {
   pointPresentations: Readonly<Record<string, PointPresentation>>;
   onModeChange: (mode: EditorMode) => void;
   onPointSelect: (id: string) => void;
+  onPointDragStart: (id: string) => OperationResult;
+  onPointDragMove: (id: string, coordinates: Wgs84Point) => OperationResult;
+  onPointDragEnd: (id: string, coordinates: Wgs84Point) => OperationResult;
+  onPointDragCancel: (id: string) => void;
   onMapPointClick: (coordinates: Wgs84Point) => void;
   onLayerVisibilityChange: (id: string) => OperationResult;
   onFeatureVisibilityChange: (id: string) => OperationResult;
@@ -84,6 +88,10 @@ export function MapCanvas({
   pointPresentations,
   onModeChange,
   onPointSelect,
+  onPointDragStart,
+  onPointDragMove,
+  onPointDragEnd,
+  onPointDragCancel,
   onMapPointClick,
   onLayerVisibilityChange,
   onFeatureVisibilityChange,
@@ -102,6 +110,10 @@ export function MapCanvas({
   const modeRef = useRef(mode);
   const preserveEditorStatusOnNextModeChange = useRef(false);
   const pointSelectRef = useRef(onPointSelect);
+  const pointDragStartRef = useRef(onPointDragStart);
+  const pointDragMoveRef = useRef(onPointDragMove);
+  const pointDragEndRef = useRef(onPointDragEnd);
+  const pointDragCancelRef = useRef(onPointDragCancel);
   const mapPointClickRef = useRef(onMapPointClick);
   const featureSelectRef = useRef(onFeatureSelect);
   const geometryCreateRef = useRef(onGeometryCreate);
@@ -114,6 +126,10 @@ export function MapCanvas({
 
   modeRef.current = mode;
   pointSelectRef.current = onPointSelect;
+  pointDragStartRef.current = onPointDragStart;
+  pointDragMoveRef.current = onPointDragMove;
+  pointDragEndRef.current = onPointDragEnd;
+  pointDragCancelRef.current = onPointDragCancel;
   mapPointClickRef.current = onMapPointClick;
   featureSelectRef.current = onFeatureSelect;
   geometryCreateRef.current = onGeometryCreate;
@@ -124,6 +140,29 @@ export function MapCanvas({
       controller.current = createMap(container.current, {
         onState: setState,
         onPointSelect: id => pointSelectRef.current(id),
+        onPointDragStart: id => {
+          const result = pointDragStartRef.current(id);
+          if (!result.ok) setEditorStatus(result.message);
+          return result;
+        },
+        onPointDragMove: (id, coordinates) => {
+          const result = pointDragMoveRef.current(id, coordinates);
+          if (!result.ok) setEditorStatus(result.message);
+          return result;
+        },
+        onPointDragEnd: (id, coordinates) => {
+          const result = pointDragEndRef.current(id, coordinates);
+          setEditorStatus(result.message);
+          return result;
+        },
+        onPointDragCancel: (id, message) => {
+          pointDragCancelRef.current(id);
+          if (message) {
+            preserveEditorStatusOnNextModeChange.current = true;
+            setEditorStatus(message);
+          }
+        },
+        onPointDragStatus: message => setEditorStatus(message),
         onGeometrySelect: id => featureSelectRef.current(id),
         onMapPointClick: coordinates => mapPointClickRef.current(coordinates),
         onMapBackgroundClick: () => featureSelectRef.current(null),
@@ -173,9 +212,10 @@ export function MapCanvas({
       color: layers.find(layer => layer.id === feature.layerId)?.color || '#f43f5e',
       selected: feature.id === selectedFeatureId,
       presentation: pointPresentationFor(pointPresentations, feature.id),
+      draggable: mode === 'select' && feature.lineage === 'authored',
     })));
     controller.current?.setGeometryOverlays(features, layers, selectedFeatureId);
-  }, [features, layers, pointPresentations, selectedFeatureId]);
+  }, [features, layers, mode, pointPresentations, selectedFeatureId]);
 
   useEffect(() => {
     const handleEscape = (event: KeyboardEvent) => {
