@@ -48,6 +48,13 @@ Derived buffers remain Polygon features on `layer-buffers` with:
 - `Functional but unvalidated`, `Experimental`, or `Stale` active status;
 - an optional `orphaned: true` flag when the source was deleted.
 
+The stored source snapshot and derived Polygon each stay within the runtime
+buffer path's 180-degree longitude-span limit. The active derived status must
+match the runtime's conservative status for the stored source status, or be
+`Stale`; a non-Stale buffer must also match the current live source status.
+An earlier `Validated` source snapshot maps only to `Functional but
+unvalidated` derived status. Restore does not recompute buffer geometry.
+
 Stale buffers retain their derivation-time snapshot. An orphaned source ID must
 not resolve to a current feature; the loader rejects a live replacement that
 would silently reconnect historical provenance, and every orphaned derived

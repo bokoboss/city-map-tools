@@ -3,6 +3,8 @@ import {
   BUFFER_RADIUS_MAX_METERS,
   BUFFER_RADIUS_MIN_METERS,
   BUFFER_STEPS,
+  conservativeDerivedStatus,
+  longitudeSpan,
 } from '../features/buffer';
 import {
   BUFFER_LAYER_ID,
@@ -382,16 +384,30 @@ function validateDerivedFeatureRelationships(features: readonly SpatialFeature[]
     if (derivedFrom.type !== derivedFrom.geometry.type) {
       fail(`features[${index}].provenance.derivedFrom`, 'source type must match the source geometry snapshot.');
     }
+    if (longitudeSpan(derivedFrom.geometry) > 180) {
+      fail(`features[${index}].provenance.derivedFrom.geometry`, 'source snapshot exceeds the supported 180-degree longitude span.');
+    }
+    if (longitudeSpan({ type: 'Polygon', coordinates: feature.coordinates }) > 180) {
+      fail(`features[${index}].coordinates`, 'derived buffer exceeds the supported 180-degree longitude span.');
+    }
+    if (derivedFrom.orphaned === true && feature.validationStatus !== 'Stale') {
+      fail(`features[${index}].validationStatus`, 'orphaned derived buffers must be Stale.');
+    }
+    if (feature.validationStatus !== 'Stale' &&
+        feature.validationStatus !== conservativeDerivedStatus(derivedFrom.validationStatus)) {
+      fail(`features[${index}].validationStatus`, 'must conservatively reflect the stored source snapshot status or be Stale.');
+    }
     if (derivedFrom.orphaned === true) {
-      if (feature.validationStatus !== 'Stale') {
-        fail(`features[${index}].validationStatus`, 'orphaned derived buffers must be Stale.');
-      }
       if (live.has(derivedFrom.id)) fail(`features[${index}].provenance.derivedFrom.id`, 'orphaned source ID is currently live and would silently reconnect.');
     } else {
       const source = live.get(derivedFrom.id);
       if (!source) fail(`features[${index}].provenance.derivedFrom.id`, 'must resolve to a live source or be explicitly orphaned.');
       if (source.lineage === 'derived' || source.type !== derivedFrom.type) {
         fail(`features[${index}].provenance.derivedFrom.id`, 'resolves to an incompatible live source.');
+      }
+      if (feature.validationStatus !== 'Stale' &&
+          feature.validationStatus !== conservativeDerivedStatus(source.validationStatus)) {
+        fail(`features[${index}].validationStatus`, 'must conservatively reflect the current live source status or be Stale.');
       }
       if (feature.validationStatus !== 'Stale' &&
           !geometrySnapshotsEqual(geometrySnapshot(source), derivedFrom.geometry)) {

@@ -8,6 +8,7 @@ import {
   createAuthoredPolygon,
   createDefaultLayers,
   defaultProvenance,
+  markDependentBuffersStale,
   validateWgs84LineString,
   validateWgs84Polygon,
   type SpatialFeature,
@@ -231,6 +232,75 @@ assert.deepEqual(document.features[3]?.provenance.derivedFrom?.geometry, {
   coordinates: point.coordinates,
 }, 'an exact live source snapshot is accepted for a non-stale derived buffer');
 console.log('PASS orphaned status and live-source geometry consistency rules are strict while stale snapshots remain preserved');
+
+const crossingPolygon = [[[-179, 0], [179, 0], [178, 1], [-179, 0]]];
+rejectsValidation(value => {
+  value.features[3].coordinates = crossingPolygon;
+}, /features\[3\]\.coordinates: derived buffer exceeds the supported 180-degree longitude span/);
+
+const lineBuffer = deriveBufferFeature(line, 'buffer-line-1', 80);
+const lineDocument = createProjectDocument({
+  metadata: { id: 'line-buffer-project', name: 'Line buffer', createdAt, updatedAt },
+  layers: createDefaultLayers(),
+  features: [line, lineBuffer],
+});
+const crossingSnapshot = JSON.parse(serializeProjectDocument(lineDocument)) as Record<string, any>;
+crossingSnapshot.features[1].validationStatus = 'Stale';
+crossingSnapshot.features[1].provenance.derivedFrom.geometry.coordinates = [[179, 0], [-179, 0]];
+assert.throws(() => decodeProjectDocument(crossingSnapshot), error => {
+  assert.ok(error instanceof ProjectDocumentValidationError);
+  assert.match(error.message, /features\[1\]\.provenance\.derivedFrom\.geometry: source snapshot exceeds the supported 180-degree longitude span/);
+  return true;
+});
+
+const boundaryLine = createAuthoredLineString('boundary-line', [[-90, 0], [90, 0]], 1);
+const boundaryBuffer = deriveBufferFeature(boundaryLine, 'boundary-buffer', 80, () => ({
+  type: 'Feature',
+  geometry: { type: 'Polygon', coordinates: [[[-90, 0], [90, 0], [0, 1], [-90, 0]]] },
+}));
+const boundaryDocument = createProjectDocument({
+  metadata: { id: 'boundary-project', name: 'Span boundary', createdAt, updatedAt },
+  layers: createDefaultLayers(),
+  features: [boundaryLine, boundaryBuffer],
+});
+assert.deepEqual(parseProjectDocumentJson(serializeProjectDocument(boundaryDocument)).features, boundaryDocument.features);
+
+const staleLineFeatures = markDependentBuffersStale([line, lineBuffer], line.id, false);
+const crossingLiveLine = { ...line, coordinates: [[179, 0], [-179, 0]] as [number, number][] };
+const staleCrossingDocument = createProjectDocument({
+  metadata: { id: 'stale-crossing-project', name: 'Stale crossing source', createdAt, updatedAt },
+  layers: createDefaultLayers(),
+  features: [crossingLiveLine, staleLineFeatures[1]],
+});
+assert.equal(parseProjectDocumentJson(serializeProjectDocument(staleCrossingDocument)).features[1]?.validationStatus, 'Stale');
+assert.deepEqual(staleCrossingDocument.features[1]?.provenance.derivedFrom?.geometry, lineBuffer.provenance.derivedFrom?.geometry);
+console.log('PASS derived result/source snapshot span bound, inclusive 180-degree boundary, and stale crossing live source');
+
+rejectsValidation(value => {
+  value.features[3].provenance.derivedFrom.validationStatus = 'Experimental';
+}, /features\[3\]\.validationStatus: must conservatively reflect the stored source snapshot status or be Stale/);
+rejectsValidation(value => {
+  value.features[3].provenance.derivedFrom.validationStatus = 'Stale';
+}, /features\[3\]\.validationStatus: must conservatively reflect the stored source snapshot status or be Stale/);
+rejectsValidation(value => {
+  value.features[0].validationStatus = 'Experimental';
+}, /features\[3\]\.validationStatus: must conservatively reflect the current live source status or be Stale/);
+
+const experimentalPoint = { ...point, validationStatus: 'Experimental' as const };
+const experimentalBuffer = deriveBufferFeature(experimentalPoint, 'experimental-buffer', 80);
+const experimentalDocument = createProjectDocument({
+  metadata: { id: 'experimental-project', name: 'Experimental buffer', createdAt, updatedAt },
+  layers: createDefaultLayers(),
+  features: [experimentalPoint, experimentalBuffer],
+});
+assert.equal(parseProjectDocumentJson(serializeProjectDocument(experimentalDocument)).features[1]?.validationStatus, 'Experimental');
+for (const historicalStatus of ['Validated', 'Functional but unvalidated', 'Experimental', 'Stale'] as const) {
+  const value = mutableDocument();
+  value.features[3].provenance.derivedFrom.validationStatus = historicalStatus;
+  value.features[3].validationStatus = 'Stale';
+  assert.equal(decodeProjectDocument(value).features[3]?.validationStatus, 'Stale');
+}
+console.log('PASS conservative status propagation from stored and live sources with historical Stale transitions');
 
 rejects(value => {
   value.features = [value.features[3]];

@@ -100,7 +100,7 @@ function toBufferInput(geometry: GeometrySnapshot): BufferInputFeature {
   return { type: 'Feature', properties: {}, geometry };
 }
 
-function conservativeDerivedStatus(sourceStatus: ValidationStatus): ValidationStatus {
+export function conservativeDerivedStatus(sourceStatus: ValidationStatus): ValidationStatus {
   if (sourceStatus === 'Stale' || sourceStatus === 'Experimental') return sourceStatus;
   // The buffer method itself is not validated, so even a Validated source cannot
   // upgrade a derived result to Validated.
