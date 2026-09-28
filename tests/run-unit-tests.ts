@@ -4,3 +4,4 @@ import './point-presentation.test';
 import './project-document.test';
 import './project-history.test';
 import './project-persistence.test';
+import './geodesic.test';

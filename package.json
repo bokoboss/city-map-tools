@@ -22,6 +22,7 @@
   },
   "dependencies": {
     "@turf/buffer": "7.4.0",
+    "geographiclib-geodesic": "2.2.0",
     "maplibre-gl": "6.9.0",
     "react": "19.3.0",
     "react-dom": "19.3.0",

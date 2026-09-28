@@ -8,7 +8,7 @@
 - Package version: `2.2.0` (package label, not a production-readiness claim)
 
 ## Current accepted baseline
-- Accepted main after #5C and #6 Phase B2: `5d7456d70807f57bda91811ecf76fc1b093d5434`
+- Accepted main after #21 / R1A: `b1ecdf46fcb1c268957805d1eb3ce9f3fae4aadb`
 - Accepted date: 2026-09-27, project timezone UTC+07:00
 - #2 workflow baseline, #3 R0B truth/security/quarantine remediation (PR #25), and
   #6 Phase A deterministic install/CI (PR #26), Phase B2 Chromium browser smoke
@@ -51,8 +51,9 @@
   v1, 500 ms committed-state autosave, visible status, strict restore, and preservation
   of invalid recovery records. History and transient UI state remain memory-only and
   reset on reload. Issue #6 Phase B2 adds a deterministic hosted Chromium smoke for
-  production-preview browser behavior. The current Issue #21 branch adds transactional
+  production-preview browser behavior. Issue #21 adds transactional
   dragging for visible authored Points in Select mode; imported Points remain fixed.
+  Issue #41 adds a pure WGS84 ellipsoidal geodesic kernel for future measurement.
   No project workflow,
   multi-ring/MultiPolygon editor, full icon catalogue, or analytical engine exists.
 - Focused pure and production-preview browser fixtures plus the hosted Chromium CI
@@ -72,7 +73,7 @@ Future direction is not a claim of implemented capability.
 ## Package manager / commands
 - npm with a committed deterministic `package-lock.json`; `npm ci` is established.
 - Direct runtime dependencies: React, ReactDOM, MapLibre GL JS, Terra Draw,
-  `terra-draw-maplibre-gl-adapter`, and `@turf/buffer`.
+  `terra-draw-maplibre-gl-adapter`, `@turf/buffer`, and `geographiclib-geodesic`.
 - Tooling: Vite 6, compatible plugin-react 4, TypeScript, React types, and dev-only
   `tsx@4.20.5` for the deterministic pure test gate.
 - Exact installed versions are recorded by the lockfile.
@@ -155,7 +156,9 @@ is still a separate human-controlled blocker; do not alter it as part of #18.
 - Report external writes and global/system changes explicitly.
 
 ## Current objective and remaining limitations
-Complete/review #21 from accepted #5C + #6 Phase B2 main. Next: #5D project workflow.
+Issue #41 adds a pure WGS84 ellipsoidal geodesic kernel for future #14 measurement;
+it does not add a measurement UI or alter Project Document v1 or existing buffers.
+The accepted baseline for this work is #21 / R1A main. #5D project workflow remains separate.
 Sequence: #18 → #19 → #20 → #5A + #6 Phase B1 → #5B/#5C → #6 Phase B2 → #21.
 
 Provider availability/coverage is best-effort, 3D is visualization only, project
