@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "vite",
     "test": "tsx tests/run-unit-tests.ts",
-    "test:browser:ci": "playwright test --config=playwright.config.ts",
+    "test:browser:ci": "vite build --config tests/geodesic-vite.config.ts && playwright test --config=playwright.config.ts",
     "typecheck": "tsc --noEmit",
     "build": "vite build",
     "preview": "vite preview"

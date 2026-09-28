@@ -25,9 +25,11 @@
 - `npm run typecheck` passed with strict TypeScript and Bundler resolution, with
   no shims, `any`, or config weakening.
 - The production Vite build and hosted browser smoke passed. As the pure kernel
-  is not connected to app UI yet, a separate Vite library-entry probe bundled
-  `src/spatial/geodesic.ts` to a 36.92 kB ESM file (10.76 kB gzip). Executing
-  that bundle returned the Bangkok reference values below.
+  is not connected to app UI yet, `npm run test:browser:ci` also builds it from
+  `tests/geodesic-vite.config.ts` to an ignored test-only file in `dist/` and
+  executes Bangkok inverse and polygon reference calculations in Chromium.
+  The Vite ESM probe is 36.92 kB (10.76 kB gzip). The ordinary production build
+  does not include this test-only file.
 
 ## Deterministic fixtures
 
@@ -61,8 +63,7 @@ Run on Windows with Node 24.14.0 / npm 11.14.1; CI uses Node 22.
 | `npm test` | PASS, including all geodesic reference fixtures |
 | `npm run typecheck` | PASS |
 | `npm run build` | PASS; existing large-chunk advisory only |
-| `npm run test:browser:ci` | PASS; hosted Chromium smoke 1/1 after installing project-local Chromium |
-| Vite geodesic bundle probe and runtime Bangkok calculation | PASS |
+| `npm run test:browser:ci` | PASS; hosted Chromium smoke 2/2, including Vite-bundled geodesic execution |
 | `git diff --check` | PASS |
 
 The first local browser attempt could not launch because Chromium was absent.
@@ -92,6 +93,16 @@ blocked by child-process `EPERM`; the permitted rerun passed.
   evidence docs, and current project descriptions. No Project Document schema,
   App/MapCanvas, buffer implementation, measurement UI, snapping, provider,
   projection, or Thai-area change.
+
+## Targeted review remediation
+
+The requested `@codex` review on initial PR head `0b108b100df1cef95bde26be7430221de44643cb`
+raised one REQUIRED reproducibility finding: the manually run Vite probe was
+not committed, so exact-head CI could not reproduce browser execution of the
+otherwise unused kernel. The single remediation pass committed the Vite probe
+configuration and Chromium fixture into the browser-smoke gate. The original
+production entry graph remains unchanged. Revised-head local browser smoke
+passed 2/2; revised-head CI and review status are tracked in the PR.
 
 Exact-head `build` and `browser-smoke` CI and targeted `@codex` review are PR
 gates; their final outcome is recorded in the PR and completion report.
