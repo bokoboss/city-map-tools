@@ -4,7 +4,7 @@ const previewUrl = 'http://127.0.0.1:4173/city-map-tools/';
 export default defineConfig({
   globalTeardown: './tests/browser-smoke-teardown.mjs',
   testDir: './tests',
-  testMatch: 'ci-browser-smoke.spec.ts',
+  testMatch: ['ci-browser-smoke.spec.ts', 'geodesic-bundle-browser.spec.ts'],
   outputDir: './output/playwright/browser-smoke',
   fullyParallel: false,
   workers: 1,

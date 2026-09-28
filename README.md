@@ -98,6 +98,11 @@ continue in a memory-only session. There is no New/Open/Save project workflow,
 API-key input, generic GIS import/export, or full icon catalogue in this slice.
 Issue #5D owns the later project workflow and explicit recovery controls.
 
+Issue #41 adds a pure WGS84 ellipsoidal geodesic kernel for future measurement
+work. It has no user-facing measurement controls or `Validated` engineering
+result. Its method and limits are recorded in
+[`docs/architecture/spatial-method-contract.md`](docs/architecture/spatial-method-contract.md).
+
 ## Development and verification
 
 Use Node.js 22 (the CI version) and npm:

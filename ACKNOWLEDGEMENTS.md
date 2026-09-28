@@ -38,3 +38,11 @@ provider terms and availability remain constraints.
 ## Bounded scan and license decision
 
 The scan covered the current tracked tree, repository history, user-facing references, and obvious vendor/asset locations. It found no vendored third-party source, data, binary asset, LICENSE, or NOTICE file. The repository history begins with a single-file prototype commit, so complete source lineage cannot be established from the local tree alone. No repository LICENSE is selected until a complete provenance review resolves that remaining uncertainty.
+
+## R2A-1 geodesic dependency
+
+`geographiclib-geodesic` 2.2.0 supplies the pure WGS84 ellipsoidal inverse and
+polygon calculations. Its bundled `LICENSE.txt` is MIT/X11 (Charles Karney,
+2011-2022). Package metadata and the committed lockfile show no transitive
+runtime dependencies. This is a library dependency, not a validated engineering
+result or a change to the repository-wide license decision.
