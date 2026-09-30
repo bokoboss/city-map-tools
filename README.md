@@ -34,6 +34,12 @@ Pages configuration remains a separate human-controlled deployment gate.
   single-exterior-ring Polygon features. Terra Draw is transient editor state only:
   a line/polygon becomes workspace data only on finish, and editing needs an explicit
   Apply action. Escape/Cancel leaves no orphan draft or partial committed mutation.
+- Draw/edit vertices and authored Point drags snap within 12 CSS px to visible
+  authored vertices or displayed segments on visible layers. Vertex targets take
+  priority. Hidden, imported, derived, and current/self geometry is excluded.
+  Vertex snaps keep the exact stored WGS84 coordinate; segment snaps use a
+  validated MapLibre screen-to-WGS84 conversion. The indicator and status are
+  transient. This is CAD editing assistance, not surveyed or metric analysis.
 - Derive a Polygon buffer from an authored Point, LineString, or Polygon using
   `@turf/buffer@7.4.0`, a user-visible radius of 1–10,000 metres, and 8 steps. The
   source snapshot, method, library/version, units, radius, steps, validation state,
@@ -128,7 +134,7 @@ alignment. CI's stable check runs clean install, unit tests, typecheck, and buil
 PR/main; deploy also typechecks before building and uploading only `dist/`. The
 deterministic `npm test` script runs the committed pure TypeScript suites. CI also
 runs `npm run test:browser:ci`, a focused production-preview Chromium smoke for map,
-history, persistence/recovery, and authored Point dragging. This is not a general
+history, persistence/recovery, authored Point dragging, and CAD snapping. This is not a general
 end-to-end matrix.
 
 Focused Issue #19/#20/#5A/#5B/#5C/#21 regression fixtures are committed under `tests/`:

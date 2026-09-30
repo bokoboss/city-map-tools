@@ -181,6 +181,7 @@ export function MapCanvas({
           }
         },
         onBasemapBlocked: message => setEditorStatus(message),
+        onSnapStatus: message => setEditorStatus(message || modeLabel(modeRef.current)),
       });
       if (modeRef.current !== 'editing') controller.current.setEditorMode(modeRef.current);
     } catch {
