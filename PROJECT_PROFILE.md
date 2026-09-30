@@ -9,9 +9,10 @@
 - Product North Star: `PRODUCT_DIRECTION.md`
 
 ## Current accepted baseline
-- Accepted `main`: `fc5a5ee83a56f0de118f7faad1ae5c34485f76a4`
-- Accepted date: 2026-09-28, project timezone UTC+07:00
-- This baseline includes PR #44 / Issue #41: WGS84 ellipsoidal geodesic kernel.
+- Accepted **product-code baseline**: `fc5a5ee83a56f0de118f7faad1ae5c34485f76a4`
+- Baseline date: 2026-09-28, project timezone UTC+07:00
+- Documentation-only PR #47 was merged after that product-code baseline; reconstruct the exact current `main` ref from GitHub rather than treating the product-code baseline SHA as the branch head.
+- This product-code baseline includes PR #44 / Issue #41: WGS84 ellipsoidal geodesic kernel.
 - Prior accepted foundation includes:
   - #2 workflow/project baseline;
   - #3 truth/security/quarantine remediation;
@@ -33,7 +34,7 @@
 - PR #46 is open and unmerged.
 - Current PR head at this profile update: `1d7a02962df9558f87084557c37bbc7857efcfc1`.
 - Exact-head CI is green, but targeted review found one unresolved **P1 / REQUIRED** issue in segment-to-grid insertion: long diagonal/zig-zag segments must not populate every cell of a large axis-aligned bounding rectangle.
-- #42 is **not accepted** until that review finding is remediated, affected tests/CI pass, the review thread is resolved, and the accepted main revision changes through merge.
+- #42 is **not accepted** until that review finding is remediated, affected tests/CI pass, the review thread is resolved, and the accepted product-code baseline advances through merge.
 
 ### Next spatial work
 - #43 provider/basemap capability + credential-safe service contracts.
