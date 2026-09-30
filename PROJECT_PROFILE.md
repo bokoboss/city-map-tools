@@ -1,4 +1,4 @@
-﻿# Project Profile
+# Project Profile
 
 ## Identity
 - Project: City Map Tools
@@ -6,78 +6,117 @@
 - Authoritative local path: `C:\MyRD\city-map-tools`
 - Primary branch: `main`
 - Package version: `2.2.0` (package label, not a production-readiness claim)
+- Product North Star: `PRODUCT_DIRECTION.md`
 
 ## Current accepted baseline
-- Accepted main after #21 / R1A: `b1ecdf46fcb1c268957805d1eb3ce9f3fae4aadb`
-- Accepted date: 2026-09-27, project timezone UTC+07:00
-- #2 workflow baseline, #3 R0B truth/security/quarantine remediation (PR #25), and
-  #6 Phase A deterministic install/CI (PR #26), Phase B2 Chromium browser smoke
-  (PR #39), and #5C IndexedDB persistence (PR #38) are accepted and merged.
-- Durable program record: Issue #1. Latest checkpoint: Issue #23.
-- Issue #18 is accepted and merged (PR #27); Issue #19 is accepted and merged
-  (PR #28); Issue #20 is accepted and merged (PR #35).
-- Issue #5A, #5B, #5C, and #6 Phases B1/B2 are accepted. Issue #5B adds
-  Project Document-backed runtime ownership and bounded in-memory history; #5C adds
-  committed-state IndexedDB persistence and strict recovery; #5D owns the later
-  New/Open/Save project workflow.
+- Accepted `main`: `fc5a5ee83a56f0de118f7faad1ae5c34485f76a4`
+- Accepted date: 2026-09-28, project timezone UTC+07:00
+- This baseline includes PR #44 / Issue #41: WGS84 ellipsoidal geodesic kernel.
+- Prior accepted foundation includes:
+  - #2 workflow/project baseline;
+  - #3 truth/security/quarantine remediation;
+  - #18 shell + MapLibre foundation;
+  - #19 typed Point/layer/select/inspector + safe Point GeoJSON I/O;
+  - #20 LineString/Polygon/basic buffer editor foundation;
+  - #5A Project Document v1;
+  - #5B authoritative project state + transaction/history;
+  - #5C IndexedDB autosave/recovery;
+  - #6 Phase A, B1 and B2 CI/browser-smoke foundation;
+  - #21 safe legacy retirement + transactional authored Point drag;
+  - #41 geodesic kernel.
+- Durable program record: Issue #1.
+- Product direction: `PRODUCT_DIRECTION.md`.
+
+## Current active work
+
+### Issue #42 — indexed CAD snapping
+- PR #46 is open and unmerged.
+- Current PR head at this profile update: `1d7a02962df9558f87084557c37bbc7857efcfc1`.
+- Exact-head CI is green, but targeted review found one unresolved **P1 / REQUIRED** issue in segment-to-grid insertion: long diagonal/zig-zag segments must not populate every cell of a large axis-aligned bounding rectangle.
+- #42 is **not accepted** until that review finding is remediated, affected tests/CI pass, the review thread is resolved, and the accepted main revision changes through merge.
+
+### Next spatial work
+- #43 provider/basemap capability + credential-safe service contracts.
+- After #42/#43, audit #7 acceptance gaps explicitly before closing the R2 spatial core.
 
 ## Current implemented stack
-- Vite 6 + React + strict TypeScript + npm/ESM MapLibre GL JS v6.
-- Minimal root `index.html`, React bootstrap, dedicated MapLibre lifecycle adapter,
-  small typed basemap config, and plain build-time CSS.
-- Production scope: map navigation, OSM raster/CARTO Voyager vector switching,
-  loading/error recovery, and explicit compatible/unavailable 3D state.
-- Issue #19 scope remains: typed Point features/layers, point creation/selection/
-  rename, layer visibility, and transactional safe Point-only GeoJSON import/export.
-- Issue #20 scope: authored WGS84 Point, LineString, and single-exterior-ring Polygon
-  workspace features; transient Terra Draw line/polygon creation and edit sessions;
-  derived Turf buffers with explicit source snapshots, metres, library version, steps,
-  stale/orphan state, and read-only derived geometry.
-- Point presentation is a deliberately small project-state layer: dot center or pin-tip
-  hotspot, 18/24/32 px marker size, and visible label placement in eight named positions.
-  Presentation never changes canonical coordinates, buffer input, or provenance. It is
-  represented by Project Document v1 and remains outside GeoJSON export.
-- Issue #5A adds a pure strict Project Document v1 schema/validator/parser/serializer
-  for current layers, Point/LineString/Polygon features, provenance, derived-buffer
-  snapshots/stale-orphan state, and point presentation. It rejects future versions and
-  active Validated claims. Issue #5B makes the v1 document authoritative for runtime
-  project state and validates each command candidate before commit.
-- Issue #5B adds pure project commands, one-action history, transaction draft semantics,
-  a 20-snapshot bound, and Undo/Redo controls. Selection, tools, drafts, map runtime,
-  import status, and other transient UI state stay outside project history.
-- Accepted R0 monolithic prototype preserved unchanged as non-production reference
-  at `legacy/r0-safe-prototype.html`; excluded from `dist/`.
-- Issue #5C provides native IndexedDB storage for canonical serialized Project Document
-  v1, 500 ms committed-state autosave, visible status, strict restore, and preservation
-  of invalid recovery records. History and transient UI state remain memory-only and
-  reset on reload. Issue #6 Phase B2 adds a deterministic hosted Chromium smoke for
-  production-preview browser behavior. Issue #21 adds transactional
-  dragging for visible authored Points in Select mode; imported Points remain fixed.
-  Issue #41 adds a pure WGS84 ellipsoidal geodesic kernel for future measurement.
-  No project workflow,
-  multi-ring/MultiPolygon editor, full icon catalogue, or analytical engine exists.
-- Focused pure and production-preview browser fixtures plus the hosted Chromium CI
-  smoke cover bounded spatial and MapLibre lifecycle behavior; they are not a claim
-  of a general automated E2E suite.
+- Vite 6 + React + strict TypeScript + npm/ESM.
+- MapLibre GL JS v6 for map/runtime.
+- Terra Draw + MapLibre adapter for supported transient geometry creation/editing.
+- `@turf/buffer` for bounded derived buffers.
+- `geographiclib-geodesic` for the protected WGS84 ellipsoidal geodesic kernel.
+- Native IndexedDB for committed Project Document v1 autosave/recovery.
+- Playwright Chromium is used for the focused hosted browser-smoke gate; there is intentionally no broad multi-browser E2E matrix.
+- Node 22 is the CI baseline.
 
-## Accepted target direction
-- Modular UI/application structure with pure TypeScript domain/analysis modules
-  independent of React, DOM, and MapLibre.
-- Local-first IndexedDB persistence and bounded workers for heavy analysis in
-  separately authorized future slices.
-- Optional provider adapters only for concrete needs; no speculative plugin platform.
-- Static GitHub Pages artifact; no mandatory paid backend. Vercel Hobby is optional.
+## Current accepted product behavior
+- Map navigation and OSM raster / CARTO Voyager switching with explicit loading/error behavior.
+- Truthful compatible/unavailable 3D state; 3D is visualization only.
+- Typed authored/imported/derived project records.
+- Authored WGS84 Point, LineString, and single-exterior-ring Polygon geometry.
+- Point creation/selection/rename and authored Point drag in Select mode.
+- Layer visibility.
+- Transient Terra Draw line/polygon creation and edit sessions.
+- Derived Turf buffers with source snapshot, metres, library version, stale/orphan state, and read-only derived geometry.
+- Point presentation with center/pin-tip hotspot semantics, bounded marker size, and eight label placements; presentation does not alter canonical geometry.
+- Strict Project Document v1 validation/serialization.
+- Authoritative project state, project commands, one-action history, transaction drafts, bounded 20-snapshot Undo/Redo.
+- Native IndexedDB 500 ms committed-state autosave with Saved/Saving/Unsaved/Error state and strict recovery preservation.
+- Deterministic pure tests, strict typecheck/build, and focused production-preview/hosted Chromium browser evidence.
+- WGS84 ellipsoidal inverse distance/bearing, line length, polygon perimeter, and absolute area kernel for later #14 measurement.
 
-Future direction is not a claim of implemented capability.
+## Not yet implemented / not yet accepted
+- #5D user-facing New/Open/Save-or-equivalent project workflow.
+- Accepted #42 CAD snapping until PR #46 is remediated and merged.
+- Full provider capability contract from #43.
+- Traffic Movement (#29), Site Access Route (#30), Scenario/Stage (#31), presentation system (#32), Site Plan overlay (#33), semantic traffic annotations (#34).
+- Live measurement UI (#14).
+- Data-driven Desire Line / OD (#11).
+- Pedestrian Walking Walkshed (#9).
+- Traffic-engineering result visualization (#16).
+- Engineering-grade interoperability/cartographic export package (#13).
+- Field evidence/photos (#15).
+- Vissim/simulation trajectory replay (#22).
+- GitHub Pages Phase C accepted deployment.
+
+## Product direction / priority
+
+`PRODUCT_DIRECTION.md` is authoritative for product priority.
+
+Current high-level sequence:
+
+`Finish #42/#43/#7 -> #5D -> #29/#30/#32/#33 -> #14/#11 -> #12 -> #13/#15/#16 -> #9 when justified -> #22`
+
+Additional rules:
+- #31/#34 enter when their concrete user workflow and dependencies justify them; they should not block the first useful traffic/access authoring set.
+- #8 DEM/elevation is closed `not planned` and must not be reintroduced merely because it existed in the original PRD.
+- #10 Space Syntax remains deferred research requiring a future explicit GO / GO WITH CONDITIONS.
+- #16 traffic result visualization is a planned core integration direction, not a disposable nice-to-have.
+- #22 simulation replay is a planned major capability, intentionally later because of data/render/georeferencing complexity.
+- No motor-vehicle routing or traffic-aware vehicle isochrone is current product scope.
+
+## Architecture / protected invariants
+- Personal/hobby, low-volume, static-first and local-first core.
+- Never present/export synthetic, demo, experimental, or unvalidated results as validated engineering outputs.
+- `README.md` = accepted current capability; `PRODUCT_DIRECTION.md` = product North Star; `PRD.md` = target specification; Issue #1/children = execution truth; this file = current accepted state.
+- Canonical geographic storage is WGS84 longitude/latitude `[lng, lat]`.
+- DOM bounds, icon pixels, labels, callouts, animation state, and marker hotspot presentation must never influence stored WGS84 geometry, buffer input, engineering calculations, or export geometry.
+- Engineering outputs preserve source, method, parameters, units, version, validation/status, stale state, and limitations where applicable.
+- Authored/imported data remain distinct from derived engineering results.
+- Optional services require attribution, failure behavior, usage/licensing notes, and explicit capability state.
+- Browser BYOK, if authorized, stays in runtime memory by default and never enters IndexedDB/project/export/log/Git.
+- Snapping, tracing, map matching, routing/reachability, authored access routes, and simulation replay are distinct operations.
+- No speculative generic plugin framework.
+
+## Project-state contract
+- Project Document v1 is current persisted project truth.
+- Current project state includes accepted layers/features/provenance/derived-buffer records and Point presentation.
+- Selection, tool/mode, hover, draft/edit state, map runtime/camera, import status, animation phase, and other transient UI state are not persisted project truth.
+- History is runtime-only and resets to a fresh root after reload/recovery.
+- Project files/persistence must contain no credentials/secrets.
+- #5D owns the explicit local project workflow; #13 owns broader portable/native interoperability packages where appropriate.
 
 ## Package manager / commands
-- npm with a committed deterministic `package-lock.json`; `npm ci` is established.
-- Direct runtime dependencies: React, ReactDOM, MapLibre GL JS, Terra Draw,
-  `terra-draw-maplibre-gl-adapter`, `@turf/buffer`, and `geographiclib-geodesic`.
-- Tooling: Vite 6, compatible plugin-react 4, TypeScript, React types, and dev-only
-  `tsx@4.20.5` for the deterministic pure test gate.
-- Exact installed versions are recorded by the lockfile.
-- Node 22 is the CI baseline.
 
 ```text
 npm ci
@@ -85,85 +124,52 @@ npm test
 npm run dev
 npm run typecheck
 npm run build
-npm run preview -- --host 127.0.0.1 --port 4173 --strictPort
+npm run test:browser:ci
 git diff --check
 ```
 
-Typecheck is a real strict `tsc --noEmit` gate. `npm test` runs the committed pure
-TypeScript suites through pinned dev-only `tsx`; no lint or browser E2E script exists.
 Production preview URL: `http://127.0.0.1:4173/city-map-tools/`.
 
-## Architecture / protected invariants
-- Personal/hobby, low-volume, static-first and local-first core.
-- Never present/export synthetic, demo, experimental, or unvalidated results as
-  validated engineering outputs. Quarantined analytics remain unavailable.
-- `README.md` describes the current shell; `PRD.md` describes planned capability.
-- Canonical geographic storage is WGS84 longitude/latitude. The map displays Web
-  Mercator with approximate metric scale. The #20 buffer input is the exact canonical
-  Point/LineString/Polygon snapshot; `@turf/buffer@7.4.0` receives a radius in metres
-  and 8 steps, and returns a WGS84 Polygon. This is a functional, unvalidated derived
-  spatial output, not surveyed/cadastral/validated engineering geometry.
-- DOM bounds, icon pixels, labels, and marker hotspot presentation must never influence
-  geometry, buffer input, provenance, export, or stored WGS84 coordinates.
-- Engineering outputs must preserve source, method, parameters, units, version,
-  validation status, stale state, and limitations through review/export.
-- Authored/imported data must remain distinct from derived engineering results.
-- Optional services require attribution, failure behavior, usage/licensing notes,
-  and explicit capability state. Browser BYOK, if later authorized, stays in runtime
-  memory by default and must never enter storage, exports, logs, or analytics.
-- Never silently guess provider capability, CRS, units, or missing engineering values.
-- Current future network-accessibility scope is pedestrian only; no motor-vehicle
-  routing or traffic-aware isochrones. Snapping, map matching, and routing are distinct.
-- Space Syntax #10 is deferred research requiring a future explicit GO/GO WITH
-  CONDITIONS. Traffic overlay #16 and simulation replay #22 remain deferred.
-- Follow bounded migration Issues #18–#21; no big-bang rewrite or dead deferred controls.
-
-## Important paths
-- Production: `index.html`, `src/main.tsx`, `src/App.tsx`, `src/map/`, `src/styles.css`
-- Project contract: `src/project/projectDocument.ts`, `docs/architecture/project-document-v1.md`
-- Legacy reference: `legacy/r0-safe-prototype.html`, `legacy/README.md`
-- Build/dependencies: `vite.config.ts`, `tsconfig.json`, `package.json`, `package-lock.json`
-- Documentation: `README.md`, `PRD.md`, `ACKNOWLEDGEMENTS.md`, `DEVELOPMENT_LOG.md`
-- Workflow: `AGENTS.md`, `.engineering-workflow/` (pinned v1.7.4), `.engineering-workflow.json`
-- CI/deploy: `.github/workflows/ci.yml`, `.github/workflows/deploy.yml`
-- No sensitive/licensed local data is required; never commit secrets or proprietary inputs.
+If a local Playwright Chromium binary is absent, project work should not silently install into a user/global profile. Use an explicitly project-local ignored browser cache when authorized for the task.
 
 ## Validation matrix
 | Gate | Method | Required |
 |---|---|---|
 | Deterministic install | `npm ci` | Yes |
-| Pure/unit contract | `npm test` | Yes for #5A / #5B / #5C / #6 Phase B1 |
+| Pure/unit contract | `npm test` | Yes for affected domain work |
 | Strict TypeScript | `npm run typecheck` | Yes |
 | Production artifact | `npm run build` | Yes |
 | Diff hygiene | `git diff --check` | Yes |
-| Browser | `npm run test:browser:ci` plus affected production-preview geometry/hotspot/lifecycle fixtures | For runtime changes |
+| Browser | `npm run test:browser:ci` plus affected production-preview fixtures | For runtime changes |
 | CI | Exact PR-head `build` and `browser-smoke` checks on Node 22 | Yes |
 | Independent review | Actual diff/evidence according to applicable Issue/workflow risk | As required |
-| Analytical/reference data | Method-specific deterministic/open fixtures | Before any analytical acceptance |
+| Analytical/reference data | Method-specific deterministic/open fixtures | Before analytical acceptance |
 
-Deploy typechecks/builds and uploads only `dist/`. Pages repository configuration
-is still a separate human-controlled blocker; do not alter it as part of #18.
+## Important paths
+- Product North Star: `PRODUCT_DIRECTION.md`
+- Target product specification: `PRD.md`
+- Current capability: `README.md`
+- Production: `index.html`, `src/main.tsx`, `src/App.tsx`, `src/map/`, `src/styles.css`
+- Project contract: `src/project/projectDocument.ts`, `docs/architecture/project-document-v1.md`
+- Spatial kernel: `src/spatial/geodesic.ts`
+- Legacy reference: `legacy/r0-safe-prototype.html`, `legacy/README.md`
+- Build/dependencies: `vite.config.ts`, `tsconfig.json`, `package.json`, `package-lock.json`
+- Documentation: `ACKNOWLEDGEMENTS.md`, `DEVELOPMENT_LOG.md`
+- Workflow: `AGENTS.md`, `.engineering-workflow/`, `.engineering-workflow.json`
+- CI/deploy: `.github/workflows/ci.yml`, `.github/workflows/deploy.yml`
 
 ## Workspace / execution policy
 - Default writable boundary: `C:\MyRD\city-map-tools` only.
-- Do not modify another repository, global/system configuration, PATH, registry,
-  credentials, or shared workflow checkout without explicit approval.
+- Do not modify another repository, global/system configuration, PATH, registry, credentials, browser user profile, or shared workflow checkout without explicit approval.
 - Preserve unknown/untracked work; no destructive reset/clean for convenience.
 - Use focused branches and GitHub noreply identity; never expose private email.
-- Reconstruct truth from Git/GitHub/project files, not prior chat history.
-- Parallelize only with separated file/semantic ownership.
-- Review actual diff and evidence. Do not claim completion with mandatory gates blocked.
-- Report external writes and global/system changes explicitly.
+- Reconstruct truth from Git/GitHub/project files, not chat history.
+- Review actual diff/evidence; do not claim completion while mandatory gates are failed/blocked.
+- Triage review findings as BLOCKER / REQUIRED / FOLLOW-UP and stop once closure conditions are met.
 
-## Current objective and remaining limitations
-Issue #41 adds a pure WGS84 ellipsoidal geodesic kernel for future #14 measurement;
-it does not add a measurement UI or alter Project Document v1 or existing buffers.
-The accepted baseline for this work is #21 / R1A main. #5D project workflow remains separate.
-Sequence: #18 → #19 → #20 → #5A + #6 Phase B1 → #5B/#5C → #6 Phase B2 → #21.
-
-Provider availability/coverage is best-effort, 3D is visualization only, project
-storage is local to the browser origin and history is runtime-only, GeoJSON remains Point-only, and no
-engineering analytics are validated. Derived buffers are bounded, read-only, structurally checked, and
-explicitly unvalidated; they do not support antimeridian/pathological spans or
-MultiPolygon output. The legacy reference retains prototype behavior and quarantine
-but is not the current production app.
+## Current objective
+1. Remediate the unresolved #42 P1 bounded-index finding on PR #46 and accept/merge only after exact-head evidence is green.
+2. Implement #43 provider/basemap capability contracts.
+3. Audit and close remaining #7 spatial-core acceptance gaps.
+4. Complete #5D local project workflow.
+5. Move into the core product-authoring sequence defined by `PRODUCT_DIRECTION.md`, beginning with #29/#30/#32/#33 rather than allowing infrastructure or unrelated analytics to displace the product North Star.
