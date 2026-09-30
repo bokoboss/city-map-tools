@@ -83,4 +83,65 @@ const diagnostic = maxPolicy.query({ x: 400, y: 400 }).diagnostics;
 assert.equal(diagnostic.totalCandidates, 19_500);
 assert.ok(diagnostic.inspectedCandidates < 200,
   `grid query inspected ${diagnostic.inspectedCandidates} of ${diagnostic.totalCandidates}`);
-console.log(`PASS SnapPolicy eligibility, priority, ties, segments, closure, invalid inputs; max fixture ${diagnostic.inspectedCandidates}/${diagnostic.totalCandidates} candidates inspected`);
+
+// A diagonal bounding rectangle covers most of the viewport, but its 12 px
+// snap corridor touches only a narrow strip. This catches accidental AABB
+// insertion that can explode bucket memory and unrelated pointer work.
+const diagonal = Array.from({ length: 500 }, (_, featureIndex) =>
+  line(`diagonal-${featureIndex}`, Array.from({ length: 20 }, (_, vertexIndex) =>
+    (vertexIndex % 2 === 0 ? [0, 0] : [12, 9]) as Wgs84Point)));
+const diagonalPolicy = new SnapPolicy(diagonal, layers, projection);
+const farFromDiagonal = diagonalPolicy.query({ x: 100, y: 800 }).diagnostics;
+assert.equal(farFromDiagonal.totalCandidates, 19_500);
+assert.equal(farFromDiagonal.inspectedCandidates, 0);
+assert.ok(farFromDiagonal.indexedCellEntries < 1_500_000,
+  `diagonal index wrote ${farFromDiagonal.indexedCellEntries} cell entries`);
+const longDiagonal = new SnapPolicy([line('long', [[0, 0], [12, 9]])], layers, projection);
+assert.equal(longDiagonal.query({ x: 100, y: 800 }).diagnostics.inspectedCandidates, 0);
+assert.equal(longDiagonal.query({ x: 600, y: 461 }).result?.kind, 'segment');
+assert.ok(longDiagonal.query({ x: 600, y: 461 }).diagnostics.indexedCellEntries < 250);
+
+// Both endpoints are far off-screen. The first segment crosses the viewport;
+// the second has a viewport-sized AABB but misses the screen entirely.
+const crossing = new SnapPolicy([line('crossing', [[-80, -80], [80, 80]])], layers, projection);
+assert.equal(crossing.query({ x: 450, y: 461 }).result?.kind, 'segment');
+assert.equal(crossing.query({ x: 100, y: 800 }).diagnostics.inspectedCandidates, 0);
+assert.ok(crossing.query({ x: 450, y: 461 }).diagnostics.indexedCellEntries < 250);
+const offscreen = new SnapPolicy([line('offscreen', [[-80, 78], [78, -80]])], layers, projection);
+assert.equal(offscreen.query({ x: 100, y: 100 }).diagnostics.totalCandidates, 0);
+assert.equal(offscreen.query({ x: 100, y: 100 }).diagnostics.indexedCellEntries, 0);
+const edge = new SnapPolicy([line('edge', [[-1, -0.12], [13, -0.12]])], layers, projection);
+assert.equal(edge.query({ x: 400, y: 0 }).result?.kind, 'segment');
+assert.equal(edge.query({ x: 400, y: 0 }).result?.distancePx, 12);
+
+const zigzag = Array.from({ length: 500 }, (_, featureIndex) =>
+  line(`zigzag-${featureIndex}`, Array.from({ length: 20 }, (_, vertexIndex) =>
+    ([[0, 0], [12, 9], [0, 9], [12, 0]] as Wgs84Point[])[vertexIndex % 4])));
+const zigzagPolicy = new SnapPolicy(zigzag, layers, projection);
+const zigzagDiagnostics = zigzagPolicy.query({ x: 100, y: 450 }).diagnostics;
+assert.equal(zigzagDiagnostics.totalCandidates, 19_500);
+assert.equal(zigzagDiagnostics.inspectedCandidates, 0);
+assert.ok(zigzagDiagnostics.indexedCellEntries < 2_000_000,
+  `zig-zag index wrote ${zigzagDiagnostics.indexedCellEntries} cell entries`);
+
+// One candidate may touch a cell through adjacent traversal bands, but it is
+// stored and inspected only once there.
+const uniqueCell = new SnapPolicy([line('unique', [[0, 0], [12, 9]])], layers, projection);
+assert.equal(uniqueCell.query({ x: 600, y: 450 }).diagnostics.inspectedCandidates, 1);
+for (const [start, end] of [
+  [[0, 0], [12, 9]], [[12, 9], [0, 0]], [[0, 9], [12, 0]],
+  [[6, 0], [6, 9]], [[0, 4], [12, 4]],
+] as Array<[Wgs84Point, Wgs84Point]>) {
+  const startPx = projection.project(start);
+  const endPx = projection.project(end);
+  const dx = endPx.x - startPx.x;
+  const dy = endPx.y - startPx.y;
+  const length = Math.hypot(dx, dy);
+  const corridorPolicy = new SnapPolicy([line('corridor', [start, end])], layers, projection);
+  for (const t of [0.2, 0.5, 0.8]) {
+    const query = { x: startPx.x + t * dx - 11 * dy / length,
+      y: startPx.y + t * dy + 11 * dx / length };
+    assert.equal(corridorPolicy.query(query).result?.kind, 'segment');
+  }
+}
+console.log(`PASS SnapPolicy eligibility, priority, ties, segments, closure, invalid inputs; max fixture ${diagnostic.inspectedCandidates}/${diagnostic.totalCandidates} candidates inspected; diagonal off-corridor ${farFromDiagonal.inspectedCandidates} inspected, ${farFromDiagonal.indexedCellEntries} cell entries`);
