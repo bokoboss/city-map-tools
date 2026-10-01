@@ -8,6 +8,7 @@ import { createGeometryEditor } from './geometryEditor';
 import type { GeometryEditor, GeometryEditorSession } from './geometryEditor';
 import { pointMarkerDefinitions } from './pointPresentation';
 import type { PointPresentation } from './pointPresentation';
+import { SnapPolicy, type ScreenCoordinate, type SnapResult } from '../spatial/snapPolicy';
 import {
   isLineStringFeature,
   isPolygonFeature,
@@ -92,6 +93,7 @@ interface MapCallbacks {
   onGeometryFinish: (geometry: GeometrySnapshot) => void;
   onEditorError: (message: string) => void;
   onBasemapBlocked: (message: string) => void;
+  onSnapStatus: (message: string) => void;
 }
 
 function geometryData(
@@ -204,14 +206,6 @@ export function createMap(container: HTMLDivElement, callbacks: MapCallbacks) {
   };
   let activePointDrag: ActivePointDrag | null = null;
   let cancelledPointDrag: ActivePointDrag | null = null;
-
-  const publish = (patch: Partial<MapState>) => {
-    if (disposed) return;
-    state = { ...state, ...patch };
-    callbacks.onState(state);
-  };
-  const isReady = () => state.phase === 'ready';
-
   const map = new Map({
     container,
     center: [state.longitude, state.latitude],
@@ -219,6 +213,65 @@ export function createMap(container: HTMLDivElement, callbacks: MapCallbacks) {
     style: basemaps.osm.style,
     attributionControl: { compact: false },
   });
+  let snapIndex: SnapPolicy | null = null;
+  let activeSnap: SnapResult | null = null;
+  const snapIndicator = document.createElement('div');
+  snapIndicator.className = 'snap-indicator';
+  snapIndicator.hidden = true;
+  snapIndicator.setAttribute('aria-hidden', 'true');
+  map.getContainer().append(snapIndicator);
+
+  const showSnap = (result: SnapResult | null) => {
+    const previous = activeSnap;
+    activeSnap = result;
+    snapIndicator.hidden = !result;
+    if (result) {
+      snapIndicator.style.left = `${result.screen.x}px`;
+      snapIndicator.style.top = `${result.screen.y}px`;
+    }
+    if (previous?.kind !== result?.kind) {
+      callbacks.onSnapStatus(result ? `${result.kind === 'vertex' ? 'Vertex' : 'Segment'} snap` : '');
+    }
+  };
+  const invalidateSnapIndex = () => {
+    snapIndex = null;
+    snapIndicator.dataset.index = 'invalidated';
+    showSnap(null);
+  };
+  const rebuildSnapIndex = () => {
+    if (disposed || state.phase !== 'ready' || !map.isStyleLoaded() || map.isMoving() || pendingStyleGeometryHydration) {
+      invalidateSnapIndex();
+      return;
+    }
+    const canvas = map.getCanvas();
+    snapIndex = new SnapPolicy(latestGeometry.features, latestGeometry.layers, {
+      width: canvas.clientWidth,
+      height: canvas.clientHeight,
+      project: coordinate => map.project(coordinate),
+      unproject: point => {
+        const coordinate = map.unproject([point.x, point.y]);
+        return [coordinate.lng, coordinate.lat];
+      },
+    });
+    snapIndicator.dataset.index = 'ready';
+    showSnap(null);
+  };
+  const querySnap = (point: ScreenCoordinate, selfId?: string): SnapResult | null => {
+    if (!snapIndex || state.phase !== 'ready' || map.isMoving() || pendingStyleGeometryHydration) {
+      showSnap(null);
+      return null;
+    }
+    const result = snapIndex.query(point, selfId).result;
+    showSnap(result);
+    return result;
+  };
+
+  const publish = (patch: Partial<MapState>) => {
+    if (disposed) return;
+    state = { ...state, ...patch };
+    callbacks.onState(state);
+  };
+  const isReady = () => state.phase === 'ready';
 
   const markerCoordinates = (marker: Marker): PointFeature['coordinates'] => {
     const coordinates = marker.getLngLat();
@@ -235,6 +288,7 @@ export function createMap(container: HTMLDivElement, callbacks: MapCallbacks) {
     const drag = activePointDrag;
     if (!drag) return;
     activePointDrag = null;
+    showSnap(null);
     cancelledPointDrag = drag;
     try {
       drag.marker.setLngLat(drag.startCoordinates);
@@ -280,7 +334,12 @@ export function createMap(container: HTMLDivElement, callbacks: MapCallbacks) {
       return;
     }
     try {
-      const result = callbacks.onPointDragMove(id, markerCoordinates(marker));
+      const position = markerCoordinates(marker);
+      const projected = map.project(position);
+      const snap = querySnap(projected, id);
+      const coordinates = snap?.coordinate ?? position;
+      if (snap) marker.setLngLat(coordinates);
+      const result = callbacks.onPointDragMove(id, coordinates);
       if (!result.ok) cancelActivePointDrag(result.message);
     } catch {
       cancelActivePointDrag('Point move failed validation. The committed WGS84 position was restored.');
@@ -298,14 +357,17 @@ export function createMap(container: HTMLDivElement, callbacks: MapCallbacks) {
       return;
     }
     try {
-      const coordinates = markerCoordinates(marker);
+      const position = markerCoordinates(marker);
+      const projectedPosition = map.project(position);
+      const snap = querySnap(projectedPosition, id);
+      const coordinates = snap?.coordinate ?? position;
       const projectedStart = map.project(drag.startCoordinates);
       const projectedEnd = map.project(coordinates);
       // MapLibre's screen-to-coordinate round trip can add subpixel drift when
       // a drag returns to its origin. Compare projected canonical positions
       // within one CSS pixel to recognize that no-op; never derive stored
       // WGS84 from pixels or marker presentation offsets.
-      const returnedToOrigin = Math.hypot(
+      const returnedToOrigin = !snap && Math.hypot(
         projectedEnd.x - projectedStart.x,
         projectedEnd.y - projectedStart.y,
       ) <= 1;
@@ -316,6 +378,7 @@ export function createMap(container: HTMLDivElement, callbacks: MapCallbacks) {
       }
       activePointDrag = null;
       cancelledPointDrag = null;
+      showSnap(null);
       callbacks.onPointDragStatus(result.message);
       syncPointMarkerDraggability();
     } catch {
@@ -453,6 +516,7 @@ export function createMap(container: HTMLDivElement, callbacks: MapCallbacks) {
 
   const cancelEditor = (): GeometryEditorSession | null => {
     const previous = editor?.cancel() || null;
+    showSnap(null);
     if (previous?.kind === 'edit') editingSourceId = null;
     setInteractionMode('select');
     renderGeometry();
@@ -544,7 +608,9 @@ export function createMap(container: HTMLDivElement, callbacks: MapCallbacks) {
     if (disposed || editor) return;
     try {
       editor = createGeometryEditor(map, {
+        querySnap,
         onFinish(geometry) {
+          showSnap(null);
           setInteractionMode('select');
           renderGeometry();
           callbacks.onGeometryFinish(geometry);
@@ -562,6 +628,7 @@ export function createMap(container: HTMLDivElement, callbacks: MapCallbacks) {
   };
 
   const fail = () => {
+    invalidateSnapIndex();
     clearTimeout(loadingTimer);
     if (disposed || state.phase === 'error') return;
     publish({
@@ -580,6 +647,7 @@ export function createMap(container: HTMLDivElement, callbacks: MapCallbacks) {
   };
 
   const startLoading = () => {
+    invalidateSnapIndex();
     clearTimeout(loadingTimer);
     publish({
       phase: 'loading', message: 'Loading basemap…', buildings: 'unavailable',
@@ -627,6 +695,7 @@ export function createMap(container: HTMLDivElement, callbacks: MapCallbacks) {
 
   map.on('error', fail);
   map.on('style.load', () => {
+    invalidateSnapIndex();
     configureBuildings();
     createEditor();
     // MapLibre can emit style.load before its style is queryable during a full
@@ -643,10 +712,17 @@ export function createMap(container: HTMLDivElement, callbacks: MapCallbacks) {
       clearTimeout(loadingTimer);
       publish({ phase: 'ready', message: 'Map ready' });
     }
+    if (!snapIndex) rebuildSnapIndex();
   });
+  map.on('movestart', invalidateSnapIndex);
   map.on('moveend', () => {
     const center = map.getCenter();
     publish({ longitude: center.lng, latitude: center.lat, zoom: map.getZoom() });
+    rebuildSnapIndex();
+  });
+  map.on('resize', () => {
+    invalidateSnapIndex();
+    rebuildSnapIndex();
   });
   map.on('click', event => {
     if (disposed) return;
@@ -690,6 +766,12 @@ export function createMap(container: HTMLDivElement, callbacks: MapCallbacks) {
   });
   map.addControl(new NavigationControl({ visualizePitch: true }), 'top-right');
   map.addControl(new ScaleControl({ unit: 'metric' }));
+  const cancelPointDragOnEscape = (event: KeyboardEvent) => {
+    if (event.key !== 'Escape' || !activePointDrag) return;
+    event.preventDefault();
+    cancelActivePointDrag('Point move cancelled. The committed WGS84 position was restored.');
+  };
+  window.addEventListener('keydown', cancelPointDragOnEscape);
   const resizeObserver = new ResizeObserver(() => map.resize());
   resizeObserver.observe(container);
   startLoading();
@@ -719,8 +801,15 @@ export function createMap(container: HTMLDivElement, callbacks: MapCallbacks) {
       renderPointOverlays(overlays);
     },
     setGeometryOverlays(features: readonly SpatialFeature[], layers: readonly FeatureLayer[], selectedFeatureId: string | null) {
+      const targetsChanged = latestGeometry.features !== features || latestGeometry.layers !== layers;
       latestGeometry = { features, layers, selectedFeatureId };
       renderGeometry();
+      // Point transaction drafts only move the current/self feature. Keep the
+      // committed target index stable during the gesture; self is excluded at query.
+      if (targetsChanged && !activePointDrag) {
+        invalidateSnapIndex();
+        rebuildSnapIndex();
+      }
     },
     setEditorMode(mode: Exclude<EditorMode, 'editing'>): boolean {
       if (mode === 'select' || mode === 'point') {
@@ -754,6 +843,7 @@ export function createMap(container: HTMLDivElement, callbacks: MapCallbacks) {
     },
     completeEdit() {
       editor?.completeEdit();
+      showSnap(null);
       editingSourceId = null;
       setInteractionMode('select');
       renderGeometry();
@@ -779,12 +869,14 @@ export function createMap(container: HTMLDivElement, callbacks: MapCallbacks) {
     },
     destroy() {
       cancelActivePointDrag();
+      invalidateSnapIndex();
       disposed = true;
       clearTimeout(loadingTimer);
       editor?.destroy();
       editor = null;
       pointMarkers.forEach(marker => marker.remove());
       pointMarkers.clear();
+      window.removeEventListener('keydown', cancelPointDragOnEscape);
       resizeObserver.disconnect();
       map.remove();
     },

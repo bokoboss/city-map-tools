@@ -32,3 +32,23 @@ No universal projected CRS is selected. Future planar operations must state and
 justify their projection for their extent. Issue #14 owns the measurement UI and
 its user-facing method/status disclosure; Issue #42 owns snapping. Neither is
 implemented by this kernel.
+
+## R2A-2 CAD snapping
+
+Authoring uses a 12 CSS px screen-space tolerance at the current MapLibre view.
+Visible authored Point, LineString, and single-ring Polygon geometry on visible
+layers supplies vertex and nearest-on-displayed-segment targets. Hidden,
+imported, derived, and current/self features are excluded. Vertices take
+priority over segments; ties use screen distance, lexical feature ID, and then
+coordinate/segment index. Polygon closure counts once as a vertex, while its
+closing segment remains a target.
+
+The project-owned 32 CSS px grid indexes projected canonical targets and is
+rebuilt after relevant project or stable camera/style changes. It is disabled
+while those view states are changing. A vertex snap stores the exact source
+WGS84 `[longitude, latitude]` value. A segment snap stores a validated WGS84
+coordinate obtained by MapLibre unprojecting the nearest point on the displayed
+screen segment. This is a display-projection editing operation, not a metric,
+geodesic, surveyed, routing, or topological calculation. Marker pixels, icons,
+labels, and hotspot offsets never enter stored geometry. Snap feedback and
+unfinished drafts remain transient and outside Project Document/history/export.

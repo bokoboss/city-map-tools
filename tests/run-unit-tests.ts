@@ -5,3 +5,4 @@ import './project-document.test';
 import './project-history.test';
 import './project-persistence.test';
 import './geodesic.test';
+import './snap-policy.test';
