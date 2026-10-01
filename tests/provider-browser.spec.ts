@@ -121,20 +121,30 @@ test('failing CARTO style stays unavailable without leaking the runtime key', as
 
 test('3D requires a compatible building layer in the actually loaded keyed style', async ({ page, request }) => {
   let keyedTileRequests = 0;
+  let keyedSpriteRequests = 0;
   await page.route('**/*', async route => {
     const url = new URL(route.request().url());
     if (url.hostname === 'tile.openstreetmap.org') {
       const tile = await request.get(tileServerUrl);
       await route.fulfill({ status: tile.status(), contentType: 'image/png', body: await tile.body() });
-    } else if (url.hostname === cartoHost) {
+    } else if ([cartoHost, `tiles.${cartoHost}`, `a.${cartoHost}`].includes(url.hostname)) {
       expect(url.searchParams.get('key') === syntheticKey).toBe(true);
       if (url.pathname.endsWith('.pbf')) {
         keyedTileRequests += 1;
         await route.fulfill({ status: 200, contentType: 'application/x-protobuf', body: Buffer.alloc(0) });
+      } else if (url.pathname.endsWith('/sprite.json')) {
+        keyedSpriteRequests += 1;
+        await route.fulfill({ status: 200, contentType: 'application/json', body: '{}' });
+      } else if (url.pathname.endsWith('/sprite.png')) {
+        keyedSpriteRequests += 1;
+        const tile = await request.get(tileServerUrl);
+        await route.fulfill({ status: tile.status(), contentType: 'image/png', body: await tile.body() });
       } else {
         await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({
           version: 8,
-          sources: { providerBuildings: { type: 'vector', tiles: ['https://basemaps.cartocdn.com/tiles/{z}/{x}/{y}.pbf'], attribution: '© OpenStreetMap contributors, © CARTO' } },
+          sprite: 'https://a.basemaps.cartocdn.com/gl/voyager-gl-style/sprite',
+          glyphs: 'https://b.basemaps.cartocdn.com/fonts/{fontstack}/{range}.pbf',
+          sources: { providerBuildings: { type: 'vector', tiles: ['https://tiles.basemaps.cartocdn.com/tiles/{z}/{x}/{y}.pbf'], attribution: '© OpenStreetMap contributors, © CARTO' } },
           layers: [{ id: 'provider-building', type: 'fill', source: 'providerBuildings', 'source-layer': 'building', paint: { 'fill-color': '#aaa' } }],
         }) });
       }
@@ -151,6 +161,7 @@ test('3D requires a compatible building layer in the actually loaded keyed style
   await page.getByRole('button', { name: 'Use key and switch to Voyager' }).click();
   await expect(page.locator('.map-status strong')).toHaveText('Ready', { timeout: 30_000 });
   expect(keyedTileRequests).toBeGreaterThan(0);
+  expect(keyedSpriteRequests).toBeGreaterThan(0);
   const buildings = page.locator('.building-control button');
   await expect(buildings).toBeEnabled();
   await expect(buildings).toHaveAttribute('aria-pressed', 'false');

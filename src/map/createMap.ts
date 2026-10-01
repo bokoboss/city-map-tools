@@ -2,7 +2,7 @@ import { Map, Marker, NavigationControl, ScaleControl, setWorkerUrl } from 'mapl
 import type { ExpressionSpecification, GeoJSONSource } from 'maplibre-gl';
 import type { Feature, FeatureCollection, LineString, Polygon } from 'geojson';
 import workerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url';
-import { basemaps, cartoRequestUrl, hasRuntimeCredential, resolveBasemapStyle } from './basemaps';
+import { basemaps, cartoRequestUrl, hasRuntimeCredential, isCartoBasemapHost, resolveBasemapStyle } from './basemaps';
 import type { BasemapId } from './basemaps';
 import { createGeometryEditor } from './geometryEditor';
 import type { GeometryEditor, GeometryEditorSession } from './geometryEditor';
@@ -216,8 +216,15 @@ export function createMap(container: HTMLDivElement, callbacks: MapCallbacks) {
     transformRequest: url => {
       // Never allow a CARTO subresource to fall back to an anonymous request,
       // including one queued while the user clears the runtime credential.
-      if (new URL(url, window.location.href).hostname !== 'basemaps.cartocdn.com') return { url };
-      return { url: cartoCredential ? cartoRequestUrl(url, cartoCredential) : 'data:application/json,%7B%7D' };
+      if (!isCartoBasemapHost(new URL(url, window.location.href).hostname)) return { url };
+      if (!cartoCredential) return { url: 'data:application/json,%7B%7D' };
+      try {
+        return { url: cartoRequestUrl(url, cartoCredential) };
+      } catch {
+        // A newly introduced CARTO subdomain is blocked locally until its
+        // endpoint contract is reviewed. Never send it anonymously.
+        return { url: 'data:application/json,%7B%7D' };
+      }
     },
     attributionControl: { compact: false },
   });

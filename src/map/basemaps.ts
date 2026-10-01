@@ -26,6 +26,15 @@ export interface BasemapDescriptor {
 const osmTileUrl = 'https://tile.openstreetmap.org/{z}/{x}/{y}.png';
 const voyagerStyleUrl = 'https://basemaps.cartocdn.com/gl/voyager-gl-style/style.json';
 const cartoHost = 'basemaps.cartocdn.com';
+const cartoResourceHosts = new Set([
+  cartoHost,
+  `tiles.${cartoHost}`,
+  ...['a', 'b', 'c', 'd'].map(subdomain => `${subdomain}.${cartoHost}`),
+]);
+
+export function isCartoBasemapHost(hostname: string): boolean {
+  return hostname === cartoHost || hostname.endsWith(`.${cartoHost}`);
+}
 
 export const basemaps: Record<BasemapId, BasemapDescriptor> = {
   osm: {
@@ -95,7 +104,7 @@ export function resolveBasemapStyle(id: BasemapId, credential?: string | null): 
 export function cartoRequestUrl(url: string, credential: string): string {
   if (!hasRuntimeCredential(credential)) throw new Error('CARTO Basemaps API key required.');
   const parsed = new URL(url);
-  if (parsed.protocol !== 'https:' || parsed.hostname !== cartoHost) {
+  if (parsed.protocol !== 'https:' || !cartoResourceHosts.has(parsed.hostname)) {
     throw new Error('Unexpected CARTO resource endpoint.');
   }
   parsed.searchParams.set('key', credential.trim());

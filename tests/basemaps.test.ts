@@ -3,6 +3,7 @@ import {
   basemaps,
   cartoRequestUrl,
   hasRuntimeCredential,
+  isCartoBasemapHost,
   resolveBasemapStyle,
   type OptionalProviderService,
 } from '../src/map/basemaps';
@@ -45,6 +46,14 @@ assert.equal(resolveBasemapStyle('voyager', syntheticKey),
   `https://basemaps.cartocdn.com/gl/voyager-gl-style/style.json?key=${syntheticKey}`);
 assert.equal(cartoRequestUrl('https://basemaps.cartocdn.com/fonts/0.pbf?language=en', syntheticKey),
   `https://basemaps.cartocdn.com/fonts/0.pbf?language=en&key=${syntheticKey}`);
+for (const subdomain of ['tiles', 'a', 'b', 'c', 'd']) {
+  const host = `${subdomain}.basemaps.cartocdn.com`;
+  assert.equal(isCartoBasemapHost(host), true);
+  assert.equal(cartoRequestUrl(`https://${host}/resource`, syntheticKey), `https://${host}/resource?key=${syntheticKey}`);
+}
+assert.equal(isCartoBasemapHost('basemaps.cartocdn.com.attacker.test'), false);
+assert.equal(isCartoBasemapHost('e.basemaps.cartocdn.com'), true);
+assert.throws(() => cartoRequestUrl('https://e.basemaps.cartocdn.com/resource', syntheticKey), /Unexpected CARTO/);
 assert.throws(() => cartoRequestUrl('https://example.com/style.json', syntheticKey), /Unexpected CARTO/);
 
 const futureService: OptionalProviderService = {
