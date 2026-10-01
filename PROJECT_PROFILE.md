@@ -9,10 +9,10 @@
 - Product North Star: `PRODUCT_DIRECTION.md`
 
 ## Current accepted baseline
-- Accepted **product-code baseline**: `fc5a5ee83a56f0de118f7faad1ae5c34485f76a4`
-- Baseline date: 2026-09-28, project timezone UTC+07:00
-- Documentation-only PR #47 was merged after that product-code baseline; reconstruct the exact current `main` ref from GitHub rather than treating the product-code baseline SHA as the branch head.
-- This product-code baseline includes PR #44 / Issue #41: WGS84 ellipsoidal geodesic kernel.
+- Accepted **product-code baseline**: `f72ecb2495f2e48573326a45b083a7a897a8465c`
+- Baseline date: 2026-10-01, project timezone UTC+07:00
+- This baseline is merge commit PR #46 / Issue #42: indexed screen-space CAD snapping for authored geometry, including the bounded diagonal/zig-zag segment-index remediation accepted at PR head `f33dff43c5eeaf6d779c4ef6f4d94dc9ac46dc44`.
+- It also includes PR #44 / Issue #41: WGS84 ellipsoidal geodesic kernel, plus documentation-only product-direction realignment from PR #47/#48.
 - Prior accepted foundation includes:
   - #2 workflow/project baseline;
   - #3 truth/security/quarantine remediation;
@@ -24,26 +24,30 @@
   - #5C IndexedDB autosave/recovery;
   - #6 Phase A, B1 and B2 CI/browser-smoke foundation;
   - #21 safe legacy retirement + transactional authored Point drag;
-  - #41 geodesic kernel.
+  - #41 geodesic kernel;
+  - #42 indexed CAD snapping.
 - Durable program record: Issue #1.
 - Product direction: `PRODUCT_DIRECTION.md`.
 
-## Current active work
+## Recently accepted spatial work
 
 ### Issue #42 — indexed CAD snapping
-- PR #46 is open and unmerged.
-- Current PR head at this profile update: `1d7a02962df9558f87084557c37bbc7857efcfc1`.
-- Exact-head CI is green, but targeted review found one unresolved **P1 / REQUIRED** issue in segment-to-grid insertion: long diagonal/zig-zag segments must not populate every cell of a large axis-aligned bounding rectangle.
-- #42 is **not accepted** until that review finding is remediated, affected tests/CI pass, the review thread is resolved, and the accepted product-code baseline advances through merge.
+- PR #46 merged to `main` as `f72ecb2495f2e48573326a45b083a7a897a8465c`.
+- Accepted PR head: `f33dff43c5eeaf6d779c4ef6f4d94dc9ac46dc44`.
+- The original P1 / REQUIRED finding was remediated by clipping segments to the screen plus the 12 CSS px tolerance and indexing only a bounded 32 CSS px grid corridor near each segment rather than every cell of its axis-aligned bounding rectangle.
+- Deterministic diagnostics cover indexed cell-entry growth; long diagonal, off-screen, zig-zag, duplicate-cell, corridor and exact-edge regressions are present.
+- Exact-head CI passed build and browser-smoke, the P1 review thread was resolved, fresh targeted review found no major issue, and control-plane acceptance found no remaining BLOCKER / REQUIRED / FOLLOW-UP finding for #42.
+- Issue #42 is closed as completed.
 
-### Next spatial work
-- #43 provider/basemap capability + credential-safe service contracts.
-- After #42/#43, audit #7 acceptance gaps explicitly before closing the R2 spatial core.
+## Current active / next spatial work
+- #43 provider/basemap capability + credential-safe service contracts is next.
+- After #43, audit #7 acceptance gaps explicitly before closing the R2 spatial core.
 
 ## Current implemented stack
 - Vite 6 + React + strict TypeScript + npm/ESM.
 - MapLibre GL JS v6 for map/runtime.
 - Terra Draw + MapLibre adapter for supported transient geometry creation/editing.
+- Project-owned `SnapPolicy` with 12 CSS px tolerance and a 32 CSS px screen-space grid for accepted CAD snapping.
 - `@turf/buffer` for bounded derived buffers.
 - `geographiclib-geodesic` for the protected WGS84 ellipsoidal geodesic kernel.
 - Native IndexedDB for committed Project Document v1 autosave/recovery.
@@ -58,6 +62,7 @@
 - Point creation/selection/rename and authored Point drag in Select mode.
 - Layer visibility.
 - Transient Terra Draw line/polygon creation and edit sessions.
+- Deterministic CAD snapping for visible authored Point/LineString/Polygon geometry with vertex and nearest-on-segment targets, self/ineligible exclusion, exact canonical WGS84 vertex preservation, bounded candidate lookup, transient feedback, and camera/style/project lifecycle invalidation.
 - Derived Turf buffers with source snapshot, metres, library version, stale/orphan state, and read-only derived geometry.
 - Point presentation with center/pin-tip hotspot semantics, bounded marker size, and eight label placements; presentation does not alter canonical geometry.
 - Strict Project Document v1 validation/serialization.
@@ -68,7 +73,6 @@
 
 ## Not yet implemented / not yet accepted
 - #5D user-facing New/Open/Save-or-equivalent project workflow.
-- Accepted #42 CAD snapping until PR #46 is remediated and merged.
 - Full provider capability contract from #43.
 - Traffic Movement (#29), Site Access Route (#30), Scenario/Stage (#31), presentation system (#32), Site Plan overlay (#33), semantic traffic annotations (#34).
 - Live measurement UI (#14).
@@ -86,7 +90,7 @@
 
 Current high-level sequence:
 
-`Finish #42/#43/#7 -> #5D -> #29/#30/#32/#33 -> #14/#11 -> #12 -> #13/#15/#16 -> #9 when justified -> #22`
+`Finish #43/#7 -> #5D -> #29/#30/#32/#33 -> #14/#11 -> #12 -> #13/#15/#16 -> #9 when justified -> #22`
 
 Additional rules:
 - #31/#34 enter when their concrete user workflow and dependencies justify them; they should not block the first useful traffic/access authoring set.
@@ -125,6 +129,7 @@ npm test
 npm run dev
 npm run typecheck
 npm run build
+npm run test:browser
 npm run test:browser:ci
 git diff --check
 ```
@@ -152,7 +157,7 @@ If a local Playwright Chromium binary is absent, project work should not silentl
 - Current capability: `README.md`
 - Production: `index.html`, `src/main.tsx`, `src/App.tsx`, `src/map/`, `src/styles.css`
 - Project contract: `src/project/projectDocument.ts`, `docs/architecture/project-document-v1.md`
-- Spatial kernel: `src/spatial/geodesic.ts`
+- Spatial kernels: `src/spatial/geodesic.ts`, `src/spatial/snapPolicy.ts`
 - Legacy reference: `legacy/r0-safe-prototype.html`, `legacy/README.md`
 - Build/dependencies: `vite.config.ts`, `tsconfig.json`, `package.json`, `package-lock.json`
 - Documentation: `ACKNOWLEDGEMENTS.md`, `DEVELOPMENT_LOG.md`
@@ -169,8 +174,7 @@ If a local Playwright Chromium binary is absent, project work should not silentl
 - Triage review findings as BLOCKER / REQUIRED / FOLLOW-UP and stop once closure conditions are met.
 
 ## Current objective
-1. Remediate the unresolved #42 P1 bounded-index finding on PR #46 and accept/merge only after exact-head evidence is green.
-2. Implement #43 provider/basemap capability contracts.
-3. Audit and close remaining #7 spatial-core acceptance gaps.
-4. Complete #5D local project workflow.
-5. Move into the core product-authoring sequence defined by `PRODUCT_DIRECTION.md`, beginning with #29/#30/#32/#33 rather than allowing infrastructure or unrelated analytics to displace the product North Star.
+1. Implement #43 provider/basemap capability contracts.
+2. Audit and close remaining #7 spatial-core acceptance gaps.
+3. Complete #5D local project workflow.
+4. Move into the core product-authoring sequence defined by `PRODUCT_DIRECTION.md`, beginning with #29/#30/#32/#33 rather than allowing infrastructure or unrelated analytics to displace the product North Star.
