@@ -16,7 +16,9 @@ Pages configuration remains a separate human-controlled deployment gate.
 
 - Vite 6, React, strict TypeScript, npm-managed MapLibre GL JS, and build-time CSS.
 - Map navigation and switching between accepted OpenStreetMap raster and CARTO
-  Voyager vector basemaps, with attribution, loading, and error states.
+  Voyager vector basemaps, with attribution, loading, and error states. OSM is the
+  no-key default. Voyager requires the user's CARTO Basemaps API key for this
+  browser map session; without it, no CARTO request is made.
 - 3D Buildings is disabled for incompatible basemaps. Compatible vector building
   sources support a visualization toggle at zoom 14+, using numeric provider
   heights in metres where supplied. Missing heights are not fabricated. Coverage
@@ -166,8 +168,8 @@ downloads.
 
 `map-tile-server.cjs` is a loopback-only test helper that serves one valid 256px PNG.
 The lifecycle fixture uses it only for normal OSM-tile readiness, then deliberately
-aborts OSM requests to prove the app's visible error path and CARTO recovery. Live
-OSM/CARTO behavior remains exercised by the geometry and marker fixtures.
+  aborts OSM requests to prove the app's visible error path and CARTO recovery.
+  Automated provider tests use synthetic intercepted responses, never live CARTO access.
 
 The isolated Terra Draw/MapLibre compatibility fixture is served by Vite development
 mode because it is intentionally outside the production app bundle:
@@ -189,12 +191,26 @@ The production shell needs no Tailwind Play CDN or UNPKG globals.
 
 - OpenStreetMap community tiles require [OSM attribution](https://www.openstreetmap.org/copyright)
   and compliance with the [tile usage policy](https://operations.osmfoundation.org/policies/tiles/).
-  No bulk downloading or offline prefetch is implemented.
-- CARTO Voyager retains the style's CARTO/OpenStreetMap attribution. Existing
-  [provider terms](https://carto.com/legal/) and coverage limitations apply.
+  Service is best-effort with no SLA. No bulk downloading, offline use, or prefetch
+  is implemented. Its raster style cannot provide building heights or terrain.
+- CARTO Voyager is optional and requires a runtime key obtained by the user from
+  [CARTO Basemaps](https://carto.com/basemaps/apikey/) under its
+  [Basemap Terms](https://carto.com/legal/basemap-terms/). Style, tile, glyph, and
+  sprite requests to CARTO carry that key. The key is kept only in map-session
+  memory, never in Project Document, IndexedDB, export, or application URL state.
+  Clearing it switches back to OSM and prevents anonymous CARTO fallback.
+  Voyager requires © OpenStreetMap contributors and © CARTO attribution; provider
+  style/source attribution remains on the map. Availability, coverage, quotas,
+  and rate limits depend on CARTO and the user's key. A compatible loaded vector
+  building source is still required before 3D can be offered; terrain is unavailable.
 - These accepted providers are best-effort online capabilities. Requests go to
   the selected provider; their availability is not guaranteed by the static app.
-  No new provider, credentials, paid backend, or direct Google tile endpoint is introduced.
+  No paid backend or direct Google tile endpoint is introduced.
+- A small inactive optional-service type reserves identity, endpoint, attribution,
+  timeout/cancellation, credential policy, and quota/error semantics for later
+  provider decisions. Public [Nominatim](https://operations.osmfoundation.org/policies/nominatim/)
+  is not activated: its capacity and usage policy require a deliberate future
+  provider decision. There is no geocoding UI or request in this slice.
 - Stored coordinates are WGS84 longitude/latitude and map display uses Web Mercator.
   Buffer radius is explicitly passed to Turf in metres; buffer output returns to WGS84
   Polygon storage. Map scale is approximate, and no output is a validated engineering

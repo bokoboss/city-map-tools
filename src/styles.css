@@ -120,6 +120,10 @@ h1 { font-size: 21px; margin: 0; letter-spacing: -0.4px; }
 .delete-confirmation button + button { margin-left: 7px; }
 
 .map-options { border-bottom: 0; margin-bottom: 0; }
+.provider-credential { margin-top: 12px; padding: 10px; border: 1px solid var(--border-subtle); border-radius: 6px; font-size: 12px; }
+.provider-credential p { color: var(--text-muted); line-height: 1.4; }
+.provider-credential button { width: 100%; margin-top: 7px; }
+.provider-credential .provider-notice { color: var(--text); margin-bottom: 0; }
 .map-status { margin-top: 20px; padding: 12px; border-left: 3px solid #5786a1; background: var(--surface-status); font-size: 13px; }
 .map-status.ready { border-color: #2f7963; background: #edf6f1; }
 .map-status.error { border-color: #a3452e; background: #fff0e9; }

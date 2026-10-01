@@ -289,7 +289,8 @@ test('hidden, imported, derived, and self geometry cannot snap; camera and style
   await expect(page.locator('.snap-indicator')).toBeHidden();
   await page.keyboard.press('Escape');
 
-  await page.getByLabel('Provider', { exact: true }).selectOption('voyager');
+  await page.getByLabel('CARTO Basemaps API key').fill('synthetic-carto-snap-test-only');
+  await page.getByRole('button', { name: 'Use key and switch to Voyager' }).click();
   await expect(page.locator('.snap-indicator')).toHaveAttribute('data-index', 'invalidated');
   await expect(page.locator('.map-status strong')).toHaveText('Map unavailable', { timeout: 30_000 });
   await page.getByLabel('Provider', { exact: true }).selectOption('osm');
