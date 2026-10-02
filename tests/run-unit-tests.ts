@@ -1,6 +1,7 @@
 import './geojson-import.test';
 import './geometry-buffer.test';
 import './point-presentation.test';
+import './basemaps.test';
 import './project-document.test';
 import './project-history.test';
 import './project-persistence.test';

@@ -106,6 +106,7 @@ export function MapCanvas({
   onExport,
 }: MapCanvasProps) {
   const container = useRef<HTMLDivElement>(null);
+  const cartoKeyInput = useRef<HTMLInputElement>(null);
   const controller = useRef<ReturnType<typeof createMap> | null>(null);
   const modeRef = useRef(mode);
   const preserveEditorStatusOnNextModeChange = useRef(false);
@@ -118,6 +119,8 @@ export function MapCanvas({
   const featureSelectRef = useRef(onFeatureSelect);
   const geometryCreateRef = useRef(onGeometryCreate);
   const [basemap, setBasemap] = useState<BasemapId>('osm');
+  const [hasCartoKey, setHasCartoKey] = useState(false);
+  const [providerNotice, setProviderNotice] = useState('');
   const [state, setState] = useState(initialMapState);
   const [editorStatus, setEditorStatus] = useState('Select mode: choose a feature from the map or Layers.');
   const [deleteConfirmationId, setDeleteConfirmationId] = useState<string | null>(null);
@@ -501,10 +504,46 @@ export function MapCanvas({
           <select id="basemap" value={basemap} onChange={event => {
             const id = event.target.value;
             if (id !== 'osm' && id !== 'voyager') return;
-            if (controller.current?.setBasemap(id) !== false) setBasemap(id);
+            if (controller.current?.setBasemap(id) === true) {
+              setBasemap(id);
+              setProviderNotice('');
+            } else {
+              event.currentTarget.value = basemap;
+              if (basemaps[id].credentialPolicy === 'runtime-BYOK-required' && !hasCartoKey) {
+                setProviderNotice(`${basemaps[id].label} requires your runtime CARTO Basemaps API key. The current map and project are unchanged.`);
+              }
+            }
           }}>
             {Object.entries(basemaps).map(([id, option]) => <option key={id} value={id}>{option.label}</option>)}
           </select>
+          <div className="provider-credential">
+            <label htmlFor="carto-basemaps-key">CARTO Basemaps API key</label>
+            <input id="carto-basemaps-key" ref={cartoKeyInput} type="password" autoComplete="off" autoCapitalize="off" autoCorrect="off" spellCheck={false} aria-describedby="carto-key-help" />
+            <p id="carto-key-help">{hasCartoKey ? 'Runtime key available for this map session.' : 'Voyager requires your own runtime key.'} <a href={basemaps.voyager.keyInfoUrl} target="_blank" rel="noreferrer">Get a key from CARTO</a> and review its <a href={basemaps.voyager.policyUrl} target="_blank" rel="noreferrer">Basemap Terms</a>.</p>
+            <button type="button" onClick={() => {
+              const input = cartoKeyInput.current;
+              if (!input?.value.trim()) {
+                setProviderNotice('Enter your CARTO Basemaps API key before selecting Voyager.');
+                return;
+              }
+              if (controller.current?.setBasemap('voyager', input.value) === true) {
+                input.value = '';
+                setHasCartoKey(true);
+                setBasemap('voyager');
+                setProviderNotice('');
+              }
+            }}>Use key and switch to Voyager</button>
+            <button type="button" onClick={() => {
+              const switched = controller.current?.clearCartoCredential();
+              if (cartoKeyInput.current) cartoKeyInput.current.value = '';
+              setHasCartoKey(false);
+              if (basemap === 'voyager' && switched === true) setBasemap('osm');
+              setProviderNotice(switched === false
+                ? 'Runtime CARTO key cleared. Finish or cancel the active geometry draft, then switch to OpenStreetMap. The draft was preserved; CARTO requests are blocked until a new key is supplied.'
+                : 'Runtime CARTO key cleared.');
+            }}>Clear runtime key</button>
+            {providerNotice && <p role="status" className="provider-notice">{providerNotice}</p>}
+          </div>
           <div className={`map-status ${state.phase}`} role="status" aria-live="polite">
             <strong>{state.phase === 'error' ? 'Map unavailable' : state.phase === 'loading' ? 'Loading' : 'Ready'}</strong>
             <p>{state.message}</p>
@@ -520,7 +559,8 @@ export function MapCanvas({
           <details>
             <summary>Provider &amp; map notes</summary>
             <p>{basemaps[basemap].note} <a href={basemaps[basemap].policyUrl} target="_blank" rel="noreferrer">Usage policy</a></p>
-            <p>Online basemap requests go to the selected provider. No API key or project storage is used.</p>
+            <p>Required attribution: {basemaps[basemap].attribution}. MapLibre also displays provider-supplied source attribution on the map.</p>
+            <p>Online basemap requests go to the selected provider. A CARTO key is used only for provider requests in this browser session; it is not saved with project data. Project data is autosaved locally.</p>
             <p>Coordinates: WGS84 longitude/latitude. Map display: Web Mercator. Scale is approximate; no metric analysis is performed.</p>
           </details>
           <output className="map-position" aria-label="Map position">

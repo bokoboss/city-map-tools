@@ -47,7 +47,12 @@ async (page) => {
   };
   const switchBasemap = async id => {
     const enteredLoading = page.locator('.map-status strong').filter({ hasText: /^Loading$/ }).waitFor({ timeout: 5000 });
-    await page.getByLabel('Provider', { exact: true }).selectOption(id);
+    if (id === 'voyager') {
+      await page.getByLabel('CARTO Basemaps API key').fill('synthetic-carto-fixture-only');
+      await page.getByRole('button', { name: 'Use key and switch to Voyager' }).click();
+    } else {
+      await page.getByLabel('Provider', { exact: true }).selectOption(id);
+    }
     await enteredLoading;
     await ready();
   };
@@ -57,6 +62,11 @@ async (page) => {
   };
 
   await page.setViewportSize({ width: 1440, height: 900 });
+  await page.route('https://basemaps.cartocdn.com/**', async route => {
+    const url = new URL(route.request().url());
+    check(url.searchParams.has('key'), 'CARTO fixture requires a runtime key');
+    await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ version: 8, sources: {}, layers: [] }) });
+  });
   await page.goto('http://127.0.0.1:4173/city-map-tools/');
   await ready();
 

@@ -37,7 +37,12 @@ async (page) => {
   };
   const switchBasemap = async id => {
     const enteredLoading = loading().then(() => true).catch(() => false);
-    await page.getByLabel('Provider', { exact: true }).selectOption(id);
+    if (id === 'voyager') {
+      await page.getByLabel('CARTO Basemaps API key').fill('synthetic-carto-fixture-only');
+      await page.getByRole('button', { name: 'Use key and switch to Voyager' }).click();
+    } else {
+      await page.getByLabel('Provider', { exact: true }).selectOption(id);
+    }
     check(await page.getByLabel('Provider', { exact: true }).inputValue() === id, `${id} provider selection applied`);
     await completeTransition(enteredLoading, `after ${id} style replacement`);
   };
@@ -60,9 +65,8 @@ async (page) => {
     return line;
   };
 
-  // Geometry and marker fixtures exercise live OSM/CARTO. This fixture controls
-  // the normal OSM payload so its error/recovery assertions do not depend on a
-  // public tile provider's momentary rate limit or availability.
+  // Provider responses are local fixtures so lifecycle assertions do not depend
+  // on momentary external availability or a real CARTO credential.
   await page.unroute('https://tile.openstreetmap.org/**');
   const tileResponse = await page.request.get('http://127.0.0.1:4175/tile.png');
   check(tileResponse.ok(), 'local lifecycle tile fixture is available');
@@ -73,6 +77,11 @@ async (page) => {
     await route.fulfill({ status: response.status(), contentType: 'image/png', body: await response.body() });
   });
   await page.setViewportSize({ width: 1440, height: 900 });
+  await page.route('https://basemaps.cartocdn.com/**', async route => {
+    const url = new URL(route.request().url());
+    check(url.searchParams.has('key'), 'CARTO fixture requires a runtime key');
+    await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ version: 8, sources: {}, layers: [] }) });
+  });
   await page.goto('http://127.0.0.1:4173/city-map-tools/');
   await ready('initial OSM load');
   check(await page.getByLabel('Provider', { exact: true }).inputValue() === 'osm', 'initial provider is OSM');

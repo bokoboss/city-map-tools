@@ -2,7 +2,7 @@ import { Map, Marker, NavigationControl, ScaleControl, setWorkerUrl } from 'mapl
 import type { ExpressionSpecification, GeoJSONSource } from 'maplibre-gl';
 import type { Feature, FeatureCollection, LineString, Polygon } from 'geojson';
 import workerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url';
-import { basemaps } from './basemaps';
+import { basemaps, cartoRequestUrl, hasRuntimeCredential, isCartoBasemapHost, resolveBasemapStyle } from './basemaps';
 import type { BasemapId } from './basemaps';
 import { createGeometryEditor } from './geometryEditor';
 import type { GeometryEditor, GeometryEditorSession } from './geometryEditor';
@@ -185,6 +185,8 @@ function createPointMarkerRoot(overlay: MapPointOverlay, onSelect: (id: string) 
 
 export function createMap(container: HTMLDivElement, callbacks: MapCallbacks) {
   let state = { ...initialMapState };
+  let cartoCredential: string | null = null;
+  let activeBasemapId: BasemapId = 'osm';
   let disposed = false;
   let loadingTimer: ReturnType<typeof setTimeout>;
   let interactionMode: EditorMode = 'select';
@@ -210,7 +212,20 @@ export function createMap(container: HTMLDivElement, callbacks: MapCallbacks) {
     container,
     center: [state.longitude, state.latitude],
     zoom: state.zoom,
-    style: basemaps.osm.style,
+    style: resolveBasemapStyle('osm'),
+    transformRequest: url => {
+      // Never allow a CARTO subresource to fall back to an anonymous request,
+      // including one queued while the user clears the runtime credential.
+      if (!isCartoBasemapHost(new URL(url, window.location.href).hostname)) return { url };
+      if (!cartoCredential) return { url: 'data:application/json,%7B%7D' };
+      try {
+        return { url: cartoRequestUrl(url, cartoCredential) };
+      } catch {
+        // A newly introduced CARTO subdomain is blocked locally until its
+        // endpoint contract is reviewed. Never send it anonymously.
+        return { url: 'data:application/json,%7B%7D' };
+      }
+    },
     attributionControl: { compact: false },
   });
   let snapIndex: SnapPolicy | null = null;
@@ -657,6 +672,10 @@ export function createMap(container: HTMLDivElement, callbacks: MapCallbacks) {
   };
 
   const configureBuildings = () => {
+    if (basemaps[activeBasemapId].buildings === 'unavailable') {
+      publish({ buildings: 'unavailable', buildingReason: '3D unavailable: this raster basemap has no vector building source.' });
+      return;
+    }
     const style = map.getStyle();
     const building = style.layers.find(layer =>
       layer.type === 'fill' && layer['source-layer'] === 'building' &&
@@ -777,11 +796,18 @@ export function createMap(container: HTMLDivElement, callbacks: MapCallbacks) {
   startLoading();
 
   return {
-    setBasemap(id: BasemapId): boolean {
+    setBasemap(id: BasemapId, suppliedCredential?: string): boolean {
       if (editor?.hasActiveSession()) {
         callbacks.onBasemapBlocked('Finish or cancel the active geometry draft before switching basemap; no work was discarded.');
         return false;
       }
+      const credential = suppliedCredential ?? cartoCredential;
+      if (basemaps[id].credentialPolicy === 'runtime-BYOK-required' && !hasRuntimeCredential(credential)) {
+        callbacks.onBasemapBlocked('CARTO Voyager requires your runtime CARTO Basemaps API key. The current map and project are unchanged.');
+        return false;
+      }
+      const style = resolveBasemapStyle(id, credential);
+      if (id === 'voyager' && suppliedCredential !== undefined) cartoCredential = suppliedCredential.trim();
       cancelActivePointDrag('Point move cancelled because the basemap changed. The committed WGS84 position was restored.');
       editor?.destroy();
       editor = null;
@@ -790,12 +816,18 @@ export function createMap(container: HTMLDivElement, callbacks: MapCallbacks) {
       map.jumpTo({ pitch: 0 });
       try {
         // Full style replacement removes custom layers and editor adapter layers.
-        map.setStyle(basemaps[id].style, { diff: false });
+        activeBasemapId = id;
+        map.setStyle(style, { diff: false });
         return true;
       } catch {
         fail();
         return false;
       }
+    },
+    clearCartoCredential(): boolean {
+      cartoCredential = null;
+      if (activeBasemapId === 'voyager') return this.setBasemap('osm');
+      return true;
     },
     setPointOverlays(overlays: readonly MapPointOverlay[]) {
       renderPointOverlays(overlays);
