@@ -92,6 +92,74 @@ test('Voyager requires runtime BYOK and never saves the synthetic credential', a
   expect(cartoRequests).toHaveLength(requestCount);
 });
 
+test('clearing a runtime key preserves an active draft and blocks later CARTO requests', async ({ page, request }) => {
+  const cartoRequests: string[] = [];
+  await page.route('**/*', async route => {
+    const url = new URL(route.request().url());
+    if (url.hostname === 'tile.openstreetmap.org') {
+      const tile = await request.get(tileServerUrl);
+      await route.fulfill({ status: tile.status(), contentType: 'image/png', body: await tile.body() });
+    } else if (url.hostname === cartoHost || url.hostname === `tiles.${cartoHost}`) {
+      cartoRequests.push(url.toString());
+      expect(url.searchParams.get('key')).toBe(syntheticKey);
+      if (url.pathname.endsWith('.pbf')) {
+        await route.fulfill({ status: 200, contentType: 'application/x-protobuf', body: Buffer.alloc(0) });
+      } else {
+        await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({
+          version: 8,
+          sources: { tiles: { type: 'vector', tiles: [`https://tiles.${cartoHost}/tiles/{z}/{x}/{y}.pbf`] } },
+          layers: [
+            { id: 'background', type: 'background', paint: { 'background-color': '#eee' } },
+            { id: 'tile-fixture', type: 'fill', source: 'tiles', 'source-layer': 'fixture', paint: { 'fill-color': '#ddd' } },
+          ],
+        }) });
+      }
+    } else if (['127.0.0.1', 'localhost'].includes(url.hostname) || ['data:', 'blob:'].includes(url.protocol)) {
+      await route.continue();
+    } else {
+      await route.abort();
+    }
+  });
+
+  await page.goto('/');
+  await expect(page.locator('.map-status strong')).toHaveText('Ready', { timeout: 30_000 });
+  await expect(page.locator('.project-save-state strong')).toHaveText('Saved');
+  const before = await storedProject(page);
+  await page.getByLabel('CARTO Basemaps API key').fill(syntheticKey);
+  await page.getByRole('button', { name: 'Use key and switch to Voyager' }).click();
+  await expect(page.locator('.map-status strong')).toHaveText('Ready', { timeout: 30_000 });
+  expect(cartoRequests.length).toBeGreaterThan(0);
+  expect(cartoRequests.some(url => new URL(url).hostname === `tiles.${cartoHost}`)).toBe(true);
+
+  const canvas = page.locator('.maplibregl-canvas');
+  const box = await canvas.boundingBox();
+  expect(box).not.toBeNull();
+  await page.getByRole('button', { name: 'Line tool', exact: true }).click();
+  await page.mouse.click(box!.x + box!.width * 0.4, box!.y + box!.height * 0.4);
+  await page.getByRole('button', { name: 'Clear runtime key' }).click();
+  await expect(page.getByLabel('Provider', { exact: true })).toHaveValue('voyager');
+  await expect(page.locator('.provider-notice')).toContainText('key cleared. Finish or cancel the active geometry draft');
+  await expect(page.locator('.provider-notice')).toContainText('CARTO requests are blocked');
+  await expect(page.getByRole('button', { name: 'Line tool', exact: true })).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.locator('#carto-key-help')).toContainText('Voyager requires your own runtime key');
+  await expect(page.getByLabel('CARTO Basemaps API key')).toBeEmpty();
+  expect(await storedProject(page)).toBe(before);
+
+  const requestCount = cartoRequests.length;
+  await page.getByRole('button', { name: 'Zoom in' }).click();
+  await page.waitForTimeout(300);
+  expect(cartoRequests).toHaveLength(requestCount);
+  await page.mouse.click(box!.x + box!.width * 0.6, box!.y + box!.height * 0.6);
+  await page.keyboard.press('Enter');
+  await expect(page.locator('.feature-row')).toHaveCount(1);
+  await expect(page.locator('.project-save-state strong')).toHaveText('Saved');
+  expect(JSON.stringify(await storedProject(page)).includes(syntheticKey)).toBe(false);
+  await page.getByLabel('Provider', { exact: true }).selectOption('osm');
+  await expect(page.getByLabel('Provider', { exact: true })).toHaveValue('osm');
+  await expect(page.locator('.map-status strong')).toHaveText('Ready', { timeout: 30_000 });
+  expect(cartoRequests).toHaveLength(requestCount);
+});
+
 test('failing CARTO style stays unavailable without leaking the runtime key', async ({ page, request }) => {
   const consoleText: string[] = [];
   page.on('console', message => consoleText.push(message.text()));

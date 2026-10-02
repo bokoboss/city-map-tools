@@ -51,9 +51,18 @@ for (const subdomain of ['tiles', 'a', 'b', 'c', 'd']) {
   assert.equal(isCartoBasemapHost(host), true);
   assert.equal(cartoRequestUrl(`https://${host}/resource`, syntheticKey), `https://${host}/resource?key=${syntheticKey}`);
 }
+for (const host of ['basemaps.cartocdn.com', 'tiles.basemaps.cartocdn.com', 'a.basemaps.cartocdn.com', 'b.basemaps.cartocdn.com', 'c.basemaps.cartocdn.com', 'd.basemaps.cartocdn.com']) {
+  assert.equal(isCartoBasemapHost(`${host.toUpperCase()}.`), true);
+  assert.equal(cartoRequestUrl(`https://${host.toUpperCase()}./resource`, syntheticKey),
+    `https://${host}/resource?key=${syntheticKey}`);
+}
 assert.equal(isCartoBasemapHost('basemaps.cartocdn.com.attacker.test'), false);
+assert.equal(isCartoBasemapHost('basemaps.cartocdn.com.attacker.test.'), false);
 assert.equal(isCartoBasemapHost('e.basemaps.cartocdn.com'), true);
+assert.equal(isCartoBasemapHost('E.BASEMAPS.CARTOCDN.COM.'), true);
 assert.throws(() => cartoRequestUrl('https://e.basemaps.cartocdn.com/resource', syntheticKey), /Unexpected CARTO/);
+assert.throws(() => cartoRequestUrl('https://E.BASEMAPS.CARTOCDN.COM./resource', syntheticKey), /Unexpected CARTO/);
+assert.throws(() => cartoRequestUrl('https://basemaps.cartocdn.com.attacker.test./resource', syntheticKey), /Unexpected CARTO/);
 assert.throws(() => cartoRequestUrl('https://example.com/style.json', syntheticKey), /Unexpected CARTO/);
 
 const futureService: OptionalProviderService = {

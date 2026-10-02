@@ -825,8 +825,8 @@ export function createMap(container: HTMLDivElement, callbacks: MapCallbacks) {
       }
     },
     clearCartoCredential(): boolean {
-      if (activeBasemapId === 'voyager' && !this.setBasemap('osm')) return false;
       cartoCredential = null;
+      if (activeBasemapId === 'voyager') return this.setBasemap('osm');
       return true;
     },
     setPointOverlays(overlays: readonly MapPointOverlay[]) {

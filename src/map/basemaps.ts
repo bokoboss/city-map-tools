@@ -32,8 +32,13 @@ const cartoResourceHosts = new Set([
   ...['a', 'b', 'c', 'd'].map(subdomain => `${subdomain}.${cartoHost}`),
 ]);
 
+function canonicalHostname(hostname: string): string {
+  return hostname.toLowerCase().replace(/\.$/, '');
+}
+
 export function isCartoBasemapHost(hostname: string): boolean {
-  return hostname === cartoHost || hostname.endsWith(`.${cartoHost}`);
+  const host = canonicalHostname(hostname);
+  return host === cartoHost || host.endsWith(`.${cartoHost}`);
 }
 
 export const basemaps: Record<BasemapId, BasemapDescriptor> = {
@@ -104,9 +109,11 @@ export function resolveBasemapStyle(id: BasemapId, credential?: string | null): 
 export function cartoRequestUrl(url: string, credential: string): string {
   if (!hasRuntimeCredential(credential)) throw new Error('CARTO Basemaps API key required.');
   const parsed = new URL(url);
-  if (parsed.protocol !== 'https:' || !cartoResourceHosts.has(parsed.hostname)) {
+  const host = canonicalHostname(parsed.hostname);
+  if (parsed.protocol !== 'https:' || !cartoResourceHosts.has(host)) {
     throw new Error('Unexpected CARTO resource endpoint.');
   }
+  parsed.hostname = host;
   parsed.searchParams.set('key', credential.trim());
   return parsed.toString();
 }

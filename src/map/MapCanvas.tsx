@@ -534,11 +534,13 @@ export function MapCanvas({
               }
             }}>Use key and switch to Voyager</button>
             <button type="button" onClick={() => {
-              if (controller.current?.clearCartoCredential() === false) return;
+              const switched = controller.current?.clearCartoCredential();
               if (cartoKeyInput.current) cartoKeyInput.current.value = '';
               setHasCartoKey(false);
-              if (basemap === 'voyager') setBasemap('osm');
-              setProviderNotice('Runtime CARTO key cleared.');
+              if (basemap === 'voyager' && switched === true) setBasemap('osm');
+              setProviderNotice(switched === false
+                ? 'Runtime CARTO key cleared. Finish or cancel the active geometry draft, then switch to OpenStreetMap. The draft was preserved; CARTO requests are blocked until a new key is supplied.'
+                : 'Runtime CARTO key cleared.');
             }}>Clear runtime key</button>
             {providerNotice && <p role="status" className="provider-notice">{providerNotice}</p>}
           </div>
