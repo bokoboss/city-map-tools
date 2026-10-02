@@ -33,6 +33,13 @@
 
 ## Recently accepted spatial work
 
+### R2 / Issue #7 — spatial-core umbrella closure
+- Issue #7 is closed as completed after control-plane closure audit comment `5956210272`.
+- The accepted R2 implementation is the bounded child sequence #41 (coordinate/unit + ellipsoidal geodesic kernel), #42 (indexed CAD snapping), and #43 (provider/basemap capability + credential-safe service contracts).
+- The closure audit found no remaining material implementation gap after applying the later research/scrutiny record that superseded the original one-tranche #7 interpretation.
+- Persistent transport/activity centroid behavior remains deliberately owned by #11, and live measurement/display conversion remains owned by #14; neither is a missing #7 implementation slice.
+- Future tracing/reuse geometry, topology, map matching, routing, OSM-network redistribution/export licensing, and live-provider requalification remain separate future triggers rather than hidden R2 scope.
+
 ### Issue #43 — provider/basemap capability and credential-safe service contracts
 - PR #50 merged to `main` as `eca3621ec974e3f27bae1b4348c69af0c39f3300`.
 - Accepted PR head: `5bf6bf84daa82d8eba6af91bfa995f6465b38994`.
@@ -57,9 +64,8 @@
 - Issue #42 is closed as completed.
 
 ## Current active / next spatial work
-- Audit Issue #7 acceptance gaps explicitly against accepted #41/#42/#43 behavior and the frozen ownership of transport/activity centroids by #11.
-- If no material implementation gap remains, close the R2 spatial-core umbrella #7 as a contract/closure checkpoint rather than inventing another implementation tranche.
-- After #7 closure, proceed to #5D local project workflow.
+- R2 / Issue #7 is closed as completed; no further spatial-core implementation tranche is pending.
+- Next execution target is #5D: user-facing local New/Open/Save-or-equivalent project workflow.
 
 ## Current implemented stack
 - Vite 6 + React + strict TypeScript + npm/ESM.
@@ -109,7 +115,7 @@
 
 Current high-level sequence:
 
-`Finish #7 closure audit -> #5D -> #29/#30/#32/#33 -> #14/#11 -> #12 -> #13/#15/#16 -> #9 when justified -> #22`
+`#5D -> #29/#30/#32/#33 -> #14/#11 -> #12 -> #13/#15/#16 -> #9 when justified -> #22`
 
 Additional rules:
 - #31/#34 enter when their concrete user workflow and dependencies justify them; they should not block the first useful traffic/access authoring set.
@@ -193,6 +199,5 @@ If a local Playwright Chromium binary is absent, project work should not silentl
 - Triage review findings as BLOCKER / REQUIRED / FOLLOW-UP and stop once closure conditions are met.
 
 ## Current objective
-1. Audit and close remaining #7 spatial-core acceptance gaps against accepted #41/#42/#43 behavior.
-2. Complete #5D local project workflow.
-3. Move into the core product-authoring sequence defined by `PRODUCT_DIRECTION.md`, beginning with #29/#30/#32/#33 rather than allowing infrastructure or unrelated analytics to displace the product North Star.
+1. Complete #5D local project workflow.
+2. Move into the core product-authoring sequence defined by `PRODUCT_DIRECTION.md`, beginning with #29/#30/#32/#33 rather than allowing infrastructure or unrelated analytics to displace the product North Star.
