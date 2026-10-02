@@ -9,9 +9,10 @@
 - Product North Star: `PRODUCT_DIRECTION.md`
 
 ## Current accepted baseline
-- Accepted **product-code baseline**: `f72ecb2495f2e48573326a45b083a7a897a8465c`
-- Baseline date: 2026-10-01, project timezone UTC+07:00
-- This baseline is merge commit PR #46 / Issue #42: indexed screen-space CAD snapping for authored geometry, including the bounded diagonal/zig-zag segment-index remediation accepted at PR head `f33dff43c5eeaf6d779c4ef6f4d94dc9ac46dc44`.
+- Accepted **product-code baseline**: `eca3621ec974e3f27bae1b4348c69af0c39f3300`
+- Baseline date: 2026-10-02, project timezone UTC+07:00
+- This baseline is merge commit PR #50 / Issue #43: typed OSM/CARTO basemap/provider capability contracts and credential-safe runtime BYOK behavior, accepted at PR head `5bf6bf84daa82d8eba6af91bfa995f6465b38994` after bounded credential/security remediation.
+- It also includes PR #46 / Issue #42: indexed screen-space CAD snapping for authored geometry, including the bounded diagonal/zig-zag segment-index remediation accepted at PR head `f33dff43c5eeaf6d779c4ef6f4d94dc9ac46dc44`.
 - It also includes PR #44 / Issue #41: WGS84 ellipsoidal geodesic kernel, plus documentation-only product-direction realignment from PR #47/#48.
 - Prior accepted foundation includes:
   - #2 workflow/project baseline;
@@ -25,11 +26,27 @@
   - #6 Phase A, B1 and B2 CI/browser-smoke foundation;
   - #21 safe legacy retirement + transactional authored Point drag;
   - #41 geodesic kernel;
-  - #42 indexed CAD snapping.
+  - #42 indexed CAD snapping;
+  - #43 provider/basemap capability and runtime-BYOK contracts.
 - Durable program record: Issue #1.
 - Product direction: `PRODUCT_DIRECTION.md`.
 
 ## Recently accepted spatial work
+
+### Issue #43 — provider/basemap capability and credential-safe service contracts
+- PR #50 merged to `main` as `eca3621ec974e3f27bae1b4348c69af0c39f3300`.
+- Accepted PR head: `5bf6bf84daa82d8eba6af91bfa995f6465b38994`.
+- OSM remains the credential-free default. CARTO Voyager is optional and requires a user-supplied runtime API key; no CARTO request is issued before a key is supplied.
+- The runtime key is held only in the map controller memory and is excluded from Project Document, IndexedDB, exports, application URL/history, visible status/error text, logs, source, and committed test/output artifacts.
+- CARTO style/tile/glyph/sprite requests are keyed only at the provider boundary. Approved hosts are the basemap apex, `tiles`, and `a`–`d` subdomains; unknown CARTO-family hosts fail closed.
+- Host handling canonicalizes case and a terminal DNS dot before CARTO-family recognition and exact allowlisting.
+- Clearing the runtime key destroys it immediately even when an active geometry draft defers switching away from Voyager; the draft is preserved and subsequent CARTO requests remain blocked until a new key is supplied.
+- 3D capability remains conditional on compatible evidence from the actually loaded vector style/source; terrain remains unavailable.
+- Public Nominatim is not activated. Only a minimal inactive optional-service type exists for future provider decisions.
+- Exact-head CI passed build and browser-smoke (9/9). The original CARTO-subdomain BLOCKER and two later REQUIRED credential-boundary findings were remediated and all review threads resolved. Fresh exact-head independent review found no major issue; control-plane acceptance found no remaining BLOCKER / REQUIRED / FOLLOW-UP finding for #43.
+- The separate Codex `Security Review` summary did not rebind from an earlier commit despite repeated exact-head requests; this was recorded as a tooling/modality limitation. The substantive independent-review requirement was satisfied by exact-head targeted review, deterministic credential regressions, CI, and control-plane credential/security review.
+- Live CARTO key validity, CORS/quota behavior, and future production-style changes remain explicit external-provider requalification triggers rather than accepted live-service guarantees.
+- Issue #43 is closed as completed.
 
 ### Issue #42 — indexed CAD snapping
 - PR #46 merged to `main` as `f72ecb2495f2e48573326a45b083a7a897a8465c`.
@@ -40,8 +57,9 @@
 - Issue #42 is closed as completed.
 
 ## Current active / next spatial work
-- #43 provider/basemap capability + credential-safe service contracts is next.
-- After #43, audit #7 acceptance gaps explicitly before closing the R2 spatial core.
+- Audit Issue #7 acceptance gaps explicitly against accepted #41/#42/#43 behavior and the frozen ownership of transport/activity centroids by #11.
+- If no material implementation gap remains, close the R2 spatial-core umbrella #7 as a contract/closure checkpoint rather than inventing another implementation tranche.
+- After #7 closure, proceed to #5D local project workflow.
 
 ## Current implemented stack
 - Vite 6 + React + strict TypeScript + npm/ESM.
@@ -56,7 +74,9 @@
 
 ## Current accepted product behavior
 - Map navigation and OSM raster / CARTO Voyager switching with explicit loading/error behavior.
-- Truthful compatible/unavailable 3D state; 3D is visualization only.
+- Typed OSM/CARTO provider descriptors cover provider identity, raster/vector kind, attribution/policy, credential policy, usage restrictions, building capability expectation, terrain state, and style resolution.
+- OSM is the no-key default. Voyager uses runtime-memory-only BYOK with fail-closed credential handling and keyed CARTO nested resources; credentials are not project truth.
+- Truthful compatible/unavailable 3D state based on actual loaded-style/source evidence; 3D is visualization only and terrain remains unavailable.
 - Typed authored/imported/derived project records.
 - Authored WGS84 Point, LineString, and single-exterior-ring Polygon geometry.
 - Point creation/selection/rename and authored Point drag in Select mode.
@@ -73,10 +93,9 @@
 
 ## Not yet implemented / not yet accepted
 - #5D user-facing New/Open/Save-or-equivalent project workflow.
-- Full provider capability contract from #43.
 - Traffic Movement (#29), Site Access Route (#30), Scenario/Stage (#31), presentation system (#32), Site Plan overlay (#33), semantic traffic annotations (#34).
 - Live measurement UI (#14).
-- Data-driven Desire Line / OD (#11).
+- Data-driven Desire Line / OD (#11), including persistent transport/activity centroid semantics when that workflow is implemented.
 - Pedestrian Walking Walkshed (#9).
 - Traffic-engineering result visualization (#16).
 - Engineering-grade interoperability/cartographic export package (#13).
@@ -90,7 +109,7 @@
 
 Current high-level sequence:
 
-`Finish #43/#7 -> #5D -> #29/#30/#32/#33 -> #14/#11 -> #12 -> #13/#15/#16 -> #9 when justified -> #22`
+`Finish #7 closure audit -> #5D -> #29/#30/#32/#33 -> #14/#11 -> #12 -> #13/#15/#16 -> #9 when justified -> #22`
 
 Additional rules:
 - #31/#34 enter when their concrete user workflow and dependencies justify them; they should not block the first useful traffic/access authoring set.
@@ -116,7 +135,7 @@ Additional rules:
 ## Project-state contract
 - Project Document v1 is current persisted project truth.
 - Current project state includes accepted layers/features/provenance/derived-buffer records and Point presentation.
-- Selection, tool/mode, hover, draft/edit state, map runtime/camera, import status, animation phase, and other transient UI state are not persisted project truth.
+- Selection, tool/mode, hover, draft/edit state, map runtime/camera, import status, animation phase, provider credential state, and other transient UI state are not persisted project truth.
 - History is runtime-only and resets to a fresh root after reload/recovery.
 - Project files/persistence must contain no credentials/secrets.
 - #5D owns the explicit local project workflow; #13 owns broader portable/native interoperability packages where appropriate.
@@ -174,7 +193,6 @@ If a local Playwright Chromium binary is absent, project work should not silentl
 - Triage review findings as BLOCKER / REQUIRED / FOLLOW-UP and stop once closure conditions are met.
 
 ## Current objective
-1. Implement #43 provider/basemap capability contracts.
-2. Audit and close remaining #7 spatial-core acceptance gaps.
-3. Complete #5D local project workflow.
-4. Move into the core product-authoring sequence defined by `PRODUCT_DIRECTION.md`, beginning with #29/#30/#32/#33 rather than allowing infrastructure or unrelated analytics to displace the product North Star.
+1. Audit and close remaining #7 spatial-core acceptance gaps against accepted #41/#42/#43 behavior.
+2. Complete #5D local project workflow.
+3. Move into the core product-authoring sequence defined by `PRODUCT_DIRECTION.md`, beginning with #29/#30/#32/#33 rather than allowing infrastructure or unrelated analytics to displace the product North Star.
