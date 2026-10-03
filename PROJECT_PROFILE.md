@@ -14,7 +14,7 @@
 - This baseline is merge commit PR #55 / Issue #29 T1A: bounded MapLibre-native directional renderer infrastructure/proof, accepted at PR head `1021fb9ac158348985e369dc0f77eb922f6a533b`.
 - It also includes PR #53 / Issue #5D: browser-local multi-project New/Open/Save workflow, loss-preserving legacy migration, recovery controls, and StrictMode-safe catalogue bootstrap, accepted at PR head `4d2ce745439bcdc54026f96e36218ed5af1b8a1e`.
 - It also includes PR #50 / Issue #43: typed OSM/CARTO basemap/provider capability contracts and credential-safe runtime BYOK behavior, accepted at PR head `5bf6bf84daa82d8eba6af91bfa995f6465b38994` after bounded credential/security remediation.
-- It also includes PR #46 / Issue #42: indexed screen-space CAD snapping for authored geometry, including the bounded diagonal/zig-zag segment-index remediation accepted at PR head `f33dff43c5eeaf6f4d94dc9ac46dc44`.
+- It also includes PR #46 / Issue #42: indexed screen-space CAD snapping for authored geometry, including the bounded diagonal/zig-zag segment-index remediation accepted at PR head `f33dff43c5eeaf6d779c4ef6f4d94dc9ac46dc44`.
 - It also includes PR #44 / Issue #41: WGS84 ellipsoidal geodesic kernel, plus documentation-only product-direction realignment from PR #47/#48.
 - Prior accepted foundation includes:
   - #2 workflow/project baseline;
@@ -94,7 +94,7 @@
 
 ### Issue #42 — indexed CAD snapping
 - PR #46 merged to `main` as `f72ecb2495f2e48573326a45b083a7a897a8465c`.
-- Accepted PR head: `f33dff43c5eeaf6f4d94dc9ac46dc44`.
+- Accepted PR head: `f33dff43c5eeaf6d779c4ef6f4d94dc9ac46dc44`.
 - The original P1 / REQUIRED finding was remediated by clipping segments to the screen plus the 12 CSS px tolerance and indexing only a bounded 32 CSS px grid corridor near each segment rather than every cell of its axis-aligned bounding rectangle.
 - Deterministic diagnostics cover indexed cell-entry growth; long diagonal, off-screen, zig-zag, duplicate-cell, corridor and exact-edge regressions are present.
 - Exact-head CI passed build and browser-smoke, the P1 review thread was resolved, fresh targeted review found no major issue, and control-plane acceptance found no remaining BLOCKER / REQUIRED / FOLLOW-UP finding for #42.
