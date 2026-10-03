@@ -7,7 +7,8 @@
     "dev": "vite",
     "test": "tsx tests/run-unit-tests.ts",
     "test:browser": "npm run test:browser:ci",
-    "test:browser:ci": "vite build --config tests/geodesic-vite.config.ts && playwright test --config=playwright.config.ts",
+    "test:browser:ci": "vite build --config tests/geodesic-vite.config.ts && vite build --config tests/directional-vite.config.ts && playwright test --config=playwright.config.ts",
+    "test:directional:browser": "vite build --config tests/directional-vite.config.ts && playwright test --config=playwright.config.ts directional-browser.spec.ts",
     "typecheck": "tsc --noEmit",
     "build": "vite build",
     "preview": "vite preview"

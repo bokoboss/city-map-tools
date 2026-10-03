@@ -1,0 +1,46 @@
+{
+  "cap": {
+    "running": true,
+    "pendingFrames": 1,
+    "updates": 0,
+    "inputRebuilds": 2,
+    "projectionRebuilds": 2,
+    "sourceUpdates": 2,
+    "arrowFeatures": 504,
+    "arrowUpdateMsMean": 0.34999999962747097,
+    "arrowUpdateMsMax": 0.5,
+    "animatedArrowFeatures": 504,
+    "inputs": 24,
+    "reducedMotion": false,
+    "hidden": false,
+    "destroyed": false,
+    "sources": 2,
+    "layers": 2,
+    "ownedListeners": 4,
+    "limitations": [
+      "Arrow cap 512: display spacing increased; all accepted paths retained."
+    ]
+  },
+  "end": {
+    "running": true,
+    "pendingFrames": 1,
+    "updates": 20,
+    "inputRebuilds": 2,
+    "projectionRebuilds": 2,
+    "sourceUpdates": 22,
+    "arrowFeatures": 504,
+    "arrowUpdateMsMean": 0.2454545455561443,
+    "arrowUpdateMsMax": 0.5,
+    "animatedArrowFeatures": 504,
+    "inputs": 24,
+    "reducedMotion": false,
+    "hidden": false,
+    "destroyed": false,
+    "sources": 2,
+    "layers": 2,
+    "ownedListeners": 4,
+    "limitations": [
+      "Arrow cap 512: display spacing increased; all accepted paths retained."
+    ]
+  }
+}
