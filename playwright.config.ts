@@ -1,10 +1,11 @@
 import { defineConfig } from '@playwright/test';
 
 const previewUrl = 'http://127.0.0.1:4173/city-map-tools/';
+const chromiumExecutable = process.env.CITY_MAP_TOOLS_CHROMIUM_EXECUTABLE;
 export default defineConfig({
   globalTeardown: './tests/browser-smoke-teardown.mjs',
   testDir: './tests',
-  testMatch: ['ci-browser-smoke.spec.ts', 'geodesic-bundle-browser.spec.ts', 'snap-browser.spec.ts', 'provider-browser.spec.ts'],
+  testMatch: ['ci-browser-smoke.spec.ts', 'project-workflow-browser.spec.ts', 'geodesic-bundle-browser.spec.ts', 'snap-browser.spec.ts', 'provider-browser.spec.ts'],
   outputDir: './output/playwright/browser-smoke',
   fullyParallel: false,
   workers: 1,
@@ -15,7 +16,10 @@ export default defineConfig({
     baseURL: previewUrl,
     browserName: 'chromium',
     headless: true,
-    launchOptions: { args: ['--use-gl=angle', '--use-angle=swiftshader'] },
+    launchOptions: {
+      ...(chromiumExecutable ? { executablePath: chromiumExecutable } : {}),
+      args: ['--use-gl=angle', '--use-angle=swiftshader'],
+    },
   },
   webServer: [
     {

@@ -39,21 +39,71 @@ p { margin: 6px 0 0; line-height: 1.5; }
 
 .app { height: 100dvh; min-height: 480px; display: flex; flex-direction: column; }
 .app-header {
+  position: relative;
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  padding: 15px 22px;
+  padding: 15px 22px 57px;
   background: var(--surface-panel);
   border-bottom: 1px solid var(--border);
 }
 .reload-control { display: flex; align-items: center; gap: 8px; }
 .reload-control .history-button { padding: 6px 9px; font-size: 12px; }
-.reload-control p { max-width: 300px; color: var(--text-muted); font-size: 11px; }
 h1 { font-size: 21px; margin: 0; letter-spacing: -0.4px; }
 .app-header p { font-size: 13px; color: var(--text-muted); }
 .app-header .project-save-state { font-size: 12px; max-width: 430px; }
 .project-save-error { color: var(--danger) !important; }
+.project-header-identity { min-width: 280px; }
+.current-project-identity { display: flex; align-items: baseline; gap: 8px; margin-top: 7px; }
+.current-project-identity span { color: var(--text-muted); font-size: 11px; text-transform: uppercase; letter-spacing: .04em; }
+.current-project-identity strong { max-width: 320px; overflow: hidden; font-size: 15px; text-overflow: ellipsis; white-space: nowrap; }
+.project-workflow-actions { display: flex; gap: 8px; margin-top: 8px; }
+.project-action-reason, .project-feedback, .project-recovery-note { max-width: 640px; color: var(--text-muted); font-size: 12px !important; }
+.project-feedback { color: var(--accent) !important; }
+.project-recovery-note { color: var(--danger) !important; }
+.project-header-message { position: absolute; left: 22px; bottom: 8px; min-height: 42px; margin: 0; max-width: 640px; }
+.project-dialog-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: grid;
+  place-items: center;
+  padding: 16px;
+  background: rgb(18 30 39 / 48%);
+}
+.project-manager-panel {
+  width: min(600px, 100%);
+  max-height: calc(100dvh - 32px);
+  overflow: auto;
+  padding: 20px;
+  color: var(--text-primary);
+  background: var(--surface-panel);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  box-shadow: 0 18px 60px rgb(12 24 32 / 28%);
+}
+.project-manager-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
+.project-manager-header h2, .project-recovery-panel h2 { margin: 0; font-size: 18px; }
+.project-manager-header p { max-width: 430px; color: var(--text-muted); font-size: 12px; }
+.new-project-form { margin: 18px 0; padding: 14px; border: 1px solid var(--border-subtle); border-radius: 8px; }
+.new-project-form label { display: block; margin-bottom: 7px; font-size: 12px; font-weight: 650; }
+.new-project-controls { display: flex; gap: 8px; }
+.new-project-controls input { flex: 1; min-width: 0; }
+.local-project-list h3 { margin: 16px 0 8px; font-size: 13px; }
+.local-project-list ul { display: grid; gap: 7px; padding: 0; margin: 0; list-style: none; }
+.local-project-list li { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px; border: 1px solid var(--border-subtle); border-radius: 7px; }
+.local-project-list li.active-project { border-color: var(--accent); background: var(--surface-selected); }
+.local-project-summary { display: grid; gap: 3px; min-width: 0; }
+.local-project-summary strong { overflow-wrap: anywhere; }
+.local-project-summary time, .active-project-tag, .unavailable-project-tag { color: var(--text-muted); font-size: 11px; }
+.active-project-tag { color: var(--accent); font-weight: 700; }
+.unavailable-project-tag { color: var(--danger); }
+.project-recovery { height: auto; min-height: 100dvh; padding-bottom: 24px; background: var(--surface-canvas); }
+.project-recovery .app-header { justify-content: flex-start; }
+.project-recovery-panel { width: min(720px, calc(100% - 32px)); margin: 24px auto; padding: 20px; background: var(--surface-panel); border: 1px solid var(--border); border-radius: 10px; }
+.project-recovery-panel > p { margin: 10px 0; }
+.project-recovery-panel .project-manager-panel { width: 100%; max-height: none; margin-top: 18px; padding: 14px; box-shadow: none; }
 
 .map-workspace { flex: 1; min-height: 0; display: flex; }
 .map-controls {
@@ -219,9 +269,14 @@ summary { cursor: pointer; font-weight: 650; padding: 4px 0; }
 
 @media (max-width: 640px) {
   .app { min-height: 680px; }
-  .app-header { padding: 12px; }
+  .app-header { flex-wrap: wrap; align-items: flex-start; padding: 12px 12px 60px; }
+  .project-header-identity { min-width: 0; flex: 1 1 100%; }
+  .current-project-identity strong { max-width: calc(100vw - 150px); }
   .reload-control { align-items: flex-end; }
-  .reload-control p { position: absolute; top: 54px; right: 12px; max-width: 220px; }
+  .project-header-message { left: 12px; right: 12px; max-width: none; }
+  .project-manager-panel { padding: 14px; }
+  .new-project-controls { flex-direction: column; }
+  .local-project-list li { align-items: flex-start; }
   .map-workspace { flex-direction: column; }
   .map-controls { flex: 0 0 auto; max-height: 390px; padding: 12px; border-right: 0; border-bottom: 1px solid var(--border); }
   .map-status { margin-top: 10px; padding: 8px; }

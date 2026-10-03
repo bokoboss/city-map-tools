@@ -1,5 +1,6 @@
 import { expect, test } from '@playwright/test';
 import { readFile } from 'node:fs/promises';
+import { readActiveProjectRecord } from './project-browser-helpers';
 
 test('hosted CAD snapping preserves exact WGS84 vertices while drawing', async ({ page, request }) => {
   await page.route('**/*', async route => {
@@ -11,20 +12,9 @@ test('hosted CAD snapping preserves exact WGS84 vertices while drawing', async (
       await route.continue();
     } else await route.abort();
   });
-  const readProject = () => page.evaluate(() => new Promise<{
+  const readProject = async () => JSON.parse((await readActiveProjectRecord(page)).value as string) as {
     features: Array<{ type: string; coordinates: number[] | number[][] | number[][][] }>;
-  }>((resolve, reject) => {
-    const open = indexedDB.open('city-map-tools', 1);
-    open.onerror = () => reject(open.error);
-    open.onsuccess = () => {
-      const db = open.result;
-      const transaction = db.transaction('project-state', 'readonly');
-      const get = transaction.objectStore('project-state').get('last-accepted-project');
-      get.onsuccess = () => resolve(JSON.parse(get.result));
-      transaction.oncomplete = () => db.close();
-      transaction.onerror = () => reject(transaction.error);
-    };
-  }));
+  };
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.goto('/');
   await expect(page.locator('.map-status strong')).toHaveText('Ready', { timeout: 30_000 });
@@ -134,18 +124,9 @@ test('authored Point drag shares snap policy and commits only on release', async
       await route.continue();
     } else await route.abort();
   });
-  const readProject = () => page.evaluate(() => new Promise<{ features: Array<{ name: string; coordinates: number[] }> }>((resolve, reject) => {
-    const open = indexedDB.open('city-map-tools', 1);
-    open.onerror = () => reject(open.error);
-    open.onsuccess = () => {
-      const db = open.result;
-      const transaction = db.transaction('project-state', 'readonly');
-      const get = transaction.objectStore('project-state').get('last-accepted-project');
-      get.onsuccess = () => resolve(JSON.parse(get.result));
-      transaction.oncomplete = () => db.close();
-      transaction.onerror = () => reject(transaction.error);
-    };
-  }));
+  const readProject = async () => JSON.parse((await readActiveProjectRecord(page)).value as string) as {
+    features: Array<{ name: string; coordinates: number[] }>;
+  };
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.goto('/');
   await expect(page.locator('.map-status strong')).toHaveText('Ready', { timeout: 30_000 });
@@ -223,20 +204,9 @@ test('hidden, imported, derived, and self geometry cannot snap; camera and style
       await route.continue();
     } else await route.abort();
   });
-  const readProject = () => page.evaluate(() => new Promise<{
+  const readProject = async () => JSON.parse((await readActiveProjectRecord(page)).value as string) as {
     features: Array<{ name: string; type: string; coordinates: number[] | number[][] }>;
-  }>((resolve, reject) => {
-    const open = indexedDB.open('city-map-tools', 1);
-    open.onerror = () => reject(open.error);
-    open.onsuccess = () => {
-      const db = open.result;
-      const transaction = db.transaction('project-state', 'readonly');
-      const get = transaction.objectStore('project-state').get('last-accepted-project');
-      get.onsuccess = () => resolve(JSON.parse(get.result));
-      transaction.oncomplete = () => db.close();
-      transaction.onerror = () => reject(transaction.error);
-    };
-  }));
+  };
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.goto('/');
   await expect(page.locator('.map-status strong')).toHaveText('Ready', { timeout: 30_000 });

@@ -1,5 +1,6 @@
 import { expect, test } from '@playwright/test';
 import { readFile } from 'node:fs/promises';
+import { readActiveProjectRecord, readProjectRecord, writeProjectRecord } from './project-browser-helpers';
 
 const tileServerUrl = 'http://127.0.0.1:4175/tile.png';
 const tileHost = 'tile.openstreetmap.org';
@@ -34,18 +35,7 @@ test('hosted app commits authored Point drags once and preserves history and rec
     await route.abort();
   });
 
-  const readStoredProject = () => page.evaluate(() => new Promise<unknown>((resolve, reject) => {
-    const open = indexedDB.open('city-map-tools', 1);
-    open.onerror = () => reject(new Error('Could not open the project database.'));
-    open.onsuccess = () => {
-      const database = open.result;
-      const transaction = database.transaction('project-state', 'readonly');
-      const get = transaction.objectStore('project-state').get('last-accepted-project');
-      get.onsuccess = () => resolve(get.result);
-      transaction.onerror = () => reject(new Error('Could not read the stored project.'));
-      transaction.oncomplete = () => database.close();
-    };
-  }));
+  const readStoredProject = async () => (await readActiveProjectRecord(page)).value;
   const pointCoordinates = (record: unknown, name: string): number[] => {
     expect(typeof record).toBe('string');
     const document = JSON.parse(record as string) as { features: Array<{ type: string; name: string; coordinates: number[] }> };
@@ -259,19 +249,6 @@ test('hosted app commits authored Point drags once and preserves history and rec
   expect(reloadedRecord).toBe(finalSavedRecord);
   expect(pointCoordinates(reloadedRecord, 'Point 1')).toEqual(movedCoordinates);
   expect(bufferStatus(reloadedRecord)).toBe('Stale');
-  const writeStoredProject = (record: unknown) => page.evaluate(value => new Promise<void>((resolve, reject) => {
-    const open = indexedDB.open('city-map-tools', 1);
-    open.onerror = () => reject(new Error('Could not open the project database for the recovery fixture.'));
-    open.onsuccess = () => {
-      const database = open.result;
-      const transaction = database.transaction('project-state', 'readwrite');
-      transaction.objectStore('project-state').put(value, 'last-accepted-project');
-      transaction.oncomplete = () => { database.close(); resolve(); };
-      transaction.onerror = () => { database.close(); reject(new Error('Could not write the recovery fixture.')); };
-      transaction.onabort = () => { database.close(); reject(new Error('Recovery fixture write was aborted.')); };
-    };
-  }), record);
-
   const savedRecord = await readStoredProject();
   expect(typeof savedRecord).toBe('string');
   const corruptRecords = [
@@ -279,20 +256,18 @@ test('hosted app commits authored Point drags once and preserves history and rec
     JSON.stringify({ ...(JSON.parse(savedRecord as string) as object), schemaVersion: 2 }),
   ];
   for (const invalidRecord of corruptRecords) {
-    await writeStoredProject(invalidRecord);
+    const recoveryProjectId = (await readActiveProjectRecord(page)).projectId;
+    await writeProjectRecord(page, `project:${recoveryProjectId}`, invalidRecord);
     await page.reload();
-    await expect(page.locator('.map-status strong')).toHaveText('Ready', { timeout: 30_000 });
-    await expect(page.locator('.project-save-state strong')).toHaveText('Error');
-    await expect(page.locator('.feature-row')).toHaveCount(0);
-
-    await page.getByRole('button', { name: 'Point tool', exact: true }).click();
-    const currentBounds = await canvas.boundingBox();
-    expect(currentBounds).not.toBeNull();
-    await page.mouse.click(currentBounds!.x + currentBounds!.width * 0.48, currentBounds!.y + currentBounds!.height * 0.48);
-    await expect(page.locator('.feature-row')).toHaveCount(1);
-    await page.waitForTimeout(700);
-    await expect(page.locator('.project-save-state strong')).toHaveText('Error');
-    expect(await readStoredProject()).toBe(invalidRecord);
+    await expect(page.getByRole('region', { name: 'Browser-local project recovery' })).toBeVisible();
+    await expect(page.locator('.project-recovery-panel')).toContainText(/not overwritten or deleted/i);
+    expect(await readProjectRecord(page, `project:${recoveryProjectId}`)).toBe(invalidRecord);
+    await page.getByLabel('New local project name', { exact: true }).fill('Recovery project');
+    await page.getByRole('button', { name: 'New project', exact: true }).click();
+    await expect(page.getByLabel('Current project name')).toHaveText('Recovery project');
+    await expect(page.locator('.project-save-state strong')).toHaveText('Saved');
+    expect((await readActiveProjectRecord(page)).projectId).not.toBe(recoveryProjectId);
+    expect(await readProjectRecord(page, `project:${recoveryProjectId}`)).toBe(invalidRecord);
   }
 
   expect(unexpectedExternalRequests).toEqual([]);

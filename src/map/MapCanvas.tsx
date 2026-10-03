@@ -34,6 +34,7 @@ interface MapCanvasProps {
   layers: readonly FeatureLayer[];
   selectedFeatureId: string | null;
   mode: EditorMode;
+  interactionLocked: boolean;
   importStatus: string;
   pointPresentations: Readonly<Record<string, PointPresentation>>;
   onModeChange: (mode: EditorMode) => void;
@@ -84,6 +85,7 @@ export function MapCanvas({
   layers,
   selectedFeatureId,
   mode,
+  interactionLocked,
   importStatus,
   pointPresentations,
   onModeChange,
@@ -216,10 +218,10 @@ export function MapCanvas({
       color: layers.find(layer => layer.id === feature.layerId)?.color || '#f43f5e',
       selected: feature.id === selectedFeatureId,
       presentation: pointPresentationFor(pointPresentations, feature.id),
-      draggable: mode === 'select' && feature.lineage === 'authored',
+      draggable: !interactionLocked && mode === 'select' && feature.lineage === 'authored',
     })));
     controller.current?.setGeometryOverlays(features, layers, selectedFeatureId);
-  }, [features, layers, mode, pointPresentations, selectedFeatureId]);
+  }, [features, interactionLocked, layers, mode, pointPresentations, selectedFeatureId]);
 
   useEffect(() => {
     const handleEscape = (event: KeyboardEvent) => {
@@ -272,6 +274,7 @@ export function MapCanvas({
   };
 
   const selectTool = (nextMode: Exclude<EditorMode, 'editing'>) => {
+    if (interactionLocked) return;
     const accepted = controller.current?.setEditorMode(nextMode);
     if (accepted === false) return;
     onModeChange(nextMode);
@@ -338,12 +341,12 @@ export function MapCanvas({
           <h2>Data</h2>
           <div className="file-actions">
             <label
-              className={`file-button${mode === 'select' ? '' : ' disabled'}`}
-              aria-disabled={mode === 'select' ? undefined : 'true'}
-              aria-describedby={mode === 'select' ? undefined : 'import-reason'}
+              className={`file-button${mode === 'select' && !interactionLocked ? '' : ' disabled'}`}
+              aria-disabled={mode === 'select' && !interactionLocked ? undefined : 'true'}
+              aria-describedby={mode === 'select' && !interactionLocked ? undefined : 'import-reason'}
             >
               Import Points GeoJSON
-              <input type="file" accept=".geojson,.json,application/geo+json,application/json" disabled={mode !== 'select'} onChange={event => {
+              <input type="file" accept=".geojson,.json,application/geo+json,application/json" disabled={interactionLocked || mode !== 'select'} onChange={event => {
                 const file = event.target.files?.[0];
                 if (file) onImportFile(file);
                 event.target.value = '';
@@ -370,6 +373,7 @@ export function MapCanvas({
                     aria-label={`${layer.visible ? 'Hide' : 'Show'} ${layer.name} layer`}
                     aria-pressed={layer.visible}
                     data-layer-id={layer.id}
+                    disabled={interactionLocked}
                     onClick={() => {
                       const result = onLayerVisibilityChange(layer.id);
                       if (!result.ok) setEditorStatus(result.message);
@@ -378,7 +382,7 @@ export function MapCanvas({
                 </div>
                 {layerFeatures.length > 0 && <ul className="feature-list">
                   {layerFeatures.map(feature => <li key={feature.id}>
-                    <button type="button" className={`feature-row ${feature.id === selectedFeatureId ? 'selected' : ''}`} onClick={() => onFeatureSelect(feature.id)}>
+                    <button type="button" className={`feature-row ${feature.id === selectedFeatureId ? 'selected' : ''}`} disabled={interactionLocked} onClick={() => onFeatureSelect(feature.id)}>
                       <span className="feature-row-name">{feature.name}</span>
                       <span className="feature-row-lineage">{feature.lineage}</span>
                     </button>
@@ -387,6 +391,7 @@ export function MapCanvas({
                       className="feature-visibility"
                       aria-label={`${feature.visible ? 'Hide' : 'Show'} ${feature.name}`}
                       aria-pressed={feature.visible}
+                      disabled={interactionLocked}
                       onClick={() => {
                         const result = onFeatureVisibilityChange(feature.id);
                         if (!result.ok) setEditorStatus(result.message);
@@ -407,6 +412,7 @@ export function MapCanvas({
             id="feature-name"
             value={featureNameDraft}
             maxLength={500}
+            disabled={interactionLocked}
             onChange={event => setFeatureNameDraft(event.target.value)}
             onBlur={event => commitFeatureName(event.currentTarget.value)}
             onKeyDown={handleFeatureNameKeyDown}
@@ -446,28 +452,28 @@ export function MapCanvas({
             <h3>Point presentation</h3>
             <p>Presentation only: part of current project state, not exported or used for geometry or buffers.</p>
             <label htmlFor="point-marker-kind">Marker type</label>
-            <select id="point-marker-kind" value={selectedPointPresentation.marker} onChange={event => {
+            <select id="point-marker-kind" value={selectedPointPresentation.marker} disabled={interactionLocked} onChange={event => {
               const result = onPointPresentationChange(selectedFeature.id, { marker: event.target.value as PointMarkerKind });
               if (!result.ok) setEditorStatus(result.message);
             }}>
               {POINT_MARKER_KINDS.map(kind => <option key={kind} value={kind}>{kind === 'dot' ? 'Dot — center hotspot' : 'Pin — tip hotspot'}</option>)}
             </select>
             <label htmlFor="point-marker-size">Marker size</label>
-            <select id="point-marker-size" value={selectedPointPresentation.markerSize} onChange={event => {
+            <select id="point-marker-size" value={selectedPointPresentation.markerSize} disabled={interactionLocked} onChange={event => {
               const result = onPointPresentationChange(selectedFeature.id, { markerSize: Number(event.target.value) as PointMarkerSize });
               if (!result.ok) setEditorStatus(result.message);
             }}>
               {POINT_MARKER_SIZES.map(size => <option key={size} value={size}>{size} px</option>)}
             </select>
             <label className="presentation-checkbox" htmlFor="point-label-visible">
-              <input id="point-label-visible" type="checkbox" checked={selectedPointPresentation.labelVisible} onChange={event => {
+              <input id="point-label-visible" type="checkbox" checked={selectedPointPresentation.labelVisible} disabled={interactionLocked} onChange={event => {
                 const result = onPointPresentationChange(selectedFeature.id, { labelVisible: event.target.checked });
                 if (!result.ok) setEditorStatus(result.message);
               }} />
               Show point label
             </label>
             <label htmlFor="point-label-position">Label position</label>
-            <select id="point-label-position" value={selectedPointPresentation.labelPosition} onChange={event => {
+            <select id="point-label-position" value={selectedPointPresentation.labelPosition} disabled={interactionLocked} onChange={event => {
               const result = onPointPresentationChange(selectedFeature.id, { labelPosition: event.target.value as PointPresentation['labelPosition'] });
               if (!result.ok) setEditorStatus(result.message);
             }}>
@@ -476,24 +482,24 @@ export function MapCanvas({
           </section>}
 
           <div className="inspector-actions">
-            {canEditGeometry && mode !== 'editing' && <button type="button" onClick={beginEdit}>Edit geometry</button>}
+            {canEditGeometry && mode !== 'editing' && <button type="button" disabled={interactionLocked} onClick={beginEdit}>Edit geometry</button>}
             {canEditGeometry && mode === 'editing' && <>
-              <button type="button" onClick={applyEdit}>Apply geometry</button>
-              <button type="button" onClick={cancelActiveMode}>Cancel edit</button>
+              <button type="button" disabled={interactionLocked} onClick={applyEdit}>Apply geometry</button>
+              <button type="button" disabled={interactionLocked} onClick={cancelActiveMode}>Cancel edit</button>
             </>}
             {canBuffer && <div className="buffer-actions">
               <label htmlFor="buffer-radius">Buffer radius (metres)</label>
-              <input id="buffer-radius" type="number" min="1" max="10000" step="1" value={bufferRadius} onChange={event => setBufferRadius(event.target.value)} />
-              <button type="button" onClick={createBuffer}>Create derived buffer</button>
+              <input id="buffer-radius" type="number" min="1" max="10000" step="1" value={bufferRadius} disabled={interactionLocked} onChange={event => setBufferRadius(event.target.value)} />
+              <button type="button" disabled={interactionLocked} onClick={createBuffer}>Create derived buffer</button>
               <p>1–10,000 metres is an operational safety bound, not an engineering standard. Derived buffers are unvalidated and read-only.</p>
             </div>}
             {selectedFeature.lineage === 'derived' && <p className="control-help">Derived buffer geometry is read-only. Delete it or regenerate it from a current authored source.</p>}
             {deleteConfirmationId !== selectedFeature.id
-              ? <button type="button" className="danger-button" onClick={() => setDeleteConfirmationId(selectedFeature.id)}>Delete feature</button>
+              ? <button type="button" className="danger-button" disabled={interactionLocked} onClick={() => setDeleteConfirmationId(selectedFeature.id)}>Delete feature</button>
               : <div className="delete-confirmation" role="alert">
                 <p>This project edit can be reversed with Undo.</p>
-                <button type="button" className="danger-button" onClick={deleteSelected}>Confirm delete</button>
-                <button type="button" onClick={() => setDeleteConfirmationId(null)}>Keep feature</button>
+                <button type="button" className="danger-button" disabled={interactionLocked} onClick={deleteSelected}>Confirm delete</button>
+                <button type="button" disabled={interactionLocked} onClick={() => setDeleteConfirmationId(null)}>Keep feature</button>
               </div>}
           </div>
         </section>}
@@ -570,11 +576,11 @@ export function MapCanvas({
       </aside>
       <div className="map-stage">
         <div className="spatial-toolbar" role="toolbar" aria-label="Spatial tools">
-          <button type="button" aria-label="Select tool" aria-pressed={mode === 'select'} onClick={() => selectTool('select')}>Select</button>
-          <button type="button" aria-label="Point tool" aria-pressed={mode === 'point'} onClick={() => selectTool('point')}>Point</button>
-          <button type="button" aria-label="Line tool" aria-pressed={mode === 'line'} onClick={() => selectTool('line')}>Line</button>
-          <button type="button" aria-label="Polygon tool" aria-pressed={mode === 'polygon'} onClick={() => selectTool('polygon')}>Polygon</button>
-          {mode !== 'select' && <button type="button" className="toolbar-cancel" onClick={cancelActiveMode}>Cancel</button>}
+          <button type="button" aria-label="Select tool" aria-pressed={mode === 'select'} disabled={interactionLocked} onClick={() => selectTool('select')}>Select</button>
+          <button type="button" aria-label="Point tool" aria-pressed={mode === 'point'} disabled={interactionLocked} onClick={() => selectTool('point')}>Point</button>
+          <button type="button" aria-label="Line tool" aria-pressed={mode === 'line'} disabled={interactionLocked} onClick={() => selectTool('line')}>Line</button>
+          <button type="button" aria-label="Polygon tool" aria-pressed={mode === 'polygon'} disabled={interactionLocked} onClick={() => selectTool('polygon')}>Polygon</button>
+          {mode !== 'select' && <button type="button" className="toolbar-cancel" disabled={interactionLocked} onClick={cancelActiveMode}>Cancel</button>}
         </div>
         <div className="editor-status" role="status" aria-live="polite">{editorStatus}</div>
         <div ref={container} className="map-canvas" aria-label="Interactive map" />
