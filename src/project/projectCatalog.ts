@@ -157,12 +157,26 @@ function recovery(
 }
 
 export class ProjectCatalog {
+  private bootstrapInFlight: Promise<ProjectCatalogBootstrap> | null = null;
+
   constructor(
     private readonly storage: ProjectCatalogStorageAdapter,
     private readonly identity: ProjectCatalogIdentity = browserIdentity,
   ) {}
 
-  async bootstrap(): Promise<ProjectCatalogBootstrap> {
+  bootstrap(): Promise<ProjectCatalogBootstrap> {
+    if (this.bootstrapInFlight) return this.bootstrapInFlight;
+
+    const operation = this.bootstrapFromStorage();
+    this.bootstrapInFlight = operation;
+    const clearInFlight = () => {
+      if (this.bootstrapInFlight === operation) this.bootstrapInFlight = null;
+    };
+    void operation.then(clearInFlight, clearInFlight);
+    return operation;
+  }
+
+  private async bootstrapFromStorage(): Promise<ProjectCatalogBootstrap> {
     // A concurrent tab is not an accepted editing workflow, but re-reading a
     // changed snapshot once keeps migration fail-preserving if one appears.
     for (let attempt = 0; attempt < 3; attempt += 1) {

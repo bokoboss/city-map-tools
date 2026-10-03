@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { createEmptyProjectDocument, serializeProjectDocument } from '../src/project/projectDocument';
+import { createEmptyProjectDocument, parseProjectDocumentJson, serializeProjectDocument } from '../src/project/projectDocument';
 import {
   ACTIVE_PROJECT_ID_KEY,
   LEGACY_PROJECT_RECORD_KEY,
@@ -16,6 +16,7 @@ class MemoryCatalogStorage implements ProjectCatalogStorageAdapter {
   records: Map<string, unknown>;
   failMigration = false;
   failCreate = false;
+  readDelayMs = 0;
   events: string[] = [];
 
   constructor(records: Iterable<readonly [string, unknown]> = []) {
@@ -24,7 +25,11 @@ class MemoryCatalogStorage implements ProjectCatalogStorageAdapter {
 
   async readAll(): Promise<ReadonlyMap<string, unknown>> {
     this.events.push('read');
-    return new Map(this.records);
+    const snapshot = new Map(this.records);
+    if (this.readDelayMs > 0) {
+      await new Promise(resolve => setTimeout(resolve, this.readDelayMs));
+    }
+    return snapshot;
   }
 
   async migrateLegacy(serializedProject: string, projectId: string): Promise<boolean> {
@@ -70,6 +75,60 @@ function catalog(storage: MemoryCatalogStorage, ids: string[] = ['generated'], n
 }
 
 async function runCatalogTests(): Promise<void> {
+  {
+    const storage = new MemoryCatalogStorage();
+    storage.readDelayMs = 10;
+    const sharedCatalog = catalog(storage, ['strict-mode-first', 'strict-mode-second']);
+    const firstCall = sharedCatalog.bootstrap();
+    const secondCall = sharedCatalog.bootstrap();
+    assert.equal(firstCall, secondCall, 'concurrent startup callers share the in-flight bootstrap operation');
+
+    const [first, second] = await Promise.all([firstCall, secondCall]);
+    assert.equal(first, second, 'concurrent callers resolve to the same initial project');
+    assert.equal(first.kind, 'ready');
+    if (first.kind !== 'ready') throw new Error('empty catalogue bootstrap did not create a project');
+    const projectKeys = [...storage.records.keys()].filter(key => key.startsWith('project:'));
+    assert.deepEqual(projectKeys, ['project:strict-mode-first'], 'empty startup creates exactly one namespaced project');
+    assert.equal(storage.records.get(ACTIVE_PROJECT_ID_KEY), 'strict-mode-first');
+    assert.equal([...storage.records.keys()].filter(key => key === ACTIVE_PROJECT_ID_KEY).length, 1);
+    assert.equal(first.activeProjectId, 'strict-mode-first');
+    const stored = storage.records.get(projectRecordKey(first.activeProjectId));
+    assert.equal(typeof stored, 'string');
+    const document = parseProjectDocumentJson(stored as string);
+    assert.equal(document.metadata.id, first.activeProjectId, 'created Project Document v1 is valid and matches its key');
+    assert.equal(document.metadata.name, 'Untitled project', 'the single startup project is the only Untitled project');
+    assert.equal(storage.records.has(LEGACY_PROJECT_RECORD_KEY), false, 'empty bootstrap does not create a legacy record');
+    assert.equal(storage.events.filter(event => event === 'read').length, 1);
+    assert.equal(storage.events.filter(event => event === 'create').length, 1);
+    assert.equal(storage.events.includes('migrate'), false);
+
+    const later = await sharedCatalog.bootstrap();
+    assert.equal(later.kind, 'ready');
+    if (later.kind !== 'ready') throw new Error('completed bootstrap prevented a later catalogue read');
+    assert.equal(later.activeProjectId, first.activeProjectId);
+    assert.equal(storage.events.filter(event => event === 'read').length, 2, 'completed bootstrap is not permanently cached');
+    assert.equal(storage.events.filter(event => event === 'create').length, 1, 'later reads do not create another startup project');
+  }
+
+  {
+    const storage = new MemoryCatalogStorage();
+    storage.failCreate = true;
+    const retryableCatalog = catalog(storage, ['failed-attempt', 'retry-project']);
+    await assert.rejects(retryableCatalog.bootstrap(), /transaction aborted/);
+    assert.equal(storage.records.size, 0, 'failed initial creation leaves the empty catalogue intact');
+
+    storage.failCreate = false;
+    const retried = await retryableCatalog.bootstrap();
+    assert.equal(retried.kind, 'ready', 'a rejected bootstrap does not poison a later retry');
+    if (retried.kind !== 'ready') throw new Error('retry after failed bootstrap did not create a project');
+    assert.equal(retried.activeProjectId, 'retry-project');
+    assert.deepEqual([...storage.records.keys()].filter(key => key.startsWith('project:')), ['project:retry-project']);
+    assert.equal(storage.records.get(ACTIVE_PROJECT_ID_KEY), 'retry-project');
+    assert.equal(storage.records.has(LEGACY_PROJECT_RECORD_KEY), false);
+    assert.equal(storage.events.filter(event => event === 'read').length, 2);
+    assert.equal(storage.events.filter(event => event === 'create').length, 2);
+  }
+
   {
     const original = text('legacy-project', 'Project A');
     const storage = new MemoryCatalogStorage([[LEGACY_PROJECT_RECORD_KEY, original]]);
