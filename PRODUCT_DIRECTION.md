@@ -101,9 +101,9 @@ Important domain value after the core authoring workspace is mature:
 
 The implementation sequence may change for dependencies, but product priority must not silently drift because infrastructure work is easier to schedule.
 
-Current high-level direction after the accepted R1 foundation:
+Current high-level direction after the accepted R1B and R2 foundation:
 
-`Finish #42/#43/#7 -> #5D project workflow -> #29/#30/#32/#33 -> #14/#11 -> #12 -> #13/#15/#16 -> #9 when justified -> #22`
+`#29/#30/#32/#33 -> #14/#11 -> #12 -> #13/#15/#16 -> #9 when justified -> #22`
 
 Notes:
 - #31 and #34 should enter when their dependencies and concrete study workflow justify them; they must not block the first useful authoring/presentation set.
