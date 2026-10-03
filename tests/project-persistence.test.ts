@@ -145,6 +145,22 @@ for (const record of [
 {
   const scheduler = new Scheduler();
   const baseline = fresh();
+  const storage = new Storage(serializeProjectDocument(baseline));
+  const persistence = new ProjectPersistence(baseline, storage, scheduler);
+  await persistence.bootstrap();
+  const newest = edit(baseline);
+  persistence.commit(newest);
+  assert.equal(scheduler.tasks.size, 1, 'committed edits still use the existing debounce');
+  await persistence.flushNow();
+  assert.equal(scheduler.tasks.size, 0, 'Save now cancels the pending debounce');
+  assert.equal(storage.record, serializeProjectDocument(newest));
+  assert.equal(storage.writes.length, 1, 'Save now uses the same project persistence path');
+  assert.equal(persistence.getStatus().state, 'Saved');
+}
+
+{
+  const scheduler = new Scheduler();
+  const baseline = fresh();
   const saves: { text: string; resolve: () => void; reject: (error: Error) => void }[] = [];
   const storage: ProjectStorageAdapter = {
     load: async () => serializeProjectDocument(baseline),
@@ -172,6 +188,102 @@ for (const record of [
   saves[1]!.resolve();
   await settle();
   assert.equal(persistence.getStatus().state, 'Saved');
+}
+
+{
+  const scheduler = new Scheduler();
+  const baseline = fresh();
+  const saves: { text: string; resolve: () => void; reject: (error: Error) => void }[] = [];
+  const storage: ProjectStorageAdapter = {
+    load: async () => serializeProjectDocument(baseline),
+    save: text => new Promise((resolve, reject) => saves.push({ text, resolve, reject })),
+  };
+  const persistence = new ProjectPersistence(baseline, storage, scheduler);
+  await persistence.bootstrap();
+  persistence.commit(edit(baseline));
+  scheduler.fire();
+  assert.equal(saves.length, 1);
+  const flushing = persistence.flushNow();
+  const newest = executeProjectCommand(
+    createProjectHistory(edit(baseline)), { type: 'renameFeature', id: 'point-1', name: 'Committed during Save now' },
+    '2026-09-27T00:00:03.000Z',
+  ).present;
+  persistence.commit(newest);
+  saves[0]!.resolve();
+  await settle();
+  assert.equal(saves.length, 2, 'Save now waits for an in-flight save and follows it with the newest committed revision');
+  assert.equal(saves[1]!.text, serializeProjectDocument(newest));
+  saves[1]!.resolve();
+  await flushing;
+  assert.equal(persistence.getStatus().state, 'Saved');
+}
+
+{
+  const scheduler = new Scheduler();
+  const baseline = fresh();
+  const storage = new Storage(serializeProjectDocument(baseline));
+  const persistence = new ProjectPersistence(baseline, {
+    load: async () => storage.record,
+    save: async text => { throw new ProjectStorageError('quota'); },
+  }, scheduler);
+  await persistence.bootstrap();
+  persistence.commit(edit(baseline));
+  await assert.rejects(persistence.flushNow(), /Project storage quota failure/);
+  assert.equal(persistence.getStatus().state, 'Error', 'failed Save now reports Error');
+  assert.equal(persistence.getStatus().message.includes('quota'), true);
+  assert.equal(persistence.getCurrent().features.length, 1, 'failed Save now retains committed work in memory');
+}
+
+{
+  const baselineA = createEmptyProjectDocument({ id: 'project-a', createdAt: time });
+  const baselineB = createEmptyProjectDocument({ id: 'project-b', createdAt: time });
+  const records = new Map([
+    ['project:project-a', serializeProjectDocument(baselineA)],
+    ['project:project-b', serializeProjectDocument(baselineB)],
+  ]);
+  const writes: { key: string; text: string; resolve: () => void }[] = [];
+  const adapter = (key: string): ProjectStorageAdapter => ({
+    load: async () => records.get(key) ?? null,
+    save: text => new Promise(resolve => writes.push({
+      key,
+      text,
+      resolve: () => { records.set(key, text); resolve(); },
+    })),
+  });
+  const schedulerA = new Scheduler();
+  const schedulerB = new Scheduler();
+  const persistenceA = new ProjectPersistence(baselineA, adapter('project:project-a'), schedulerA);
+  const persistenceB = new ProjectPersistence(baselineB, adapter('project:project-b'), schedulerB);
+  await Promise.all([persistenceA.bootstrap(), persistenceB.bootstrap()]);
+  const editedA = edit(baselineA);
+  persistenceA.commit(editedA);
+  schedulerA.fire();
+  const flushA = persistenceA.flushNow();
+  const editedB = executeProjectCommand(
+    createProjectHistory(baselineB), { type: 'createPoint', coordinates: [100.6, 13.76] }, later,
+  ).present;
+  persistenceB.commit(editedB);
+  schedulerB.fire();
+  assert.equal(writes[0]?.key, 'project:project-a');
+  assert.equal(writes[1]?.key, 'project:project-b');
+  writes[1]!.resolve();
+  writes[0]!.resolve();
+  await flushA;
+  assert.equal(records.get('project:project-a'), serializeProjectDocument(editedA));
+  assert.equal(records.get('project:project-b'), serializeProjectDocument(editedB));
+}
+
+{
+  const stored = serializeProjectDocument(fresh());
+  let reads = 0;
+  const persistence = new ProjectPersistence(fresh(), {
+    load: async () => { reads += 1; return null; },
+    save: async () => { throw new Error('unexpected save'); },
+  }, new Scheduler());
+  assert.deepEqual(persistence.restoreStored(stored), fresh());
+  assert.equal(persistence.getStatus().state, 'Saved');
+  assert.deepEqual(await persistence.bootstrap(), fresh());
+  assert.equal(reads, 0, 'catalogue-validated opens do not need a second fallible storage read');
 }
 
 {

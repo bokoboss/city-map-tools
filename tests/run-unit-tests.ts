@@ -5,5 +5,6 @@ import './basemaps.test';
 import './project-document.test';
 import './project-history.test';
 import './project-persistence.test';
+import './project-catalog.test';
 import './geodesic.test';
 import './snap-policy.test';

@@ -1,4 +1,4 @@
-// Production-preview #5C evidence via playwright-cli run-code --filename tests/project-persistence-browser.js
+// Production-preview browser evidence for Project Document v1 persistence and #5D recovery.
 // Run node tests/map-tile-server.cjs first for deterministic OSM tiles.
 async (page) => {
   const check = (ok, message) => { if (!ok) throw new Error(message); };
@@ -11,30 +11,52 @@ async (page) => {
   const url = 'http://127.0.0.1:4173/city-map-tools/';
   const saved = () => page.locator('.project-save-state strong').filter({ hasText: /^Saved$/ }).waitFor({ timeout: 10000 });
   const ready = () => page.locator('.map-status strong').filter({ hasText: /^Ready$/ }).waitFor({ timeout: 30000 });
-  const readRecord = () => page.evaluate(() => new Promise((resolve, reject) => {
+  const readActive = () => page.evaluate(() => new Promise((resolve, reject) => {
     const request = indexedDB.open('city-map-tools', 1);
     request.onerror = () => reject(new Error('test IndexedDB open failed'));
     request.onsuccess = () => {
       const db = request.result;
       const tx = db.transaction('project-state', 'readonly');
-      const get = tx.objectStore('project-state').get('last-accepted-project');
+      const store = tx.objectStore('project-state');
+      let projectId;
       let record;
-      get.onsuccess = () => { record = get.result; };
-      tx.oncomplete = () => { db.close(); resolve(record); };
+      store.get('active-project-id').onsuccess = event => {
+        projectId = event.target.result;
+        if (typeof projectId === 'string') {
+          store.get(`project:${projectId}`).onsuccess = projectEvent => { record = projectEvent.target.result; };
+        }
+      };
+      tx.oncomplete = () => { db.close(); resolve({ projectId, record }); };
       tx.onerror = () => { db.close(); reject(new Error('test IndexedDB read failed')); };
     };
   }));
-  const writeRecord = record => page.evaluate(value => new Promise((resolve, reject) => {
+  const readEntry = key => page.evaluate(recordKey => new Promise((resolve, reject) => {
+    const request = indexedDB.open('city-map-tools', 1);
+    request.onerror = () => reject(new Error('test IndexedDB open failed'));
+    request.onsuccess = () => {
+      const db = request.result;
+      const tx = db.transaction('project-state', 'readonly');
+      const store = tx.objectStore('project-state');
+      let value;
+      let count;
+      store.get(recordKey).onsuccess = event => { value = event.target.result; };
+      store.count(recordKey).onsuccess = event => { count = event.target.result; };
+      tx.oncomplete = () => { db.close(); resolve({ exists: count > 0, value }); };
+      tx.onerror = () => { db.close(); reject(new Error('test IndexedDB read failed')); };
+    };
+  }), key);
+  const readRecord = async () => (await readActive()).record;
+  const writeRecord = (projectId, record) => page.evaluate(({ id, value }) => new Promise((resolve, reject) => {
     const request = indexedDB.open('city-map-tools', 1);
     request.onerror = () => reject(new Error('test IndexedDB open failed'));
     request.onsuccess = () => {
       const db = request.result;
       const tx = db.transaction('project-state', 'readwrite');
-      tx.objectStore('project-state').put(value, 'last-accepted-project');
+      tx.objectStore('project-state').put(value, `project:${id}`);
       tx.oncomplete = () => { db.close(); resolve(); };
       tx.onerror = () => { db.close(); reject(new Error('test IndexedDB write failed')); };
     };
-  }), record);
+  }), { id: projectId, value: record });
   const clearDatabase = () => page.evaluate(() => new Promise((resolve, reject) => {
     const request = indexedDB.deleteDatabase('city-map-tools');
     request.onsuccess = () => resolve();
@@ -89,19 +111,25 @@ async (page) => {
   await page.locator('.feature-row').first().click();
   check(await page.getByLabel('Marker type', { exact: true }).inputValue() === 'pin', 'saved PointPresentation is restored');
 
+  let recoveryIndex = 0;
   for (const invalid of ['{bad', JSON.stringify({ ...savedDocument, schemaVersion: 2 }), { corrupt: true }, undefined]) {
-    await writeRecord(invalid);
+    const invalidProjectId = (await readActive()).projectId;
+    const invalidKey = `project:${invalidProjectId}`;
+    await writeRecord(invalidProjectId, invalid);
     await page.reload();
-    await page.locator('.project-save-state strong').filter({ hasText: /^Error$/ }).waitFor({ timeout: 10000 });
-    check(await page.locator('.feature-row').count() === 0, 'invalid project is not partially loaded');
-    check((await page.locator('.project-save-state').innerText()).includes('Autosave is paused'), 'recovery error is visible');
+    await page.getByRole('region', { name: 'Browser-local project recovery' }).waitFor({ timeout: 10000 });
+    check((await page.locator('.project-recovery-panel').innerText()).includes('not overwritten or deleted'), 'recovery explains that the unreadable record is preserved');
+    const preserved = await readEntry(invalidKey);
+    check(preserved.exists, 'unreadable project key remains present');
+    check(JSON.stringify(preserved.value) === JSON.stringify(invalid), 'invalid project value is not overwritten');
+    const newName = `Recovery project ${++recoveryIndex}`;
+    await page.getByLabel('New local project name', { exact: true }).fill(newName);
+    await page.getByRole('button', { name: 'New project', exact: true }).click();
     await ready();
-    await page.getByRole('button', { name: 'Point tool', exact: true }).click();
-    await mapClick();
-    check(await page.locator('.feature-row').count() === 1, 'fresh in-memory session remains usable');
-    check((await page.locator('.project-save-state strong').innerText()) === 'Error', 'editing does not conceal paused autosave');
-    await page.waitForTimeout(800);
-    check(JSON.stringify(await readRecord()) === JSON.stringify(invalid), 'invalid recovery record is not overwritten');
+    await saved();
+    check(await page.getByLabel('Current project name').innerText() === newName, 'explicit recovery New starts a usable local project');
+    const afterRecovery = await readEntry(invalidKey);
+    check(afterRecovery.exists && JSON.stringify(afterRecovery.value) === JSON.stringify(invalid), 'explicit New preserves the unreadable project record');
   }
 
   check(pageErrors.length === 0, `page errors: ${pageErrors.join('; ')}`);
@@ -109,6 +137,6 @@ async (page) => {
   return { result: 'PASS', pageErrors, consoleProblems, scenarios: [
     'fresh IndexedDB record, committed edits, visible Saved, and canonical v1 payload',
     'reload restores feature/layer/PointPresentation with empty history and transient defaults',
-    'malformed, future, object, and undefined records show Error and are preserved without overwrite',
+    'malformed, future, object, and undefined project records enter explicit recovery and remain preserved after New',
   ] };
 }

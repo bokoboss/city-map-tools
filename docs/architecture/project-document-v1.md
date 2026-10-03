@@ -1,8 +1,8 @@
 # Project Document v1
 
 Issue #5A freezes a small native project contract. It is a pure domain boundary;
-it does not provide browser persistence, autosave, project workflow UI, runtime
-state migration, or history.
+browser persistence and project workflow remain behind separate adapters and do
+not change the Project Document v1 shape.
 
 ## Shape
 
@@ -101,6 +101,44 @@ The native document has no fields for selected feature, active tool/mode,
 Terra Draw drafts, hover/focus/modal state, import status, map loading/error
 state, camera state, remount counters, buffer-input UI state, 3D runtime state,
 provider preferences, API keys, tokens, or credentials.
+
+## Browser-local project workflow (#5D)
+
+The workflow keeps the Project Document v1 contract and existing IndexedDB
+schema unchanged. It uses database `city-map-tools`, version `1`, and the
+existing `project-state` object store without indexes. The logical keys are:
+
+| Key | Value |
+|---|---|
+| `project:<projectId>` | Canonical serialized Project Document v1 JSON only |
+| `active-project-id` | The browser-local active project ID |
+| `last-accepted-project` | Preserved #5C recovery record until successful migration |
+
+The active pointer and recovery key are browser-workspace state; neither is part
+of a Project Document. History stacks, active transactions/drafts, selection,
+tools, map state, provider runtime state, and credentials are not stored.
+
+On bootstrap, the catalogue first reads the existing store. If a namespaced
+project exists, it uses the active pointer and never repeats a migration over a
+leftover recovery key. If no namespaced project exists, the legacy key is
+strictly checked as a string and parsed through the Project Document v1 parser.
+A valid document is copied byte-for-byte to `project:<id>`, selected, and then
+removed from `last-accepted-project` in one `readwrite` transaction. Transaction
+failure aborts every write and leaves the legacy value available for recovery.
+Malformed, future, or non-string legacy values remain unchanged. A project with
+an unreadable namespaced value remains listed as unavailable and is never
+silently repaired or deleted.
+
+Catalogue names and timestamps are read from each validated Project Document,
+not duplicated in a second metadata schema. New writes a new v1 record and
+active pointer atomically. Open validates the target and flushes the current
+project before changing the active pointer. Persistence instances are bound to
+one project key, so a queued save cannot write into a newly selected project.
+Save now flushes the latest committed v1 document and reports success only after
+the IndexedDB write transaction completes. New and Open are blocked during an
+active geometry or Point-drag transaction; opening and creating also reset the
+history to a fresh root. Editing the same browser-local project in multiple
+tabs has no conflict resolution.
 
 ## Future-product pressure test
 

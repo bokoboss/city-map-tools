@@ -1,23 +1,13 @@
 import { expect, test } from '@playwright/test';
 import { readFile } from 'node:fs/promises';
+import { readActiveProjectRecord } from './project-browser-helpers';
 
 const syntheticKey = 'synthetic-carto-browser-key-only';
 const tileServerUrl = 'http://127.0.0.1:4175/tile.png';
 const cartoHost = 'basemaps.cartocdn.com';
 
 async function storedProject(page: import('@playwright/test').Page): Promise<unknown> {
-  return page.evaluate(() => new Promise((resolve, reject) => {
-    const open = indexedDB.open('city-map-tools', 1);
-    open.onerror = () => reject(new Error('Project database unavailable.'));
-    open.onsuccess = () => {
-      const database = open.result;
-      const transaction = database.transaction('project-state', 'readonly');
-      const get = transaction.objectStore('project-state').get('last-accepted-project');
-      get.onsuccess = () => resolve(get.result);
-      transaction.onerror = () => reject(new Error('Project record unavailable.'));
-      transaction.oncomplete = () => database.close();
-    };
-  }));
+  return (await readActiveProjectRecord(page)).value;
 }
 
 test('Voyager requires runtime BYOK and never saves the synthetic credential', async ({ page, request }) => {

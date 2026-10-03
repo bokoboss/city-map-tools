@@ -5,8 +5,9 @@ the Point/layer/GeoJSON slice from Issue #19, the bounded geometry-editor slice
 from Issue #20, the Project Document v1 contract from Issue #5A, v1-backed runtime
 history from Issue #5B, local IndexedDB persistence from Issue #5C, and the
 representative Chromium CI smoke from Issue #6 Phase B2. Issue #21 adds
-transactional dragging for authored Points. The app does not provide validated
-engineering analysis or a New/Open/Save project workflow (#5D).
+transactional dragging for authored Points. The #5D browser-local workflow adds
+project cataloguing, explicit New/Open, Save now, and preserved-record recovery.
+The app does not provide validated engineering analysis.
 
 Repository: <https://github.com/bokoboss/city-map-tools>
 Intended Pages URL: <https://bokoboss.github.io/city-map-tools/>.
@@ -97,14 +98,26 @@ implement the prototype's history behavior or UI.
 
 Space Syntax, routing/accessibility, synthetic isochrones, elevation, and OD
 analytics remain unavailable. No analytical engine is migrated or reactivated.
-The committed Project Document v1 is saved locally in IndexedDB after a 500 ms
-debounce. The header reports Loading, Unsaved, Saving, Saved, or Error. A valid
-last-saved project returns on reload with fresh, empty Undo/Redo history; active
-drawings, selection, tools, and map state do not return. A corrupt or unsupported
-stored record is preserved, and autosave pauses with an Error while the user can
-continue in a memory-only session. There is no New/Open/Save project workflow,
-API-key input, generic GIS import/export, or full icon catalogue in this slice.
-Issue #5D owns the later project workflow and explicit recovery controls.
+Committed Project Document v1 state is saved in browser IndexedDB after a 500 ms
+debounce. The header reports Loading, Unsaved, Saving, Saved, or Error. Save now
+flushes the current document to IndexedDB; it is not a native file export. New
+and Open flush the current project before changing projects, and active geometry
+draw/edit or Point-drag interactions block those actions until finished or
+cancelled. Open and reload restore the selected project with fresh, empty
+Undo/Redo history; active drawings, selection, tools, and map state do not return.
+
+The workflow uses the existing `city-map-tools` IndexedDB version 1 and
+`project-state` object store. Each `project:<projectId>` value is canonical
+Project Document v1 JSON, while `active-project-id` identifies the browser's
+selected project. A valid old `last-accepted-project` record migrates losslessly
+in one transaction after strict v1 validation. Invalid or future records remain
+untouched and require an explicit recovery action before a new project can be
+started. If IndexedDB is unavailable, project actions report failure. There is
+no project deletion, portable/native project package workflow (#13), or
+multi-tab conflict resolution; editing the same project in multiple tabs is not
+a supported conflict-resolution workflow. Provider API keys remain in runtime
+memory and are not saved in project records. The UI still has no generic GIS
+import/export or full icon catalogue.
 
 Issue #41 adds a pure WGS84 ellipsoidal geodesic kernel for future measurement
 work. It has no user-facing measurement controls or `Validated` engineering
