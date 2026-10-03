@@ -9,10 +9,11 @@
 - Product North Star: `PRODUCT_DIRECTION.md`
 
 ## Current accepted baseline
-- Accepted **product-code baseline**: `eca3621ec974e3f27bae1b4348c69af0c39f3300`
-- Baseline date: 2026-10-02, project timezone UTC+07:00
-- This baseline is merge commit PR #50 / Issue #43: typed OSM/CARTO basemap/provider capability contracts and credential-safe runtime BYOK behavior, accepted at PR head `5bf6bf84daa82d8eba6af91bfa995f6465b38994` after bounded credential/security remediation.
-- It also includes PR #46 / Issue #42: indexed screen-space CAD snapping for authored geometry, including the bounded diagonal/zig-zag segment-index remediation accepted at PR head `f33dff43c5eeaf6d779c4ef6f4d94dc9ac46dc44`.
+- Accepted **product-code baseline**: `9c05cc19ec2af22cc01334a10574358b991a8ae5`
+- Baseline date: 2026-10-03, project timezone UTC+07:00
+- This baseline is merge commit PR #53 / Issue #5D: browser-local multi-project New/Open/Save workflow, loss-preserving legacy migration, recovery controls, and StrictMode-safe catalogue bootstrap, accepted at PR head `4d2ce745439bcdc54026f96e36218ed5af1b8a1e`.
+- It also includes PR #50 / Issue #43: typed OSM/CARTO basemap/provider capability contracts and credential-safe runtime BYOK behavior, accepted at PR head `5bf6bf84daa82d8eba6af91bfa995f6465b38994` after bounded credential/security remediation.
+- It also includes PR #46 / Issue #42: indexed screen-space CAD snapping for authored geometry, including the bounded diagonal/zig-zag segment-index remediation accepted at PR head `f33dff43c5eeaf6f4d94dc9ac46dc44`.
 - It also includes PR #44 / Issue #41: WGS84 ellipsoidal geodesic kernel, plus documentation-only product-direction realignment from PR #47/#48.
 - Prior accepted foundation includes:
   - #2 workflow/project baseline;
@@ -23,6 +24,7 @@
   - #5A Project Document v1;
   - #5B authoritative project state + transaction/history;
   - #5C IndexedDB autosave/recovery;
+  - #5D browser-local multi-project New/Open/Save workflow;
   - #6 Phase A, B1 and B2 CI/browser-smoke foundation;
   - #21 safe legacy retirement + transactional authored Point drag;
   - #41 geodesic kernel;
@@ -30,6 +32,23 @@
   - #43 provider/basemap capability and runtime-BYOK contracts.
 - Durable program record: Issue #1.
 - Product direction: `PRODUCT_DIRECTION.md`.
+
+## Recently accepted project workflow work
+
+### Issue #5 / #5D — browser-local project workflow
+- PR #53 merged to `main` as `9c05cc19ec2af22cc01334a10574358b991a8ae5`.
+- Accepted PR head: `4d2ce745439bcdc54026f96e36218ed5af1b8a1e`.
+- The existing IndexedDB database version 1 and `project-state` object store remain unchanged; Project Document v1 remains unchanged.
+- Browser-local projects use `project:<projectId>` records plus one `active-project-id` pointer. The former `last-accepted-project` record is treated only as the legacy migration source.
+- Valid legacy Project Document v1 data migrates byte-for-byte in one read/write transaction that writes the project record and active pointer and deletes the legacy key only on successful transaction completion.
+- Malformed, unsupported/future, unreadable, or failed-migration recovery records remain preserved rather than being silently overwritten or deleted.
+- The app now provides explicit New, Open, and Save-now local project actions. Save-now means a durable browser-local IndexedDB flush, not portable/native file export; broader project-file/package interoperability remains owned by #13.
+- New/Open flush the current committed project before switching, reject failed flushes without changing the active pointer, preserve active draft/edit/Point-drag work by blocking the transition, and install the opened project as a fresh history root.
+- React StrictMode startup on an empty catalogue is idempotent: concurrent bootstrap callers share one in-flight operation, preventing duplicate Untitled projects. The coalescing state clears after both success and failure so later reads/retries remain possible.
+- Exact-head CI Run #63 passed build and browser-smoke. The focused production-preview project workflow suite passed 13/13 and a focused Vite development-mode StrictMode bootstrap regression passed 1/1.
+- The StrictMode duplicate-bootstrap REQUIRED finding was remediated and its review thread resolved. Fresh exact-head Code Review found no new issue. The prior Security Review was reused because the final remediation changed only in-memory bootstrap coalescing/test harnesses and did not alter storage transactions, schema validation, migration, credentials, or security boundaries.
+- One non-blocking FOLLOW-UP remains: add browser integration coverage for New/Open while an autosave is already in flight, including failed-flush behavior. Pure persistence tests already cover in-flight `flushNow` semantics.
+- Issue #5 is closed as completed after #5A/#5B/#5C/#5D acceptance.
 
 ## Recently accepted spatial work
 
@@ -57,15 +76,15 @@
 
 ### Issue #42 — indexed CAD snapping
 - PR #46 merged to `main` as `f72ecb2495f2e48573326a45b083a7a897a8465c`.
-- Accepted PR head: `f33dff43c5eeaf6d779c4ef6f4d94dc9ac46dc44`.
+- Accepted PR head: `f33dff43c5eeaf6f4d94dc9ac46dc44`.
 - The original P1 / REQUIRED finding was remediated by clipping segments to the screen plus the 12 CSS px tolerance and indexing only a bounded 32 CSS px grid corridor near each segment rather than every cell of its axis-aligned bounding rectangle.
 - Deterministic diagnostics cover indexed cell-entry growth; long diagonal, off-screen, zig-zag, duplicate-cell, corridor and exact-edge regressions are present.
 - Exact-head CI passed build and browser-smoke, the P1 review thread was resolved, fresh targeted review found no major issue, and control-plane acceptance found no remaining BLOCKER / REQUIRED / FOLLOW-UP finding for #42.
 - Issue #42 is closed as completed.
 
-## Current active / next spatial work
-- R2 / Issue #7 is closed as completed; no further spatial-core implementation tranche is pending.
-- Next execution target is #5D: user-facing local New/Open/Save-or-equivalent project workflow.
+## Current active / next work
+- R1B / Issue #5 and R2 / Issue #7 are closed as completed.
+- Next execution targets are the core product-authoring capabilities: Traffic Movement (#29), Site Access Route (#30), cartographic presentation (#32), and Site Plan overlay (#33).
 
 ## Current implemented stack
 - Vite 6 + React + strict TypeScript + npm/ESM.
@@ -74,7 +93,7 @@
 - Project-owned `SnapPolicy` with 12 CSS px tolerance and a 32 CSS px screen-space grid for accepted CAD snapping.
 - `@turf/buffer` for bounded derived buffers.
 - `geographiclib-geodesic` for the protected WGS84 ellipsoidal geodesic kernel.
-- Native IndexedDB for committed Project Document v1 autosave/recovery.
+- Native IndexedDB for browser-local multi-project catalogue, committed Project Document v1 autosave/recovery, and explicit active-project selection.
 - Playwright Chromium is used for the focused hosted browser-smoke gate; there is intentionally no broad multi-browser E2E matrix.
 - Node 22 is the CI baseline.
 
@@ -93,12 +112,12 @@
 - Point presentation with center/pin-tip hotspot semantics, bounded marker size, and eight label placements; presentation does not alter canonical geometry.
 - Strict Project Document v1 validation/serialization.
 - Authoritative project state, project commands, one-action history, transaction drafts, bounded 20-snapshot Undo/Redo.
+- Browser-local multi-project catalogue with explicit New/Open/Save-now, active-project persistence, loss-preserving legacy migration/recovery, and fresh history roots after project switching.
 - Native IndexedDB 500 ms committed-state autosave with Saved/Saving/Unsaved/Error state and strict recovery preservation.
 - Deterministic pure tests, strict typecheck/build, and focused production-preview/hosted Chromium browser evidence.
 - WGS84 ellipsoidal inverse distance/bearing, line length, polygon perimeter, and absolute area kernel for later #14 measurement.
 
 ## Not yet implemented / not yet accepted
-- #5D user-facing New/Open/Save-or-equivalent project workflow.
 - Traffic Movement (#29), Site Access Route (#30), Scenario/Stage (#31), presentation system (#32), Site Plan overlay (#33), semantic traffic annotations (#34).
 - Live measurement UI (#14).
 - Data-driven Desire Line / OD (#11), including persistent transport/activity centroid semantics when that workflow is implemented.
@@ -115,7 +134,7 @@
 
 Current high-level sequence:
 
-`#5D -> #29/#30/#32/#33 -> #14/#11 -> #12 -> #13/#15/#16 -> #9 when justified -> #22`
+`#29/#30/#32/#33 -> #14/#11 -> #12 -> #13/#15/#16 -> #9 when justified -> #22`
 
 Additional rules:
 - #31/#34 enter when their concrete user workflow and dependencies justify them; they should not block the first useful traffic/access authoring set.
@@ -139,12 +158,13 @@ Additional rules:
 - No speculative generic plugin framework.
 
 ## Project-state contract
-- Project Document v1 is current persisted project truth.
+- Project Document v1 is current persisted project truth for each browser-local project.
 - Current project state includes accepted layers/features/provenance/derived-buffer records and Point presentation.
+- Browser-local catalogue identity/active-project selection are persistence workflow metadata, not fields inside Project Document v1.
 - Selection, tool/mode, hover, draft/edit state, map runtime/camera, import status, animation phase, provider credential state, and other transient UI state are not persisted project truth.
-- History is runtime-only and resets to a fresh root after reload/recovery.
+- History is runtime-only and resets to a fresh root after reload/recovery/project switch.
 - Project files/persistence must contain no credentials/secrets.
-- #5D owns the explicit local project workflow; #13 owns broader portable/native interoperability packages where appropriate.
+- Issue #5 owns the accepted browser-local project workflow; #13 owns broader portable/native interoperability packages where appropriate.
 
 ## Package manager / commands
 
@@ -182,6 +202,7 @@ If a local Playwright Chromium binary is absent, project work should not silentl
 - Current capability: `README.md`
 - Production: `index.html`, `src/main.tsx`, `src/App.tsx`, `src/map/`, `src/styles.css`
 - Project contract: `src/project/projectDocument.ts`, `docs/architecture/project-document-v1.md`
+- Project workflow/persistence: `src/project/projectCatalog.ts`, `src/project/projectPersistence.ts`, `src/project/indexedDbProjectStorage.ts`
 - Spatial kernels: `src/spatial/geodesic.ts`, `src/spatial/snapPolicy.ts`
 - Legacy reference: `legacy/r0-safe-prototype.html`, `legacy/README.md`
 - Build/dependencies: `vite.config.ts`, `tsconfig.json`, `package.json`, `package-lock.json`
@@ -199,5 +220,5 @@ If a local Playwright Chromium binary is absent, project work should not silentl
 - Triage review findings as BLOCKER / REQUIRED / FOLLOW-UP and stop once closure conditions are met.
 
 ## Current objective
-1. Complete #5D local project workflow.
-2. Move into the core product-authoring sequence defined by `PRODUCT_DIRECTION.md`, beginning with #29/#30/#32/#33 rather than allowing infrastructure or unrelated analytics to displace the product North Star.
+1. Move into the core product-authoring sequence defined by `PRODUCT_DIRECTION.md`, beginning with #29/#30/#32/#33 rather than allowing infrastructure or unrelated analytics to displace the product North Star.
+2. Carry the #5D in-flight-autosave browser regression as a non-blocking persistence/workflow hardening follow-up when that area is next touched.
