@@ -8,3 +8,4 @@ import './project-persistence.test';
 import './project-catalog.test';
 import './geodesic.test';
 import './snap-policy.test';
+import './directional-renderer.test';

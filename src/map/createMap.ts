@@ -5,6 +5,8 @@ import workerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url';
 import { basemaps, cartoRequestUrl, hasRuntimeCredential, isCartoBasemapHost, resolveBasemapStyle } from './basemaps';
 import type { BasemapId } from './basemaps';
 import { createGeometryEditor } from './geometryEditor';
+import { createDirectionalRenderer } from './directionalRenderer';
+import type { DirectionalInput } from './directionalPath';
 import type { GeometryEditor, GeometryEditorSession } from './geometryEditor';
 import { pointMarkerDefinitions } from './pointPresentation';
 import type { PointPresentation } from './pointPresentation';
@@ -229,6 +231,8 @@ export function createMap(container: HTMLDivElement, callbacks: MapCallbacks) {
     attributionControl: { compact: false },
   });
   let snapIndex: SnapPolicy | null = null;
+  // Lazy renderer infrastructure: T1A has no production UI or project-domain inputs.
+  let directional: ReturnType<typeof createDirectionalRenderer> | null = null;
   let activeSnap: SnapResult | null = null;
   const snapIndicator = document.createElement('div');
   snapIndicator.className = 'snap-indicator';
@@ -525,6 +529,7 @@ export function createMap(container: HTMLDivElement, callbacks: MapCallbacks) {
   };
 
   const hydrateCommittedGeometry = (): boolean => {
+    if (directional && !directional.rebuildStyle()) return false;
     if (!renderGeometry()) return false;
     return interactiveGeometryLayerIds.every(layerId => map.getLayer(layerId) !== undefined);
   };
@@ -816,6 +821,7 @@ export function createMap(container: HTMLDivElement, callbacks: MapCallbacks) {
       map.jumpTo({ pitch: 0 });
       try {
         // Full style replacement removes custom layers and editor adapter layers.
+        directional?.suspendStyle();
         activeBasemapId = id;
         map.setStyle(style, { diff: false });
         return true;
@@ -832,6 +838,14 @@ export function createMap(container: HTMLDivElement, callbacks: MapCallbacks) {
     setPointOverlays(overlays: readonly MapPointOverlay[]) {
       renderPointOverlays(overlays);
     },
+    setDirectionalInputs(inputs: readonly DirectionalInput[]) {
+      if (disposed) return { ok: false, message: 'Map has been destroyed.' };
+      directional ??= createDirectionalRenderer(map);
+      const result = directional.updateInputs(inputs);
+      if (result.ok) pendingStyleGeometryHydration = !hydrateCommittedGeometry();
+      return result;
+    },
+    directionalDiagnostics() { return directional?.diagnostics() ?? null; },
     setGeometryOverlays(features: readonly SpatialFeature[], layers: readonly FeatureLayer[], selectedFeatureId: string | null) {
       const targetsChanged = latestGeometry.features !== features || latestGeometry.layers !== layers;
       latestGeometry = { features, layers, selectedFeatureId };
@@ -900,6 +914,7 @@ export function createMap(container: HTMLDivElement, callbacks: MapCallbacks) {
       }
     },
     destroy() {
+      directional?.destroy();
       cancelActivePointDrag();
       invalidateSnapIndex();
       disposed = true;

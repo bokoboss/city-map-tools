@@ -5,7 +5,7 @@ const chromiumExecutable = process.env.CITY_MAP_TOOLS_CHROMIUM_EXECUTABLE;
 export default defineConfig({
   globalTeardown: './tests/browser-smoke-teardown.mjs',
   testDir: './tests',
-  testMatch: ['ci-browser-smoke.spec.ts', 'project-workflow-browser.spec.ts', 'geodesic-bundle-browser.spec.ts', 'snap-browser.spec.ts', 'provider-browser.spec.ts'],
+  testMatch: ['ci-browser-smoke.spec.ts', 'project-workflow-browser.spec.ts', 'geodesic-bundle-browser.spec.ts', 'snap-browser.spec.ts', 'provider-browser.spec.ts', 'directional-browser.spec.ts'],
   outputDir: './output/playwright/browser-smoke',
   fullyParallel: false,
   workers: 1,
