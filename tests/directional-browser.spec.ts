@@ -109,6 +109,68 @@ test('T1A actual line/static/animated tracks, local bearings, crossing and immut
   expect(problems).toEqual([]);
 });
 
+test('T1B rendered partial-corridor tracks, taper, crossings, ordering, immutable inputs and bounded frame work', async ({ page, request }, testInfo) => {
+  const problems = await setup(page, request);
+  expect(await page.evaluate(() => (window as any).proof.installLayout())).toMatchObject({ ok: true });
+  await page.evaluate(() => (window as any).proof.static(true));
+  await alignment(page);
+  const tracks = () => page.evaluate(async () => {
+    const p = (window as any).proof;
+    return (await p.data()).lines.features.map((f: any) => ({ id: f.id, points: f.geometry.coordinates.map((c: any) => p.project(c)) }));
+  });
+  const lines = await tracks();
+  const approach = (id: string, x: number) => lines.find((line: any) => line.id === id).points.find((p: any) => Math.abs(p.x - x) < 0.05);
+  expect(approach('approach-a', 160).y).toBeCloseTo(106, 1);
+  expect(approach('approach-b', 160).y).toBeCloseTo(120, 1);
+  expect(approach('approach-c', 160).y).toBeCloseTo(134, 1);
+  expect(approach('approach-b', 480).y).toBeCloseTo(120, 1);
+  const tapered = lines.find((line: any) => line.id === 'approach-a').points.filter((p: any) => p.x > 300 && p.x < 332);
+  expect(tapered.length).toBeGreaterThan(2);
+  expect(tapered.every((p: any) => p.y > 106 && p.y < 120)).toBe(true);
+  expect(await page.evaluate(() => (window as any).proof.renderedCrossing())).toEqual(['cross-east', 'cross-north']);
+  await page.screenshot({ path: testInfo.outputPath('t1b-static.png') });
+  await page.evaluate(() => (window as any).proof.reverseLayout());
+  await alignment(page);
+  expect(await tracks()).toEqual(lines);
+  await page.evaluate(() => (window as any).proof.static(false));
+  await alignment(page);
+  const before = await page.evaluate(() => (window as any).proof.diagnostics());
+  await page.waitForTimeout(1050);
+  const after = await page.evaluate(() => (window as any).proof.diagnostics());
+  expect(after.updates - before.updates).toBeGreaterThan(5);
+  expect(after.layoutRebuilds).toBe(before.layoutRebuilds);
+  expect(after.layout).toEqual(before.layout);
+  expect(after.layout.sharedRuns).toBeGreaterThanOrEqual(5);
+  expect(after.layout.sampleCount).toBeLessThanOrEqual(8192);
+  expect(after.layout.candidateChecks).toBeLessThanOrEqual(131072);
+  expect(after.layout.profileChecks).toBeLessThanOrEqual(131072);
+  expect(after.layout.fallback).toBe(false);
+  expect(after).toMatchObject({ sources: 2, layers: 2, pendingFrames: 1, ownedListeners: 4 });
+  await page.evaluate(() => (window as any).proof.static(true));
+  const ordering = () => page.evaluate(async () => {
+    const p = (window as any).proof, data = await p.data();
+    return data.lines.features.filter((f: any) => f.id.startsWith('approach')).map((f: any) => ({ id: f.id, y: p.project(f.geometry.coordinates[0]).y })).sort((a: any, b: any) => a.y - b.y).map((f: any) => f.id);
+  });
+  expect(await ordering()).toEqual(['approach-a', 'approach-b', 'approach-c']);
+  await page.evaluate(() => (window as any).proof.panZoom());
+  await alignment(page);
+  expect(await ordering()).toEqual(['approach-a', 'approach-b', 'approach-c']);
+  for (const voyager of [true, false]) {
+    expect(await page.evaluate(v => (window as any).proof.switchStyle(v), voyager)).toBe(true);
+    await expect.poll(() => page.evaluate(() => (window as any).proof.state())).toBe('ready');
+    await alignment(page);
+    expect(await ordering()).toEqual(['approach-a', 'approach-b', 'approach-c']);
+  }
+  await page.evaluate(() => (window as any).proof.manualLayout());
+  await alignment(page);
+  expect(await ordering()).toEqual(['approach-b', 'approach-c', 'approach-a']);
+  expect(await page.evaluate(() => (window as any).proof.unchanged())).toBe(true);
+  await writeFile(testInfo.outputPath('t1b-diagnostics.json'), JSON.stringify({ before, after }, null, 2));
+  await testInfo.attach('t1b-diagnostics', { body: JSON.stringify({ before, after }), contentType: 'application/json' });
+  await page.evaluate(() => (window as any).proof.destroy());
+  expect(problems).toEqual([]);
+});
+
 test('T1A reduced motion, owned visibility lifecycle, full style replacements and destroy/remount', async ({ page, request }, testInfo) => {
   await page.emulateMedia({ reducedMotion: 'reduce' });
   const problems = await setup(page, request);

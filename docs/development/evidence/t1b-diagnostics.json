@@ -1,0 +1,72 @@
+{
+  "before": {
+    "running": true,
+    "pendingFrames": 1,
+    "updates": 0,
+    "inputRebuilds": 5,
+    "projectionRebuilds": 5,
+    "layoutRebuilds": 5,
+    "layout": {
+      "sampleCount": 510,
+      "candidateChecks": 8916,
+      "profileChecks": 2355,
+      "localMatches": 214,
+      "sharedRuns": 5,
+      "warnings": [
+        "Ambiguous non-common bundle: approach-a, approach-b, approach-c; automatic sample declined."
+      ],
+      "suppressedWarnings": 0,
+      "fallback": false
+    },
+    "sourceUpdates": 5,
+    "arrowFeatures": 67,
+    "arrowUpdateMsMean": 0,
+    "arrowUpdateMsMax": 0,
+    "animatedArrowFeatures": 67,
+    "inputs": 9,
+    "reducedMotion": false,
+    "hidden": false,
+    "destroyed": false,
+    "sources": 2,
+    "layers": 2,
+    "ownedListeners": 4,
+    "limitations": [
+      "Ambiguous non-common bundle: approach-a, approach-b, approach-c; automatic sample declined."
+    ]
+  },
+  "after": {
+    "running": true,
+    "pendingFrames": 1,
+    "updates": 21,
+    "inputRebuilds": 5,
+    "projectionRebuilds": 5,
+    "layoutRebuilds": 5,
+    "layout": {
+      "sampleCount": 510,
+      "candidateChecks": 8916,
+      "profileChecks": 2355,
+      "localMatches": 214,
+      "sharedRuns": 5,
+      "warnings": [
+        "Ambiguous non-common bundle: approach-a, approach-b, approach-c; automatic sample declined."
+      ],
+      "suppressedWarnings": 0,
+      "fallback": false
+    },
+    "sourceUpdates": 26,
+    "arrowFeatures": 67,
+    "arrowUpdateMsMean": 0.06153845958984815,
+    "arrowUpdateMsMax": 0.29999999701976776,
+    "animatedArrowFeatures": 67,
+    "inputs": 9,
+    "reducedMotion": false,
+    "hidden": false,
+    "destroyed": false,
+    "sources": 2,
+    "layers": 2,
+    "ownedListeners": 4,
+    "limitations": [
+      "Ambiguous non-common bundle: approach-a, approach-b, approach-c; automatic sample declined."
+    ]
+  }
+}
