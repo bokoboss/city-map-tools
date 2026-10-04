@@ -35,7 +35,7 @@ All units below are CSS pixels except the axial angle. None is a physical lane d
 
 The six frozen heuristics are unchanged. Original polyline corners are inserted beside 8px arc samples. A preflight estimate checks allocation before long/off-screen paths are sampled. Segment midpoints are hashed into a 24px uniform grid; sample lookup visits the surrounding nine cells. Indexed segments are at most 8px long, so this search includes every segment within the 12px tolerance. There is no all-segment matching loop.
 
-Nearest segment candidates must meet proximity and axial orientation together. Pairwise matches must be consecutive in source samples, monotonic in matched arc distance, and cover at least 48px on each path. Large correspondence jumps and folded/equally near alternatives are declined. A crossing point alone, short tangency, or already-distinct parallel path cannot create a run.
+Nearest segment candidates must meet proximity and axial orientation together. Pairwise matches must be consecutive in source samples, monotonic in matched arc distance, and cover at least 48px on each path. Large correspondence jumps and folded/equally near alternatives are declined. Sorted target intervals reject overlapping runs for the same pair, so a folded reference cannot map one straight corridor to two tracks. Local duplicate-neighbor correspondences are also diagnosed rather than overwriting a mapping. A crossing point alone, short tangency, or already-distinct parallel path cannot create a run.
 
 Local bundles require pairwise common runs rather than connecting a chain of nearby paths. Members are sorted by explicit order, then stable ID using code-point ordering. The first member's canonical projected traversal supplies the reference frame. Slots are centered on that frame, with existing centerline differences accounted for; opposite canonical traversal uses the corresponding signed local normal. Semantic Forward/Reverse is absent from the kernel and cannot mirror/reorder tracks.
 
@@ -57,7 +57,7 @@ Diagnostics expose layout rebuilds, sample/candidate/profile checks, local match
 
 ## Fixture evidence
 
-Pure command: `npx tsx tests/directional-layout.test.ts`. Seventeen named fixtures pass, including the fifteen mandatory behaviors and added correspondence/budget/manual-input/extent assertions.
+Pure command: `npx tsx tests/directional-layout.test.ts`. Eighteen named fixtures pass, including the fifteen mandatory behaviors and added correspondence/budget/manual-input/extent assertions.
 
 | Required fixture | Evidence |
 | --- | --- |
@@ -78,6 +78,8 @@ Pure command: `npx tsx tests/directional-layout.test.ts`. Seventeen named fixtur
 | Bounded work off frame loop | Sample/candidate/profile overflow fixtures return atomic fallback; browser layout counts remain constant while updates advance |
 
 Additional fixtures cover near-identical but non-coincident centerlines, staggered bundle membership, folded/non-common ambiguity, warning detail bounds, deterministic budget results, invalid override rejection and atomic fallback at both ±1e8 display-extent boundaries. The extent regression addresses independent review's REQUIRED P2 finding that generated offsets could throw outside the renderer's per-input projection handler. T1A's 24 × 1,000-vertex, 504-arrow maximum proof still passes with explicit manual tracks.
+
+Independent review also found a REQUIRED P1 asymmetry when the folded movement owns the reference frame. The regression now permutes both folded IDs, input order and explicit reference order, and requires unchanged display paths plus an affected-pair warning. The correction declines overlapping pair intervals and duplicate local correspondences; it adds no topology or broader conflation.
 
 Browser proof: `npm run test:directional:browser` passes 4/4 (three retained T1A cases plus T1B). Full suite: `npm run test:browser:ci` passes 17/17, including provider/credential, project workflow/recovery, snapping, geodesic bundle, authoring/history and T1A lifecycle gates. Chromium uses the existing ignored `.cache/ms-playwright` cache. Synthetic OSM tiles/styles and the synthetic CARTO credential qualify deterministic renderer behavior only, not live provider service validity.
 

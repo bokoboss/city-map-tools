@@ -109,12 +109,13 @@ export function layoutDirectionalPaths(inputs: readonly LayoutInput[]) {
   const runs: Run[] = [];
   for (const [key, entries] of pairMatches) {
     const [ai, bi] = key.split(':').map(Number) as [number, number];
+    const pairRuns: Run[] = [];
     let group: Match[] = [], lastIndex = -2, sign = 0;
     const flush = () => {
       if (group.length > 1) {
         const first = group[0]!, last = group.at(-1)!;
         if (last.a - first.a >= LAYOUT_POLICY.minimumRun - 1e-8 && Math.abs(last.b - first.b) >= LAYOUT_POLICY.minimumRun - 1e-8) {
-          runs.push({ a: ai, b: bi, matches: group, startA: first.a, endA: last.a, startB: Math.min(first.b, last.b), endB: Math.max(first.b, last.b) });
+          pairRuns.push({ a: ai, b: bi, matches: group, startA: first.a, endA: last.a, startB: Math.min(first.b, last.b), endB: Math.max(first.b, last.b) });
         }
       }
       group = []; sign = 0;
@@ -128,6 +129,12 @@ export function layoutDirectionalPaths(inputs: readonly LayoutInput[]) {
       lastIndex = entry.index;
     }
     flush();
+    // Source runs are disjoint by construction. Their target intervals must also be disjoint:
+    // otherwise a folded reference maps the same straight corridor to two different slots.
+    const targetOrder = [...pairRuns].sort((a, b) => a.startB - b.startB);
+    if (targetOrder.some((run, i) => i > 0 && run.startB < targetOrder[i - 1]!.endB - 1e-8)) {
+      warn(`Ambiguous overlapping pair runs: ${cached[ai]!.input.id}, ${cached[bi]!.input.id}; automatic pair layout declined.`);
+    } else runs.push(...pairRuns);
   }
   diagnostics.sharedRuns = runs.length;
   const active = (run: Run, movement: number, d: number) => movement === run.a ? d >= run.startA - 1e-8 && d <= run.endA + 1e-8 : movement === run.b && d >= run.startB - 1e-8 && d <= run.endB + 1e-8;
@@ -157,7 +164,14 @@ export function layoutDirectionalPaths(inputs: readonly LayoutInput[]) {
         const neighbors = relevant.filter(run => checked() && active(run, ci, sample.distance));
         if (!neighbors.length) { signatures.push(''); return c.input.baseOffset; }
         const members = new Map<number, number>([[ci, sample.distance]]);
-        for (const run of neighbors) members.set(run.a === ci ? run.b : run.a, mapped(run, ci, sample.distance));
+        for (const run of neighbors) {
+          const neighbor = run.a === ci ? run.b : run.a;
+          if (members.has(neighbor)) {
+            warn(`Ambiguous duplicate corridor correspondence: ${c.input.id}, ${cached[neighbor]!.input.id}; automatic sample declined.`);
+            signatures.push(''); return c.input.baseOffset;
+          }
+          members.set(neighbor, mapped(run, ci, sample.distance));
+        }
         const ids = [...members.keys()].sort((a, b) => a - b);
         // A proximity chain is not an obvious common bundle; require every pair to share this local run.
         for (let i = 0; i < ids.length; i++) for (let j = i + 1; j < ids.length; j++) {

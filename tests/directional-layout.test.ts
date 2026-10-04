@@ -155,6 +155,19 @@ check('generated display-extent overflow returns atomic base-path fallback', () 
     assert.equal(JSON.stringify(source), before);
   }
 });
+check('folded reference on either ordering side declines duplicate arc correspondences', () => {
+  for (const foldedId of ['a', 'b']) {
+    const source = [input('a', foldedId === 'a' ? [[0, 0], [240, 0], [0, 0]] : [[0, 0], [240, 0]]),
+      input('b', foldedId === 'b' ? [[0, 0], [240, 0], [0, 0]] : [[0, 0], [240, 0]])];
+    for (const ordered of [source, [...source].reverse(), source.map(i => ({ ...i, layoutOrder: i.id === foldedId ? -1 : 0 }))]) {
+      const before = JSON.stringify(ordered), result = layoutDirectionalPaths(ordered);
+      assert.equal(result.diagnostics.sharedRuns, 0);
+      assert.ok(result.diagnostics.warnings.some(w => w.includes('Ambiguous') && w.includes('a') && w.includes('b')));
+      ordered.forEach(i => assert.deepEqual(result.paths.get(i.id), buildDisplayPath(i.points, 0)));
+      assert.equal(JSON.stringify(ordered), before);
+    }
+  }
+});
 const valid = { id: 'valid', coordinates: [[100, 13], [100.001, 13]] as const, direction: 'forward' as const, color: '#0077cc', opacity: 1,
   lineWidthPixels: 3, arrowSizePixels: 24, arrowSpacingPixels: 64, animationEnabled: true, visualRatePixelsPerSecond: 32, displayOffsetPixels: 0 };
 assert.throws(() => snapshotInputs([{ ...valid, layoutOrder: NaN }]));
