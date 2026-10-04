@@ -142,69 +142,71 @@ export function layoutDirectionalPaths(inputs: readonly LayoutInput[]) {
     return a[to] + (b[to] - a[to]) * t;
   };
   // Budget also covers run lookup/bundle validation, not just grid matching.
-  let profileExceeded = false;
+  const profileBudgetExceeded = Symbol('profile-budget-exceeded');
   const checked = () => {
-    if (diagnostics.profileChecks >= LAYOUT_POLICY.maxProfileChecks) { profileExceeded = true; return false; }
+    if (diagnostics.profileChecks >= LAYOUT_POLICY.maxProfileChecks) throw profileBudgetExceeded;
     diagnostics.profileChecks++; return true;
   };
-  for (let ci = 0; ci < cached.length; ci++) {
-    const c = cached[ci]!;
-    const relevant = runs.filter(run => checked() && (run.a === ci || run.b === ci));
-    if (profileExceeded) return fallback(`Layout profile budget ${LAYOUT_POLICY.maxProfileChecks} exhausted.`);
-    if (!relevant.length) continue; // Exact authored/T1A path preserved when no qualifying run exists.
-    const signatures: string[] = [];
-    const offsets = c.samples.map(sample => {
-      const neighbors = relevant.filter(run => checked() && active(run, ci, sample.distance));
-      if (!neighbors.length) { signatures.push(''); return c.input.baseOffset; }
-      const members = new Map<number, number>([[ci, sample.distance]]);
-      for (const run of neighbors) members.set(run.a === ci ? run.b : run.a, mapped(run, ci, sample.distance));
-      const ids = [...members.keys()].sort((a, b) => a - b);
-      // A proximity chain is not an obvious common bundle; require every pair to share this local run.
-      for (let i = 0; i < ids.length; i++) for (let j = i + 1; j < ids.length; j++) {
-        const a = ids[i]!, b = ids[j]!;
-        const run = runs.find(run => checked() && run.a === a && run.b === b && active(run, a, members.get(a)!) && active(run, b, members.get(b)!));
-        if (profileExceeded) { signatures.push(''); return c.input.baseOffset; }
-        if (!run) {
-          const warning = `Ambiguous non-common bundle: ${ids.map(id => cached[id]!.input.id).join(', ')}; automatic sample declined.`;
-          warn(warning);
-          signatures.push('');
-          return c.input.baseOffset;
+  try {
+    for (let ci = 0; ci < cached.length; ci++) {
+      const c = cached[ci]!;
+      const relevant = runs.filter(run => checked() && (run.a === ci || run.b === ci));
+      if (!relevant.length) continue; // Exact authored/T1A path preserved when no qualifying run exists.
+      const signatures: string[] = [];
+      const offsets = c.samples.map(sample => {
+        const neighbors = relevant.filter(run => checked() && active(run, ci, sample.distance));
+        if (!neighbors.length) { signatures.push(''); return c.input.baseOffset; }
+        const members = new Map<number, number>([[ci, sample.distance]]);
+        for (const run of neighbors) members.set(run.a === ci ? run.b : run.a, mapped(run, ci, sample.distance));
+        const ids = [...members.keys()].sort((a, b) => a - b);
+        // A proximity chain is not an obvious common bundle; require every pair to share this local run.
+        for (let i = 0; i < ids.length; i++) for (let j = i + 1; j < ids.length; j++) {
+          const a = ids[i]!, b = ids[j]!;
+          const run = runs.find(run => checked() && run.a === a && run.b === b && active(run, a, members.get(a)!) && active(run, b, members.get(b)!));
+          if (!run) {
+            const warning = `Ambiguous non-common bundle: ${ids.map(id => cached[id]!.input.id).join(', ')}; automatic sample declined.`;
+            warn(warning);
+            signatures.push('');
+            return c.input.baseOffset;
+          }
         }
+        signatures.push(ids.join(':'));
+        const reference = cached[ids[0]!]!;
+        const p = sampleDisplayPath(reference.path, members.get(ids[0]!)!, 'forward');
+        const angle = p.bearing * Math.PI / 180, nx = Math.cos(angle), ny = Math.sin(angle);
+        const ownNx = -sample.ty, ownNy = sample.tx;
+        const slot = (ids.indexOf(ci) - (ids.length - 1) / 2) * LAYOUT_POLICY.spacing;
+        const target = ((p.x - sample.x) * ownNx + (p.y - sample.y) * ownNy) + slot * (nx * ownNx + ny * ownNy);
+        return c.input.baseOffset + target;
+      });
+      // Membership changes also taper: a surviving pair must not jump when a third path leaves.
+      for (let first = 0; first < signatures.length;) {
+        let last = first;
+        while (last + 1 < signatures.length && signatures[last + 1] === signatures[first]) last++;
+        if (signatures[first]) for (let i = first; i <= last; i++) {
+          const d = c.samples[i]!.distance;
+          const weight = Math.min(first === 0 ? 1 : smooth((d - c.samples[first]!.distance) / LAYOUT_POLICY.taper),
+            last === signatures.length - 1 ? 1 : smooth((c.samples[last]!.distance - d) / LAYOUT_POLICY.taper));
+          offsets[i] = c.input.baseOffset + (offsets[i]! - c.input.baseOffset) * weight;
+        }
+        first = last + 1;
       }
-      signatures.push(ids.join(':'));
-      const reference = cached[ids[0]!]!;
-      const p = sampleDisplayPath(reference.path, members.get(ids[0]!)!, 'forward');
-      const angle = p.bearing * Math.PI / 180, nx = Math.cos(angle), ny = Math.sin(angle);
-      const ownNx = -sample.ty, ownNy = sample.tx;
-      const slot = (ids.indexOf(ci) - (ids.length - 1) / 2) * LAYOUT_POLICY.spacing;
-      const target = ((p.x - sample.x) * ownNx + (p.y - sample.y) * ownNy) + slot * (nx * ownNx + ny * ownNy);
-      return c.input.baseOffset + target;
-    });
-    if (profileExceeded) return fallback(`Layout profile budget ${LAYOUT_POLICY.maxProfileChecks} exhausted.`);
-    // Membership changes also taper: a surviving pair must not jump when a third path leaves.
-    for (let first = 0; first < signatures.length;) {
-      let last = first;
-      while (last + 1 < signatures.length && signatures[last + 1] === signatures[first]) last++;
-      if (signatures[first]) for (let i = first; i <= last; i++) {
-        const d = c.samples[i]!.distance;
-        const weight = Math.min(first === 0 ? 1 : smooth((d - c.samples[first]!.distance) / LAYOUT_POLICY.taper),
-          last === signatures.length - 1 ? 1 : smooth((c.samples[last]!.distance - d) / LAYOUT_POLICY.taper));
-        offsets[i] = c.input.baseOffset + (offsets[i]! - c.input.baseOffset) * weight;
-      }
-      first = last + 1;
+      const shifted: DisplayPoint[] = [];
+      c.samples.forEach((sample, i) => {
+        const before = c.samples[i - 1], after = c.samples[i + 1];
+        const normal = (a: DisplayPoint, b: DisplayPoint) => { const length = Math.hypot(b.x - a.x, b.y - a.y); return { x: -(b.y - a.y) / length, y: (b.x - a.x) / length }; };
+        const n1 = before ? normal(before, sample) : normal(sample, after!);
+        const n2 = after ? normal(sample, after) : n1;
+        const denominator = 1 + n1.x * n2.x + n1.y * n2.y;
+        const append = (n: DisplayPoint) => shifted.push({ x: sample.x + n.x * offsets[i]!, y: sample.y + n.y * offsets[i]! });
+        if (denominator >= 0.5) append({ x: (n1.x + n2.x) / denominator, y: (n1.y + n2.y) / denominator });
+        else { append(n1); append(n2); }
+      });
+      paths.set(c.input.id, buildDisplayPath(shifted, 0));
     }
-    const shifted: DisplayPoint[] = [];
-    c.samples.forEach((sample, i) => {
-      const before = c.samples[i - 1], after = c.samples[i + 1];
-      const normal = (a: DisplayPoint, b: DisplayPoint) => { const length = Math.hypot(b.x - a.x, b.y - a.y); return { x: -(b.y - a.y) / length, y: (b.x - a.x) / length }; };
-      const n1 = before ? normal(before, sample) : normal(sample, after!);
-      const n2 = after ? normal(sample, after) : n1;
-      const denominator = 1 + n1.x * n2.x + n1.y * n2.y;
-      const append = (n: DisplayPoint) => shifted.push({ x: sample.x + n.x * offsets[i]!, y: sample.y + n.y * offsets[i]! });
-      if (denominator >= 0.5) append({ x: (n1.x + n2.x) / denominator, y: (n1.y + n2.y) / denominator });
-      else { append(n1); append(n2); }
-    });
-    paths.set(c.input.id, buildDisplayPath(shifted, 0));
+  } catch (error) {
+    if (error === profileBudgetExceeded) return fallback(`Layout profile budget ${LAYOUT_POLICY.maxProfileChecks} exhausted.`);
+    throw error;
   }
   return { paths, diagnostics };
 }
