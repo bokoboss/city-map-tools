@@ -3,6 +3,7 @@ import type { Feature, FeatureCollection, LineString, Point } from 'geojson';
 import { arrowCounts, buildDisplayPath, MOVEMENT_LIMITS, sampleDisplayPath, snapshotInputs } from './directionalPath';
 import type { DirectionalInput, DisplayPath } from './directionalPath';
 import { createDirectionalClock } from './directionalClock';
+import { layoutDirectionalPaths, type LayoutDiagnostics } from './directionalLayout';
 
 export const DIRECTIONAL_IDS = {
   tracks: 'city-map-directional-tracks', arrows: 'city-map-directional-arrows',
@@ -50,6 +51,7 @@ export function createDirectionalRenderer(map: MapLibreMap) {
   let arrowFeatures = 0;
   let arrowLimited = false;
   let projectionErrors: string[] = [];
+  let layout: LayoutDiagnostics | null = null;
   let destroyed = false;
   let manuallyPaused = false;
   let styleReady = false;
@@ -108,14 +110,22 @@ export function createDirectionalRenderer(map: MapLibreMap) {
   function projectTracks() {
     projectionRebuilds++;
     projectionErrors = [];
-    const projected: Array<{ input: DirectionalInput; path: DisplayPath; coordinates: [number, number][] }> = [];
+    const canonical: Array<{ input: DirectionalInput; points: ReturnType<typeof buildDisplayPath>['points'] }> = [];
     for (const input of inputs) {
       try {
-        const path = buildDisplayPath(input.coordinates.map(coordinate => map.project([coordinate[0], coordinate[1]])), input.displayOffsetPixels);
-        projected.push({ input, path, coordinates: path.points.map(unproject) });
+        const points = buildDisplayPath(input.coordinates.map(coordinate => map.project([coordinate[0], coordinate[1]])), 0).points;
+        canonical.push({ input, points });
       } catch (error) {
         projectionErrors.push(`${input.id}: ${error instanceof Error ? error.message : 'Display projection failed.'}`);
       }
+    }
+    const result = layoutDirectionalPaths(canonical.map(({ input, points }) => ({ id: input.id, points,
+      baseOffset: input.displayOffsetPixels, autoLayout: input.autoLayout, layoutOrder: input.layoutOrder })));
+    layout = result.diagnostics;
+    const projected: Array<{ input: DirectionalInput; path: DisplayPath; coordinates: [number, number][] }> = [];
+    for (const { input } of canonical) {
+      try { const path = result.paths.get(input.id)!; projected.push({ input, path, coordinates: path.points.map(unproject) }); }
+      catch { projectionErrors.push(`${input.id}: display track cannot be unprojected at this camera; change the view.`); }
     }
     const budget = arrowCounts(projected.map(track => track.path), projected.map(track => track.input.arrowSpacingPixels));
     arrowLimited = budget.limited;
@@ -198,24 +208,24 @@ export function createDirectionalRenderer(map: MapLibreMap) {
       inputs = snapshot;
       inputRebuilds++;
       if (inputs.length === 0) {
-        clock.pause(); removeResources(); tracks = []; lines = { type: 'FeatureCollection', features: [] }; arrowFeatures = 0; arrowLimited = false; projectionErrors = []; styleReady = false;
+        clock.pause(); removeResources(); tracks = []; lines = { type: 'FeatureCollection', features: [] }; arrowFeatures = 0; arrowLimited = false; projectionErrors = []; layout = null; styleReady = false;
       } else if (styleReady) refreshProjection();
       else rebuildStyle();
-      return { ok: true, message: 'Transient inputs accepted. Inspect diagnostics for projection/arrow-spacing fallback.' };
+      return { ok: true, message: 'Transient inputs accepted. Inspect diagnostics for layout/projection/arrow-spacing fallback.' };
     },
     rebuildStyle,
     suspendStyle() { styleReady = false; clock.pause(); },
     pause() { manuallyPaused = true; syncClock(); },
     resume() { manuallyPaused = false; syncClock(); },
     diagnostics() {
-      return { ...clock.diagnostics(), inputRebuilds, projectionRebuilds, sourceUpdates, arrowFeatures,
+      return { ...clock.diagnostics(), inputRebuilds, projectionRebuilds, layoutRebuilds: projectionRebuilds, layout, sourceUpdates, arrowFeatures,
         arrowUpdateMsMean: sourceUpdates ? arrowUpdateMsTotal / sourceUpdates : 0, arrowUpdateMsMax,
         animatedArrowFeatures: motion.matches ? 0 : tracks.filter(track => track.input.animationEnabled && track.input.visualRatePixelsPerSecond > 0).reduce((sum, track) => sum + track.count, 0),
         inputs: inputs.length, reducedMotion: motion.matches, hidden: document.hidden, destroyed,
         sources: destroyed ? 0 : [DIRECTIONAL_IDS.tracks, DIRECTIONAL_IDS.arrows].filter(id => map.getSource(id)).length,
         layers: destroyed ? 0 : [DIRECTIONAL_IDS.line, DIRECTIONAL_IDS.symbol].filter(id => map.getLayer(id)).length,
         ownedListeners: destroyed ? 0 : 4,
-        limitations: [...projectionErrors, ...(arrowLimited ? [`Arrow cap ${MOVEMENT_LIMITS.arrows}: display spacing increased; all accepted paths retained.`] : [])] };
+        limitations: [...projectionErrors, ...(layout?.warnings ?? []), ...(layout?.suppressedWarnings ? [`${layout.suppressedWarnings} additional layout warning occurrences omitted from bounded details.`] : []), ...(arrowLimited ? [`Arrow cap ${MOVEMENT_LIMITS.arrows}: display spacing increased; all accepted paths retained.`] : [])] };
     },
     destroy() {
       if (destroyed) return;
@@ -225,7 +235,7 @@ export function createDirectionalRenderer(map: MapLibreMap) {
       document.removeEventListener('visibilitychange', visibilityChanged);
       motion.removeEventListener('change', motionChanged);
       removeResources(); inputs = []; key = '[]'; tracks = []; lines = { type: 'FeatureCollection', features: [] }; arrowFeatures = 0;
-      projectionErrors = []; arrowLimited = false;
+      projectionErrors = []; arrowLimited = false; layout = null;
     },
   };
 }

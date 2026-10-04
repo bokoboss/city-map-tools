@@ -92,6 +92,29 @@ export function mountDirectionalProof(container: HTMLDivElement) {
       const arrowSource = map.getSource(DIRECTIONAL_IDS.arrows) as GeoJSONSource | undefined;
       return { lines: await lineSource?.getData(), arrows: await arrowSource?.getData() };
     },
+    installLayout() {
+      fixtures = [
+        { ...common, id: 'approach-a', coordinates: fromScreen([[80, 120], [340, 120], [340, 40]]) },
+        { ...common, id: 'approach-b', color: '#d45500', coordinates: fromScreen([[80, 120], [680, 120]]) },
+        { ...common, id: 'approach-c', color: '#8040bb', coordinates: fromScreen([[80, 120], [340, 120], [390, 150], [340, 190], [80, 190]]) },
+        { ...common, id: 'opposite-a', coordinates: fromScreen([[80, 260], [680, 260]]) },
+        { ...common, id: 'opposite-b', color: '#d45500', coordinates: fromScreen([[680, 260], [80, 260]]) },
+        { ...common, id: 'curve-a', coordinates: fromScreen([[80, 360], [180, 365], [260, 395], [300, 435], [320, 530]]) },
+        { ...common, id: 'curve-b', color: '#d45500', coordinates: fromScreen([[80, 360], [180, 365], [260, 395], [300, 435], [400, 435]]) },
+        { ...common, id: 'cross-east', color: '#159050', coordinates: fromScreen([[480, 420], [680, 420]]) },
+        { ...common, id: 'cross-north', color: '#be3566', coordinates: fromScreen([[580, 350], [580, 560]]) },
+      ];
+      original = JSON.stringify(fixtures.map(input => input.coordinates));
+      const caption = document.querySelector('#directional-proof p');
+      if (caption) caption.textContent = 'T1B synthetic proof · automatic shared-corridor tracks · presentation only';
+      return controller.setDirectionalInputs(fixtures);
+    },
+    reverseLayout() { fixtures = fixtures.map(input => ({ ...input, direction: input.direction === 'forward' ? 'reverse' : 'forward' })); return controller.setDirectionalInputs(fixtures); },
+    manualLayout() { fixtures = fixtures.map(input => input.id === 'approach-a' ? { ...input, layoutOrder: 10, displayOffsetPixels: 20, autoLayout: true } : input); return controller.setDirectionalInputs(fixtures); },
+    panZoom() { map.jumpTo({ center: [map.getCenter().lng + 0.0001, map.getCenter().lat], zoom: map.getZoom() + 0.1 }); },
+    renderedCrossing() {
+      return [...new Set(map.queryRenderedFeatures([580, 420], { layers: [DIRECTIONAL_IDS.line] }).map(hit => hit.properties?.movementId))].sort();
+    },
     project(coordinates: [number, number]) { const point = map.project(coordinates); return { x: point.x, y: point.y }; },
     fixtures: () => fixtures,
     unchanged: () => original === JSON.stringify(fixtures.map(input => input.coordinates)),
