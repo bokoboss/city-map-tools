@@ -43,7 +43,7 @@ Local bundles require pairwise common runs rather than connecting a chain of nea
 
 Offsets exist only within proven local bundles. Each contiguous bundle-membership section uses a clamped cubic smoothstep over 40px at non-endpoint boundaries. Outside it, the movement returns to its manual base offset. The taper also applies when membership changes, so a surviving pair does not abruptly jump when a third movement leaves. A path endpoint has no off-path transition. Bounded miter/bevel joins reuse T1A's policy; transient inserted vertices remain display data.
 
-At short membership sections, entry/exit tapers can meet before a full-spacing plateau. Near junctions, inconsistent local bundle membership is explicitly diagnosed and automatic samples are declined; this does not infer topology. Folded paths and non-common proximity chains likewise return warnings. Budget exhaustion returns the complete manual/base-path fallback atomically, including paths already processed. No partial budget-limited layout is published.
+At short membership sections, entry/exit tapers can meet before a full-spacing plateau. Near junctions, inconsistent local bundle membership is explicitly diagnosed and automatic samples are declined; this does not infer topology. Folded paths and non-common proximity chains likewise return warnings. Budget exhaustion or a generated path exceeding the supported display extent returns the complete manual/base-path fallback atomically, including paths already processed. No partial budget-limited layout is published. The profile guard exits immediately at its cap, including from array callbacks.
 
 Transient `layoutOrder` is finite within ±1,000,000; stable ID breaks ties. `displayOffsetPixels` retains T1A's ±64px canonical-direction meaning. For backward compatibility, explicit nonzero base offsets opt out of automatic layout unless `autoLayout: true` is supplied. `autoLayout: false` explicitly opts out. These renderer/API settings do not persist or have a production UI.
 
@@ -57,7 +57,7 @@ Diagnostics expose layout rebuilds, sample/candidate/profile checks, local match
 
 ## Fixture evidence
 
-Pure command: `npx tsx tests/directional-layout.test.ts`. Sixteen named fixtures pass, including the fifteen mandatory behaviors and added correspondence/budget/manual-input assertions.
+Pure command: `npx tsx tests/directional-layout.test.ts`. Seventeen named fixtures pass, including the fifteen mandatory behaviors and added correspondence/budget/manual-input/extent assertions.
 
 | Required fixture | Evidence |
 | --- | --- |
@@ -77,7 +77,7 @@ Pure command: `npx tsx tests/directional-layout.test.ts`. Sixteen named fixtures
 | Canonical WGS84 immutability | Input snapshots and browser fixture coordinate JSON unchanged through lifecycle |
 | Bounded work off frame loop | Sample/candidate/profile overflow fixtures return atomic fallback; browser layout counts remain constant while updates advance |
 
-Additional fixtures cover near-identical but non-coincident centerlines, staggered bundle membership, folded/non-common ambiguity, warning detail bounds, deterministic budget results and invalid override rejection. T1A's 24 × 1,000-vertex, 504-arrow maximum proof still passes with explicit manual tracks.
+Additional fixtures cover near-identical but non-coincident centerlines, staggered bundle membership, folded/non-common ambiguity, warning detail bounds, deterministic budget results, invalid override rejection and atomic fallback at both ±1e8 display-extent boundaries. The extent regression addresses independent review's REQUIRED P2 finding that generated offsets could throw outside the renderer's per-input projection handler. T1A's 24 × 1,000-vertex, 504-arrow maximum proof still passes with explicit manual tracks.
 
 Browser proof: `npm run test:directional:browser` passes 4/4 (three retained T1A cases plus T1B). Full suite: `npm run test:browser:ci` passes 17/17, including provider/credential, project workflow/recovery, snapping, geodesic bundle, authoring/history and T1A lifecycle gates. Chromium uses the existing ignored `.cache/ms-playwright` cache. Synthetic OSM tiles/styles and the synthetic CARTO credential qualify deterministic renderer behavior only, not live provider service validity.
 

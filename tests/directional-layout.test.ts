@@ -143,6 +143,18 @@ check('sample and candidate workload caps decline atomically and deterministical
   assert.equal(warningHeavy.diagnostics.warnings.length, LAYOUT_POLICY.maxWarnings);
   assert.ok(warningHeavy.diagnostics.suppressedWarnings > 0);
 });
+check('generated display-extent overflow returns atomic base-path fallback', () => {
+  for (const edge of [-1e8, 1e8]) {
+    const source = [input('a-safe', [[0, 0], [240, 0]]), input('b-safe', [[0, 0], [240, 0]]),
+      input('c-edge', [[edge, 0], [edge, 240]]), input('d-edge', [[edge, 0], [edge, 240]])];
+    const before = JSON.stringify(source), result = layoutDirectionalPaths(source);
+    assert.equal(result.diagnostics.fallback, true);
+    assert.equal(result.diagnostics.sharedRuns, 0);
+    assert.ok(result.diagnostics.warnings.some(w => w.includes('final display path unavailable')));
+    source.forEach(i => assert.deepEqual(result.paths.get(i.id), buildDisplayPath(i.points, 0)));
+    assert.equal(JSON.stringify(source), before);
+  }
+});
 const valid = { id: 'valid', coordinates: [[100, 13], [100.001, 13]] as const, direction: 'forward' as const, color: '#0077cc', opacity: 1,
   lineWidthPixels: 3, arrowSizePixels: 24, arrowSpacingPixels: 64, animationEnabled: true, visualRatePixelsPerSecond: 32, displayOffsetPixels: 0 };
 assert.throws(() => snapshotInputs([{ ...valid, layoutOrder: NaN }]));

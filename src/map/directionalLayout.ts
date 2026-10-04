@@ -202,7 +202,10 @@ export function layoutDirectionalPaths(inputs: readonly LayoutInput[]) {
         if (denominator >= 0.5) append({ x: (n1.x + n2.x) / denominator, y: (n1.y + n2.y) / denominator });
         else { append(n1); append(n2); }
       });
-      paths.set(c.input.id, buildDisplayPath(shifted, 0));
+      try { paths.set(c.input.id, buildDisplayPath(shifted, 0)); }
+      catch (error) {
+        return fallback(`${c.input.id}: final display path unavailable (${error instanceof Error ? error.message : 'unsupported generated extent'}).`);
+      }
     }
   } catch (error) {
     if (error === profileBudgetExceeded) return fallback(`Layout profile budget ${LAYOUT_POLICY.maxProfileChecks} exhausted.`);
