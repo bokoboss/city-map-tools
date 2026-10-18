@@ -58,6 +58,20 @@ Pages configuration remains a separate human-controlled deployment gate.
   named label positions. It is part of the current Project Document state, never
   changes canonical geometry, buffer input, or provenance, and is not included in
   GeoJSON export.
+- Select an authored LineString and choose **Convert to Traffic Movement** in the
+  Inspector. Direction, color, opacity, arrow/line size, visual spacing/rate and
+  automatic/manual display layout use the accepted v2 project commands and history.
+  Reverse preserves canonical WGS84 coordinates. Shared corridors use schematic
+  display tracks; clicking a displaced track selects its authored feature. The
+  ordinary line stroke is suppressed while editor/snapping geometry stays canonical.
+  **Unconvert to LineString** preserves the feature and removes its movement role.
+- **Pause animated arrows** is temporary for the active project session, including
+  map reload/style changes. New/Open resets pause. It does not change saved animation
+  settings, history or autosave. Reduced motion and hidden pages stop continuous
+  animation. Edits display the committed movement until Apply; Cancel preserves it.
+  Unsupported display geometry is retained with a warning and other valid movements
+  continue to render. Traffic Movement is authored schematic intent, with no asserted
+  speed, volume, lane geometry or simulation result. There are at most 24 per project.
 - Project Document v2 is the single source for current metadata, ordered layers,
   features, PointPresentation, and Traffic Movement domain records. Every accepted edit is validated against v2 before
   commit. Undo/Redo keeps at most 20 project snapshots; create/import/delete, geometry

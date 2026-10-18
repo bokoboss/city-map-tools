@@ -16,11 +16,13 @@ test('hosted app commits authored Point drags once and preserves history and rec
     }
   });
 
+  // Keep fixture bytes independent of the request context during remount/teardown.
+  const tile = await request.get(tileServerUrl);
+  const tileBytes = await tile.body();
   await page.route('**/*', async route => {
     const url = new URL(route.request().url());
     if (url.hostname === tileHost && url.protocol === 'https:') {
-      const tile = await request.get(tileServerUrl);
-      await route.fulfill({ status: tile.status(), contentType: 'image/png', body: await tile.body() });
+      await route.fulfill({ status: tile.status(), contentType: 'image/png', body: tileBytes });
       return;
     }
     if (url.protocol === 'http:' && ['127.0.0.1', 'localhost'].includes(url.hostname)) {

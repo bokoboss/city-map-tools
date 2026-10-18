@@ -52,6 +52,7 @@ function createInitialHistory(): ProjectHistoryState {
 
 export function App() {
   const [mapSession, setMapSession] = useState(0);
+  const [arrowsPaused, setArrowsPaused] = useState(false);
   const [historyState, setHistoryState] = useState<ProjectHistoryState>(createInitialHistory);
   const historyRef = useRef(historyState);
   const activePointDragRef = useRef<{ id: string; coordinates: Wgs84Point } | null>(null);
@@ -97,6 +98,7 @@ export function App() {
     persistenceRef.current = nextPersistence;
     previousPersistence?.dispose();
     setHistoryState(nextHistory);
+    setArrowsPaused(false);
     setPersistence(nextPersistence);
     setSaveStatus(nextPersistence.getStatus());
     setSelectedFeatureId(null);
@@ -573,6 +575,13 @@ export function App() {
         interactionLocked={switching}
         importStatus={importStatus}
         pointPresentations={project.presentation.points}
+        committedProject={historyState.present}
+        arrowsPaused={arrowsPaused}
+        onArrowsPausedChange={setArrowsPaused}
+        onTrafficMovementCommand={command => {
+          if (modeRef.current !== 'select' || historyRef.current.transaction) return failure(new Error('Finish or cancel the active geometry interaction before changing a Traffic Movement.'));
+          return runProjectCommand(command);
+        }}
         onModeChange={changeMode}
         onPointSelect={setSelectedFeatureId}
         onPointDragStart={handlePointDragStart}

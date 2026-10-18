@@ -5,8 +5,8 @@ import workerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url';
 import { basemaps, cartoRequestUrl, hasRuntimeCredential, isCartoBasemapHost, resolveBasemapStyle } from './basemaps';
 import type { BasemapId } from './basemaps';
 import { createGeometryEditor } from './geometryEditor';
-import { createDirectionalRenderer } from './directionalRenderer';
-import type { DirectionalInput } from './directionalPath';
+import { createDirectionalRenderer, DIRECTIONAL_IDS } from './directionalRenderer';
+import { snapshotInputs, type DirectionalInput } from './directionalPath';
 import type { GeometryEditor, GeometryEditorSession } from './geometryEditor';
 import { pointMarkerDefinitions } from './pointPresentation';
 import type { PointPresentation } from './pointPresentation';
@@ -82,6 +82,7 @@ interface ScreenPoint {
 }
 
 interface MapCallbacks {
+  onDirectionalStatus?: (message: string) => void;
   onState: (state: MapState) => void;
   onPointSelect: (id: string) => void;
   onPointDragStart: (id: string, coordinates: PointFeature['coordinates']) => { ok: boolean; message: string };
@@ -103,11 +104,13 @@ function geometryData(
   layers: readonly FeatureLayer[],
   selectedFeatureId: string | null,
   hiddenFeatureId: string | null,
+  movementIds: ReadonlySet<string>,
 ): FeatureCollection<LineString | Polygon, GeometryProperties> {
   const visibleLayers = new globalThis.Map(layers.map(layer => [layer.id, layer]));
   const mapped: Array<Feature<LineString | Polygon, GeometryProperties>> = [];
   for (const feature of features) {
     if (feature.id === hiddenFeatureId || !feature.visible) continue;
+    if (feature.type === 'LineString' && movementIds.has(feature.id)) continue;
     const layer = visibleLayers.get(feature.layerId);
     if (!layer?.visible || (!isLineStringFeature(feature) && !isPolygonFeature(feature))) continue;
     const geometry = feature.type === 'LineString'
@@ -195,6 +198,8 @@ export function createMap(container: HTMLDivElement, callbacks: MapCallbacks) {
   let editingSourceId: string | null = null;
   let editor: GeometryEditor | null = null;
   let pendingStyleGeometryHydration = true;
+  let styleLoaded = false;
+  let basemapSourceIds: string[] = [];
   let latestGeometry: {
     features: readonly SpatialFeature[];
     layers: readonly FeatureLayer[];
@@ -231,8 +236,17 @@ export function createMap(container: HTMLDivElement, callbacks: MapCallbacks) {
     attributionControl: { compact: false },
   });
   let snapIndex: SnapPolicy | null = null;
-  // Lazy renderer infrastructure: T1A has no production UI or project-domain inputs.
+  // Movement geometry remains in latestGeometry for editor and canonical snapping.
   let directional: ReturnType<typeof createDirectionalRenderer> | null = null;
+  let movementIds = new Set<string>();
+  let directionalInputWarnings: string[] = [];
+  let directionalNotice = '';
+  const reportDirectionalStatus = (messages: string[]) => {
+    const next = [...directionalInputWarnings, ...messages].join(' ');
+    if (next === directionalNotice) return;
+    directionalNotice = next;
+    callbacks.onDirectionalStatus?.(next ? `${next} Traffic Movement display only: adjust visual offset/layout or geometry/view; other valid movements remain available.` : '');
+  };
   let activeSnap: SnapResult | null = null;
   const snapIndicator = document.createElement('div');
   snapIndicator.className = 'snap-indicator';
@@ -258,7 +272,7 @@ export function createMap(container: HTMLDivElement, callbacks: MapCallbacks) {
     showSnap(null);
   };
   const rebuildSnapIndex = () => {
-    if (disposed || state.phase !== 'ready' || !map.isStyleLoaded() || map.isMoving() || pendingStyleGeometryHydration) {
+    if (disposed || state.phase !== 'ready' || !styleLoaded || map.isMoving() || pendingStyleGeometryHydration) {
       invalidateSnapIndex();
       return;
     }
@@ -466,7 +480,9 @@ export function createMap(container: HTMLDivElement, callbacks: MapCallbacks) {
   };
 
   const ensureGeometryLayers = (): boolean => {
-    if (!map.isStyleLoaded()) return false;
+    if (!styleLoaded) return false;
+    // Style hydration and later conversion must share the same draw/pick order.
+    const beforeMovement = map.getLayer(DIRECTIONAL_IDS.line) ? DIRECTIONAL_IDS.line : undefined;
     if (!map.getSource(geometrySourceId)) {
       map.addSource(geometrySourceId, { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
     }
@@ -480,7 +496,7 @@ export function createMap(container: HTMLDivElement, callbacks: MapCallbacks) {
           'fill-color': ['get', 'color'],
           'fill-opacity': ['case', ['get', 'selected'], 0.46, 0.22],
         },
-      });
+      }, beforeMovement);
     }
     if (!map.getLayer(polygonOutlineLayerId)) {
       map.addLayer({
@@ -492,7 +508,7 @@ export function createMap(container: HTMLDivElement, callbacks: MapCallbacks) {
           'line-color': ['get', 'color'],
           'line-width': ['case', ['get', 'selected'], 4, 2],
         },
-      });
+      }, beforeMovement);
     }
     if (!map.getLayer(lineLayerId)) {
       map.addLayer({
@@ -504,13 +520,15 @@ export function createMap(container: HTMLDivElement, callbacks: MapCallbacks) {
           'line-color': ['get', 'color'],
           'line-width': ['case', ['get', 'selected'], 5, 3],
         },
-      });
+      }, beforeMovement);
     }
     return true;
   };
 
   const renderGeometry = (): boolean => {
-    if (disposed || !map.isStyleLoaded()) return false;
+    // isStyleLoaded also includes GeoJSON worker idleness: continuous arrows must
+    // not block committed geometry updates or canonical snapping.
+    if (disposed || !styleLoaded) return false;
     try {
       if (!ensureGeometryLayers()) return false;
       const source = map.getSource(geometrySourceId) as GeoJSONSource | undefined;
@@ -520,6 +538,7 @@ export function createMap(container: HTMLDivElement, callbacks: MapCallbacks) {
         latestGeometry.layers,
         latestGeometry.selectedFeatureId,
         editingSourceId,
+        movementIds,
       ));
       return true;
     } catch {
@@ -551,6 +570,7 @@ export function createMap(container: HTMLDivElement, callbacks: MapCallbacks) {
       .filter(feature => feature.id !== editingSourceId)
       .filter(feature => feature.visible && visibleLayerIds.has(feature.layerId))
       .map(feature => {
+        if (movementIds.has(feature.id)) return { feature, distance: directional?.displayDistance(feature.id, point) ?? Infinity };
         const projected = feature.coordinates.map(coordinates => map.project(coordinates));
         let distance = Number.POSITIVE_INFINITY;
         for (let index = 1; index < projected.length; index += 1) {
@@ -574,9 +594,9 @@ export function createMap(container: HTMLDivElement, callbacks: MapCallbacks) {
       const rendered = map.queryRenderedFeatures([
         [point.x - lineHitTolerance, point.y - lineHitTolerance],
         [point.x + lineHitTolerance, point.y + lineHitTolerance],
-      ], { layers: [lineLayerId] });
+      ], { layers: [lineLayerId, DIRECTIONAL_IDS.line].filter(id => map.getLayer(id)) });
       for (const renderedFeature of rendered) {
-        const id = renderedFeature.properties?.id;
+        const id = renderedFeature.properties?.movementId ?? renderedFeature.properties?.id;
         if (typeof id !== 'string') continue;
         const candidate = tied.find(entry => entry.feature.id === id);
         if (candidate) return candidate.feature;
@@ -718,26 +738,32 @@ export function createMap(container: HTMLDivElement, callbacks: MapCallbacks) {
   };
 
   map.on('error', fail);
-  map.on('style.load', () => {
-    invalidateSnapIndex();
-    configureBuildings();
-    createEditor();
-    // MapLibre can emit style.load before its style is queryable during a full
-    // external-style replacement. Leave a bounded idle retry rather than
-    // dropping committed geometry until the next React state change.
-    pendingStyleGeometryHydration = !hydrateCommittedGeometry();
-  });
-  map.on('idle', () => {
-    if (pendingStyleGeometryHydration) {
-      pendingStyleGeometryHydration = !hydrateCommittedGeometry();
-    }
-    // Do not let idle silently clear an error from a failed tile/style request.
-    if (state.phase === 'loading' && map.areTilesLoaded()) {
+  const refreshReadiness = () => {
+    if (disposed || !styleLoaded || state.phase === 'error') return;
+    if (pendingStyleGeometryHydration) pendingStyleGeometryHydration = !hydrateCommittedGeometry();
+    // Basemap readiness must not wait for animated application-source workers or
+    // idle. Failed provider requests still own the persistent error state.
+    if (state.phase === 'loading' && !pendingStyleGeometryHydration &&
+        basemapSourceIds.every(id => map.isSourceLoaded(id))) {
       clearTimeout(loadingTimer);
       publish({ phase: 'ready', message: 'Map ready' });
     }
     if (!snapIndex) rebuildSnapIndex();
+  };
+  map.on('style.load', () => {
+    styleLoaded = true;
+    basemapSourceIds = Object.keys(map.getStyle().sources);
+    invalidateSnapIndex();
+    configureBuildings();
+    createEditor();
+    // MapLibre can emit style.load before its style is queryable during a full
+    // external-style replacement. Retry on source completion as well as idle rather than
+    // dropping committed geometry until the next React state change.
+    pendingStyleGeometryHydration = !hydrateCommittedGeometry();
+    refreshReadiness();
   });
+  map.on('sourcedata', refreshReadiness);
+  map.on('idle', refreshReadiness);
   map.on('movestart', invalidateSnapIndex);
   map.on('moveend', () => {
     const center = map.getCenter();
@@ -822,6 +848,7 @@ export function createMap(container: HTMLDivElement, callbacks: MapCallbacks) {
       try {
         // Full style replacement removes custom layers and editor adapter layers.
         directional?.suspendStyle();
+        styleLoaded = false;
         activeBasemapId = id;
         map.setStyle(style, { diff: false });
         return true;
@@ -838,13 +865,33 @@ export function createMap(container: HTMLDivElement, callbacks: MapCallbacks) {
     setPointOverlays(overlays: readonly MapPointOverlay[]) {
       renderPointOverlays(overlays);
     },
-    setDirectionalInputs(inputs: readonly DirectionalInput[]) {
+    setDirectionalInputs(inputs: readonly DirectionalInput[], options: { isolateDisplayFailures?: boolean } = {}) {
       if (disposed) return { ok: false, message: 'Map has been destroyed.' };
-      directional ??= createDirectionalRenderer(map);
-      const result = directional.updateInputs(inputs);
+      // Keep the accepted infrastructure API's atomic rejection semantics. The
+      // production project adapter explicitly opts into per-feature display warnings.
+      if (!options.isolateDisplayFailures) {
+        try { snapshotInputs(inputs); }
+        catch (error) { return { ok: false, message: error instanceof Error ? error.message : 'Invalid renderer input; previous rendering retained.' }; }
+      }
+      // Invalid display extent is local to a movement; never retain another project's tracks.
+      movementIds = new Set(inputs.map(input => input.id));
+      directionalInputWarnings = [];
+      const valid: DirectionalInput[] = [];
+      for (const input of inputs) {
+        try { valid.push(...snapshotInputs([input])); }
+        catch (error) { directionalInputWarnings.push(`${input.id}: ${error instanceof Error ? error.message : 'Unsupported movement display.'}`); }
+      }
+      directional ??= createDirectionalRenderer(map, reportDirectionalStatus);
+      const result = directional.updateInputs(valid);
+      if (!result.ok) {
+        directionalInputWarnings.push(result.message);
+        directional.updateInputs([]);
+      }
+      reportDirectionalStatus(directional.diagnostics().limitations);
       if (result.ok) pendingStyleGeometryHydration = !hydrateCommittedGeometry();
       return result;
     },
+    setDirectionalPaused(paused: boolean) { if (paused) directional?.pause(); else directional?.resume(); },
     directionalDiagnostics() { return directional?.diagnostics() ?? null; },
     setGeometryOverlays(features: readonly SpatialFeature[], layers: readonly FeatureLayer[], selectedFeatureId: string | null) {
       const targetsChanged = latestGeometry.features !== features || latestGeometry.layers !== layers;
