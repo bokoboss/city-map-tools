@@ -3,11 +3,13 @@ import { readFile } from 'node:fs/promises';
 import { readActiveProjectRecord } from './project-browser-helpers';
 
 test('hosted CAD snapping preserves exact WGS84 vertices while drawing', async ({ page, request }) => {
+  const fixtureTile = await request.get('http://127.0.0.1:4175/tile.png');
+  const tileBytes = await fixtureTile.body();
+  const tileStatus = fixtureTile.status();
   await page.route('**/*', async route => {
     const url = new URL(route.request().url());
     if (url.hostname === 'tile.openstreetmap.org') {
-      const tile = await request.get('http://127.0.0.1:4175/tile.png');
-      await route.fulfill({ status: tile.status(), contentType: 'image/png', body: await tile.body() });
+      await route.fulfill({ status: tileStatus, contentType: 'image/png', body: tileBytes });
     } else if (['127.0.0.1', 'localhost'].includes(url.hostname) || ['data:', 'blob:'].includes(url.protocol)) {
       await route.continue();
     } else await route.abort();
@@ -115,11 +117,13 @@ test('hosted CAD snapping preserves exact WGS84 vertices while drawing', async (
 });
 
 test('authored Point drag shares snap policy and commits only on release', async ({ page, request }) => {
+  const fixtureTile = await request.get('http://127.0.0.1:4175/tile.png');
+  const tileBytes = await fixtureTile.body();
+  const tileStatus = fixtureTile.status();
   await page.route('**/*', async route => {
     const url = new URL(route.request().url());
     if (url.hostname === 'tile.openstreetmap.org') {
-      const tile = await request.get('http://127.0.0.1:4175/tile.png');
-      await route.fulfill({ status: tile.status(), contentType: 'image/png', body: await tile.body() });
+      await route.fulfill({ status: tileStatus, contentType: 'image/png', body: tileBytes });
     } else if (['127.0.0.1', 'localhost'].includes(url.hostname) || ['data:', 'blob:'].includes(url.protocol)) {
       await route.continue();
     } else await route.abort();
@@ -195,11 +199,13 @@ test('authored Point drag shares snap policy and commits only on release', async
 
 test('hidden, imported, derived, and self geometry cannot snap; camera and style rebuild the index', async ({ page, request }) => {
   test.setTimeout(60_000);
+  const fixtureTile = await request.get('http://127.0.0.1:4175/tile.png');
+  const tileBytes = await fixtureTile.body();
+  const tileStatus = fixtureTile.status();
   await page.route('**/*', async route => {
     const url = new URL(route.request().url());
     if (url.hostname === 'tile.openstreetmap.org') {
-      const tile = await request.get('http://127.0.0.1:4175/tile.png');
-      await route.fulfill({ status: tile.status(), contentType: 'image/png', body: await tile.body() });
+      await route.fulfill({ status: tileStatus, contentType: 'image/png', body: tileBytes });
     } else if (['127.0.0.1', 'localhost'].includes(url.hostname) || ['data:', 'blob:'].includes(url.protocol)) {
       await route.continue();
     } else await route.abort();

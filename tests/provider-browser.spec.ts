@@ -15,11 +15,13 @@ test('Voyager requires runtime BYOK and never saves the synthetic credential', a
   const consoleText: string[] = [];
   page.on('console', message => consoleText.push(message.text()));
   page.on('pageerror', error => consoleText.push(error.message));
+  const fixtureTile = await request.get(tileServerUrl);
+  const tileBytes = await fixtureTile.body();
+  const tileStatus = fixtureTile.status();
   await page.route('**/*', async route => {
     const url = new URL(route.request().url());
     if (url.hostname === 'tile.openstreetmap.org') {
-      const tile = await request.get(tileServerUrl);
-      await route.fulfill({ status: tile.status(), contentType: 'image/png', body: await tile.body() });
+      await route.fulfill({ status: tileStatus, contentType: 'image/png', body: tileBytes });
       return;
     }
     if (url.hostname === cartoHost) {
@@ -84,11 +86,13 @@ test('Voyager requires runtime BYOK and never saves the synthetic credential', a
 
 test('clearing a runtime key preserves an active draft and blocks later CARTO requests', async ({ page, request }) => {
   const cartoRequests: string[] = [];
+  const fixtureTile = await request.get(tileServerUrl);
+  const tileBytes = await fixtureTile.body();
+  const tileStatus = fixtureTile.status();
   await page.route('**/*', async route => {
     const url = new URL(route.request().url());
     if (url.hostname === 'tile.openstreetmap.org') {
-      const tile = await request.get(tileServerUrl);
-      await route.fulfill({ status: tile.status(), contentType: 'image/png', body: await tile.body() });
+      await route.fulfill({ status: tileStatus, contentType: 'image/png', body: tileBytes });
     } else if (url.hostname === cartoHost || url.hostname === `tiles.${cartoHost}`) {
       cartoRequests.push(url.toString());
       expect(url.searchParams.get('key')).toBe(syntheticKey);
@@ -154,11 +158,13 @@ test('failing CARTO style stays unavailable without leaking the runtime key', as
   const consoleText: string[] = [];
   page.on('console', message => consoleText.push(message.text()));
   page.on('pageerror', error => consoleText.push(error.message));
+  const fixtureTile = await request.get(tileServerUrl);
+  const tileBytes = await fixtureTile.body();
+  const tileStatus = fixtureTile.status();
   await page.route('**/*', async route => {
     const url = new URL(route.request().url());
     if (url.hostname === 'tile.openstreetmap.org') {
-      const tile = await request.get(tileServerUrl);
-      await route.fulfill({ status: tile.status(), contentType: 'image/png', body: await tile.body() });
+      await route.fulfill({ status: tileStatus, contentType: 'image/png', body: tileBytes });
     } else if (url.hostname === cartoHost) {
       await route.fulfill({ status: 429, contentType: 'text/plain', body: 'Rate limited' });
     } else if (['127.0.0.1', 'localhost'].includes(url.hostname) || ['data:', 'blob:'].includes(url.protocol)) {
@@ -180,11 +186,13 @@ test('failing CARTO style stays unavailable without leaking the runtime key', as
 test('3D requires a compatible building layer in the actually loaded keyed style', async ({ page, request }) => {
   let keyedTileRequests = 0;
   let keyedSpriteRequests = 0;
+  const fixtureTile = await request.get(tileServerUrl);
+  const tileBytes = await fixtureTile.body();
+  const tileStatus = fixtureTile.status();
   await page.route('**/*', async route => {
     const url = new URL(route.request().url());
     if (url.hostname === 'tile.openstreetmap.org') {
-      const tile = await request.get(tileServerUrl);
-      await route.fulfill({ status: tile.status(), contentType: 'image/png', body: await tile.body() });
+      await route.fulfill({ status: tileStatus, contentType: 'image/png', body: tileBytes });
     } else if ([cartoHost, `tiles.${cartoHost}`, `a.${cartoHost}`].includes(url.hostname)) {
       expect(url.searchParams.get('key') === syntheticKey).toBe(true);
       if (url.pathname.endsWith('.pbf')) {
@@ -195,8 +203,7 @@ test('3D requires a compatible building layer in the actually loaded keyed style
         await route.fulfill({ status: 200, contentType: 'application/json', body: '{}' });
       } else if (url.pathname.endsWith('/sprite.png')) {
         keyedSpriteRequests += 1;
-        const tile = await request.get(tileServerUrl);
-        await route.fulfill({ status: tile.status(), contentType: 'image/png', body: await tile.body() });
+        await route.fulfill({ status: tileStatus, contentType: 'image/png', body: tileBytes });
       } else {
         await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({
           version: 8,

@@ -14,6 +14,8 @@ async function start(page: Page, request: APIRequestContext, readyTimeout = 3000
   page.on('console', message => { if (message.type() === 'error') problems.push(message.text()); });
   Object.assign(page, { trafficProblems: problems });
   await page.setViewportSize({ width: 1440, height: 1000 });
+  const fixtureTile = await request.get('http://127.0.0.1:4175/tile.png');
+  const tileBytes = await fixtureTile.body();
   await page.route('**/*', async route => {
     const url = new URL(route.request().url());
     if (route.request().resourceType() === 'document' && url.pathname === '/city-map-tools/') {
@@ -22,8 +24,8 @@ async function start(page: Page, request: APIRequestContext, readyTimeout = 3000
         '<script type="module">import "./__traffic_probe.js"; await import("./app.js");</script>');
       await route.fulfill({ response, body: html });
     } else if (url.hostname === 'tile.openstreetmap.org') {
-      const tile = await request.get('http://127.0.0.1:4175/tile.png');
-      await route.fulfill({ contentType: 'image/png', body: await tile.body() });
+
+      await route.fulfill({ contentType: 'image/png', body: tileBytes });
     } else if (url.hostname === 'basemaps.cartocdn.com') {
       await route.fulfill({ contentType: 'application/json', body: JSON.stringify({ version: 8, sources: {},
         layers: [{ id: 'local-background', type: 'background', paint: { 'background-color': '#f3f5f7' } }] }) });

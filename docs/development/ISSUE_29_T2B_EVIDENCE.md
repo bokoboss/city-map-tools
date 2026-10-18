@@ -102,6 +102,8 @@ Linux CI also exposed an existing smoke-fixture teardown race: a tile route read
 `APIResponse.body()` after the request context was disposed. The smoke fixture now
 loads the fixed tile bytes before registering the route, preserving identical tile
 content without an asynchronous request-context dependency during map remount/teardown.
+The same failure then appeared in the provider fixture; all browser fixture setups
+using that pattern now preload the same local tile/status and close over those values.
 This is test-only; no product change or test assertion was removed.
 
 Supplementary local screenshots: `output/playwright/traffic-product-desktop.png` and

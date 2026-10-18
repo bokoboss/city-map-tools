@@ -6,11 +6,13 @@ async function setup(page: Page, request: import('@playwright/test').APIRequestC
   page.on('pageerror', error => problems.push(error.message));
   page.on('console', message => { if (message.type() === 'error') problems.push(message.text()); });
   await page.setViewportSize({ width: 800, height: 680 });
+  const fixtureTile = await request.get('http://127.0.0.1:4175/tile.png');
+  const tileBytes = await fixtureTile.body();
   await page.route('**/*', async route => {
     const url = new URL(route.request().url());
     if (url.hostname === 'tile.openstreetmap.org') {
-      const tile = await request.get('http://127.0.0.1:4175/tile.png');
-      await route.fulfill({ status: 200, contentType: 'image/png', body: await tile.body() });
+
+      await route.fulfill({ status: 200, contentType: 'image/png', body: tileBytes });
     } else if (url.hostname === 'basemaps.cartocdn.com') {
       // Genuine full external style replacement, deterministic resources, no real credential.
       await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ version: 8,

@@ -30,17 +30,18 @@ function serializedProject(id: string, name: string): string {
 }
 
 async function routeLocalProviders(page: Page, request: Request): Promise<void> {
+  const fixtureTile = await request.get(tileServerUrl);
+  const tileBytes = await fixtureTile.body();
+  const tileStatus = fixtureTile.status();
   await page.route('**/*', async route => {
     const url = new URL(route.request().url());
     if (url.hostname === 'tile.openstreetmap.org') {
-      const tile = await request.get(tileServerUrl);
-      await route.fulfill({ status: tile.status(), contentType: 'image/png', body: await tile.body() });
+      await route.fulfill({ status: tileStatus, contentType: 'image/png', body: tileBytes });
     } else if (cartoHosts.has(url.hostname)) {
       if (url.pathname.endsWith('.pbf')) {
         await route.fulfill({ status: 200, contentType: 'application/x-protobuf', body: Buffer.alloc(0) });
       } else if (url.pathname.endsWith('/sprite.png')) {
-        const tile = await request.get(tileServerUrl);
-        await route.fulfill({ status: tile.status(), contentType: 'image/png', body: await tile.body() });
+        await route.fulfill({ status: tileStatus, contentType: 'image/png', body: tileBytes });
       } else if (url.pathname.endsWith('/sprite.json')) {
         await route.fulfill({ status: 200, contentType: 'application/json', body: '{}' });
       } else {
