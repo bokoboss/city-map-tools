@@ -9,9 +9,10 @@
 - Product North Star: `PRODUCT_DIRECTION.md`
 
 ## Current accepted baseline
-- Accepted **product-code baseline**: `2d6d46bf1e37b60b60fd6be5e86b54e8e8fc132b`
+- Accepted **product-code baseline**: `32ef67f0aefbc9d7bf869948c2d380eacf0c3c98`
 - Baseline date: 2026-10-18, project timezone UTC+07:00
-- This baseline is merge commit PR #57 / Issue #29 T1B: bounded shared-corridor detection and presentation-only display-track layout, accepted at PR head `73c1837686f2fb0d31bfdd053a45719949f6dd6e`.
+- This baseline is merge commit PR #59 / Issue #29 T2A: Project Document v2, safe lazy v1 migration and Traffic Movement domain/history commands, accepted at PR head `14f60e66a49a7cab84c989f6e2805b26cf3e2870`.
+- It also includes PR #57 / Issue #29 T1B: bounded shared-corridor detection and presentation-only display-track layout, accepted at PR head `73c1837686f2fb0d31bfdd053a45719949f6dd6e`.
 - It also includes PR #55 / Issue #29 T1A: bounded MapLibre-native directional renderer infrastructure/proof, accepted at PR head `1021fb9ac158348985e369dc0f77eb922f6a533b`.
 - It also includes PR #53 / Issue #5D: browser-local multi-project New/Open/Save workflow, loss-preserving legacy migration, recovery controls, and StrictMode-safe catalogue bootstrap, accepted at PR head `4d2ce745439bcdc54026f96e36218ed5af1b8a1e`.
 - It also includes PR #50 / Issue #43: typed OSM/CARTO basemap/provider capability contracts and credential-safe runtime BYOK behavior, accepted at PR head `5bf6bf84daa82d8eba6af91bfa995f6465b38994` after bounded credential/security remediation.
@@ -33,11 +34,21 @@
   - #42 indexed CAD snapping;
   - #43 provider/basemap capability and runtime-BYOK contracts;
   - #29 T1A bounded directional renderer proof;
-  - #29 T1B conservative shared-corridor display-layout kernel.
+  - #29 T1B conservative shared-corridor display-layout kernel;
+  - #29 T2A strict Project Document v2 domain/migration/history.
 - Durable program record: Issue #1.
 - Product direction: `PRODUCT_DIRECTION.md`.
 
 ## Recently accepted product-authoring work
+
+### Issue #29 T2A — Project Document v2 and safe legacy migration
+- PR #59 merged to `main` as `32ef67f0aefbc9d7bf869948c2d380eacf0c3c98`, accepted at head `14f60e66a49a7cab84c989f6e2805b26cf3e2870`; control-plane acceptance comment `6248626357`.
+- New authoritative Project Document v2 contains required `trafficMovements` annotations keyed to existing authored LineString feature IDs; strict separate v1 decoder is retained. Imported/derived and generic LineStrings are never reinterpreted as movements. Canonical WGS84/provenance and Point presentation remain unchanged.
+- Valid v1 browser projects open logically in v2 without changing exact stored v1 bytes on read/list/Save-now. On first real committed edit, one guarded IndexedDB v1-store transaction stores the unchanged v1 under `migration-backup:v1:<id>` and writes strict v2 to `project:<id>`. A per-record expected-raw compare-and-swap prevents same-version stale overwrites and rejects existing backup collisions; successful transaction completion is the Saved boundary.
+- History supports Convert, Unconvert, Forward/Reverse and bounded visual style commands plus deletion/geometry-edit/Undo/Redo semantics. The pure `trafficMovementInputs` adapter maps approved visual rates and visibility; the production UI and renderer binding remain T2B, not T2A.
+- V2 caps at 24 annotations and 2,500,000 serialized characters (strict original v1 cap 2,000,000); existing IndexedDB database version 1, store and indexes remain unchanged. No new backend/runtime dependency.
+- Exact-head CI run #80 passed build and browser-smoke, with 30/30 browser regressions including 12 new actual-IndexedDB migration/CAS/failure/switch fixtures. Independent schema/data-loss review and exact-head Code/Security Review found no findings.
+- Operational limitation: already-open older app tabs lack the new CAS guard; users should close/reload old tabs before editing migrated projects. Backups are preserved without automatic restore/retention UI. Browser storage is not portable export or disaster-proof backup. Issue #29 remains OPEN for T2B.
 
 ### Issue #29 T1B — shared-corridor display-layout kernel
 - PR #57 merged to `main` as `2d6d46bf1e37b60b60fd6be5e86b54e8e8fc132b`.
@@ -114,7 +125,7 @@
 
 ## Current active / next work
 - R1B / Issue #5 and R2 / Issue #7 are closed as completed.
-- Issue #29 remains active. T1A directional renderer and T1B shared-corridor display-layout infrastructure are accepted; immediate next gate is T2 persisted Traffic Movement semantics, authoring workflow, inspector, history and renderer integration, with careful schema/migration qualification before implementation.
+- Issue #29 remains active. T1A/T1B renderer/layout and T2A Project Document v2/domain/history/loss-preserving migration are accepted; next slice is T2B user-facing Convert/Unconvert, selected inspector, animation pause and production renderer/project/editor integration, without another schema rewrite.
 - After #29 reaches useful product integration, continue the core product-authoring set with Site Access Route (#30), cartographic presentation (#32), and Site Plan overlay (#33), subject to dependency reconciliation.
 
 ## Current implemented stack
@@ -125,7 +136,7 @@
 - Project-owned bounded directional renderer infrastructure with two shared GeoJSON sources, two shared layers, one generated SDF arrow image, cached display-path sampling, deterministic automatic shared-corridor layout and one 25-updates/second scheduler.
 - `@turf/buffer` for bounded derived buffers.
 - `geographiclib-geodesic` for the protected WGS84 ellipsoidal geodesic kernel.
-- Native IndexedDB for browser-local multi-project catalogue, committed Project Document v1 autosave/recovery, and explicit active-project selection.
+- Native IndexedDB for browser-local multi-project catalogue, strict v1-read/v2-write Project Document persistence with raw-v1 backup and CAS, and explicit active-project selection.
 - Playwright Chromium is used for the focused hosted browser-smoke gate; there is intentionally no broad multi-browser E2E matrix.
 - Node 22 is the CI baseline.
 
@@ -142,16 +153,16 @@
 - Deterministic CAD snapping for visible authored Point/LineString/Polygon geometry with vertex and nearest-on-segment targets, self/ineligible exclusion, exact canonical WGS84 vertex preservation, bounded candidate lookup, transient feedback, and camera/style/project lifecycle invalidation.
 - Derived Turf buffers with source snapshot, metres, library version, stale/orphan state, and read-only derived geometry.
 - Point presentation with center/pin-tip hotspot semantics, bounded marker size, and eight label placements; presentation does not alter canonical geometry.
-- Strict Project Document v1 validation/serialization.
+- Strict Project Document v2 validation/serialization with preserved v1 decoder and lazy first-edit upgrade, exact raw-v1 migration backup and guarded CAS saves.
 - Authoritative project state, project commands, one-action history, transaction drafts, bounded 20-snapshot Undo/Redo.
 - Browser-local multi-project catalogue with explicit New/Open/Save-now, active-project persistence, loss-preserving legacy migration/recovery, and fresh history roots after project switching.
 - Native IndexedDB 500 ms committed-state autosave with Saved/Saving/Unsaved/Error state and strict recovery preservation.
-- Accepted T1A/T1B directional-renderer infrastructure renders bounded transient WGS84 LineStrings with forward/reverse traversal, reduced-motion/visibility/style lifecycle, explicit and automatic shared-corridor presentation-only offsets/tapers, preserved crossings and bounded cleanup. This is not yet the user-facing persisted Traffic Movement feature.
+- Accepted T1A/T1B directional-renderer infrastructure renders bounded transient WGS84 LineStrings with forward/reverse traversal, reduced-motion/visibility/style lifecycle, shared-corridor offsets/tapers and bounded cleanup. T2A adds persisted Traffic Movement domain/history and pure render-input preparation, but the app does not yet expose the production Convert/inspector/renderer connection (T2B).
 - Deterministic pure tests, strict typecheck/build, and focused production-preview/hosted Chromium browser evidence.
 - WGS84 ellipsoidal inverse distance/bearing, line length, polygon perimeter, and absolute area kernel for later #14 measurement.
 
 ## Not yet implemented / not yet accepted
-- Full Traffic Movement product feature (#29): T1A/T1B rendering and layout are accepted; T2 persisted semantic/domain/UI/history integration remains outstanding.
+- Full Traffic Movement product feature (#29): T1A/T1B renderer/layout and T2A persisted domain/history are accepted; T2B production user authoring/inspector/renderer integration and end-to-end UAT remain outstanding.
 - Site Access Route (#30), Scenario/Stage (#31), presentation system (#32), Site Plan overlay (#33), semantic traffic annotations (#34).
 - Live measurement UI (#14).
 - Data-driven Desire Line / OD (#11), including persistent transport/activity centroid semantics when that workflow is implemented.
@@ -192,10 +203,10 @@ Additional rules:
 - No speculative generic plugin framework.
 
 ## Project-state contract
-- Project Document v1 is current persisted project truth for each browser-local project.
-- Current project state includes accepted layers/features/provenance/derived-buffer records and Point presentation.
+- Project Document v2 is current persisted project truth for newly created and edited browser-local projects; valid stored v1 is read without rewriting until the first real committed edit, then upgraded with an atomic unchanged-raw-v1 backup. Explicit v1 strict reader remains available.
+- Current project state includes accepted layers/features/provenance/derived-buffer records, Point presentation and bounded authored-LineString Traffic Movement semantic/presentation records.
 - Browser-local catalogue identity/active-project selection are persistence workflow metadata, not fields inside Project Document v1.
-- Selection, tool/mode, hover, draft/edit state, map runtime/camera, import status, animation phase, provider credential state, T1A/T1B directional renderer fixtures/display tracks, and other transient UI state are not persisted project truth.
+- Selection, tool/mode, hover, draft/edit state, map runtime/camera, import status, animation phase, provider credential state and inferred T1A/T1B directional renderer paths/display tracks remain transient and are not persisted project truth; T2A persists only explicitly authored semantic direction and approved visual styling.
 - History is runtime-only and resets to a fresh root after reload/recovery/project switch.
 - Project files/persistence must contain no credentials/secrets.
 - Issue #5 owns the accepted browser-local project workflow; #13 owns broader portable/native interoperability packages where appropriate.
@@ -255,6 +266,6 @@ If a local Playwright Chromium binary is absent, project work should not silentl
 - Triage review findings as BLOCKER / REQUIRED / FOLLOW-UP and stop once closure conditions are met.
 
 ## Current objective
-1. Qualify #29 T2 persisted Traffic Movement semantic/domain/UI/history integration against Project Document v1, schema migration/recovery, accepted editor and local-first contracts before code mutation.
-2. Preserve accepted #29 T1A/T1B renderer and display-layout invariants; keep T2 focused on the first usable authored Traffic Movement workflow.
-3. Carry the #5D in-flight-autosave browser regression as a non-blocking persistence/workflow hardening follow-up when that area is next touched.
+1. Qualify and execute #29 T2B: connect accepted v2 Traffic Movement domain/history to an accessible Convert/Unconvert, inspector and project-aware directional renderer workflow with bounded browser UAT.
+2. Preserve accepted T1A/T1B layout and T2A migration/CAS behavior, including old-v1 recovery, reduced motion and runtime credential isolation. Keep T2B out of schema, import/export and engineering metrics.
+3. Existing #5D New/Open during an in-flight autosave follow-up received actual-IndexedDB T2A browser coverage (success/failure); retain regression coverage and revisit only if T2B materially changes project switching.
