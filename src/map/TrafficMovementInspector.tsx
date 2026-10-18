@@ -45,7 +45,10 @@ export function TrafficMovementInspector({ feature, movements, disabled, onComma
         <option value="forward">Forward · first to last vertex</option><option value="reverse">Reverse · last to first vertex</option>
       </select>
       <label htmlFor="movement-color">Movement color</label>
-      <input id="movement-color" type="color" value={movement.style.color} onChange={event => style({ color: event.target.value })} />
+      <input id="movement-color" type="color" key={`${feature.id}:${movement.style.color}`} defaultValue={movement.style.color}
+        aria-describedby="movement-color-help" onBlur={event => style({ color: event.target.value })}
+        onKeyDown={event => { if (event.key === 'Enter') event.currentTarget.blur(); }} />
+      <p id="movement-color-help" className="control-help">Color applies when you leave this field or press Enter.</p>
       {numericFields.map(([key, label, min, max, step]) => <label key={key} htmlFor={`movement-${key}`}>{label}
         <input id={`movement-${key}`} type="number" min={min} max={max} step={step}
           key={`${feature.id}:${movement.style[key]}`} defaultValue={movement.style[key]}

@@ -8,7 +8,7 @@ const tracksId = 'city-map-directional-tracks';
 const arrowsId = 'city-map-directional-arrows';
 const genericId = 'city-map-committed-geometry';
 
-async function start(page: Page, request: APIRequestContext) {
+async function start(page: Page, request: APIRequestContext, readyTimeout = 30000) {
   const problems: string[] = [];
   page.on('pageerror', error => problems.push(error.message));
   page.on('console', message => { if (message.type() === 'error') problems.push(message.text()); });
@@ -31,7 +31,7 @@ async function start(page: Page, request: APIRequestContext) {
     else await route.abort();
   });
   await page.goto('./');
-  await expect(page.locator('.map-status strong')).toHaveText('Ready', { timeout: 30000 });
+  await expect(page.locator('.map-status strong')).toHaveText('Ready', { timeout: readyTimeout });
 }
 
 async function stored(page: Page) { return JSON.parse((await readActiveProjectRecord(page)).value as string); }
@@ -187,7 +187,18 @@ test('production shared tracks pick the displayed ID, preserve crossings and sur
     await expect(page.locator('.inspector-id')).toHaveText(id);
   }
   const crossing = tracks.find(f => f.id === 'move-3');
-  expect(crossing.geometry.coordinates).toEqual(doc.features[3].coordinates);
+  expect(crossing.geometry.coordinates).toHaveLength(doc.features[3].coordinates.length);
+  // Display tracks pass through MapLibre project/unproject; Linux/Windows can
+  // differ at the last few floating-point bits. Canonical storage stays exact.
+  const crossingPixelError = await page.evaluate(({ display, canonical }) => {
+    const map = (window as any).trafficProbe.map();
+    return Math.max(...display.map((coordinate: number[], i: number) => {
+      const a = map.project(coordinate), b = map.project(canonical[i]);
+      return Math.hypot(a.x - b.x, a.y - b.y);
+    }));
+  }, { display: crossing.geometry.coordinates, canonical: doc.features[3].coordinates });
+  expect(crossingPixelError).toBeLessThan(0.00001);
+  expect((await stored(page)).features).toEqual(doc.features);
   await page.mouse.click(box.x + 160, box.y + 440);
   await expect(page.locator('.inspector-id')).toHaveText('move-5');
 
@@ -287,6 +298,46 @@ test('production conversion cap is explained without a partial edit', async ({ p
   await save(page);
   expect((await stored(page)).trafficMovements).toEqual(doc.trafficMovements);
   await expect(page.getByRole('button', { name: 'Undo project edit', exact: true })).toBeDisabled();
+});
+
+test('production style and canonical snapping become ready without controller idle delivery', async ({ page, request }) => {
+  await page.addInitScript(() => { (window as any).trafficSuppressIdle = true; });
+  await start(page, request, 5000);
+  await seedMovements(page);
+  await rendered(page);
+  await page.getByRole('button', { name: 'Line tool', exact: true }).click();
+  await expect(page.locator('.snap-indicator')).toHaveAttribute('data-index', 'ready');
+  const box = (await page.locator('.maplibregl-canvas').boundingBox())!;
+  await page.mouse.move(box.x + 160, box.y + 250);
+  await expect(page.locator('.editor-status')).toContainText('Vertex snap');
+  await page.getByRole('button', { name: 'Cancel', exact: true }).click();
+  await expect(page.locator('.map-status strong')).toHaveText('Ready');
+});
+
+test('production color picker input stream commits one history action at finalization', async ({ page, request }) => {
+  await start(page, request);
+  await seedMovements(page);
+  await page.locator('.feature-row').first().click();
+  const color = page.getByLabel('Movement color', { exact: true });
+  const raw = (await readActiveProjectRecord(page)).value;
+  await color.focus();
+  await color.evaluate(input => {
+    for (const value of ['#110000', '#220000', '#330000', '#440000']) {
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(input, value);
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+      input.dispatchEvent(new Event('change', { bubbles: true }));
+    }
+  });
+  await expect(page.getByRole('button', { name: 'Undo project edit', exact: true })).toBeDisabled();
+  expect((await readActiveProjectRecord(page)).value).toBe(raw);
+  await color.press('Tab');
+  await save(page);
+  expect((await stored(page)).trafficMovements['move-0'].style.color).toBe('#440000');
+  await page.getByRole('button', { name: 'Undo project edit', exact: true }).click();
+  await expect(color).toHaveValue('#2563eb');
+  await expect(page.getByRole('button', { name: 'Undo project edit', exact: true })).toBeDisabled();
+  await page.getByRole('button', { name: 'Redo project edit', exact: true }).click();
+  await expect(color).toHaveValue('#440000');
 });
 
 test('production reduced motion, hidden page and global pause are transient with no React frame churn', async ({ page, request }) => {

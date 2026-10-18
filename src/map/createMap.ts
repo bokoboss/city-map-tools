@@ -199,6 +199,7 @@ export function createMap(container: HTMLDivElement, callbacks: MapCallbacks) {
   let editor: GeometryEditor | null = null;
   let pendingStyleGeometryHydration = true;
   let styleLoaded = false;
+  let basemapSourceIds: string[] = [];
   let latestGeometry: {
     features: readonly SpatialFeature[];
     layers: readonly FeatureLayer[];
@@ -735,27 +736,32 @@ export function createMap(container: HTMLDivElement, callbacks: MapCallbacks) {
   };
 
   map.on('error', fail);
-  map.on('style.load', () => {
-    styleLoaded = true;
-    invalidateSnapIndex();
-    configureBuildings();
-    createEditor();
-    // MapLibre can emit style.load before its style is queryable during a full
-    // external-style replacement. Leave a bounded idle retry rather than
-    // dropping committed geometry until the next React state change.
-    pendingStyleGeometryHydration = !hydrateCommittedGeometry();
-  });
-  map.on('idle', () => {
-    if (pendingStyleGeometryHydration) {
-      pendingStyleGeometryHydration = !hydrateCommittedGeometry();
-    }
-    // Do not let idle silently clear an error from a failed tile/style request.
-    if (state.phase === 'loading' && map.areTilesLoaded()) {
+  const refreshReadiness = () => {
+    if (disposed || !styleLoaded || state.phase === 'error') return;
+    if (pendingStyleGeometryHydration) pendingStyleGeometryHydration = !hydrateCommittedGeometry();
+    // Basemap readiness must not wait for animated application-source workers or
+    // idle. Failed provider requests still own the persistent error state.
+    if (state.phase === 'loading' && !pendingStyleGeometryHydration &&
+        basemapSourceIds.every(id => map.isSourceLoaded(id))) {
       clearTimeout(loadingTimer);
       publish({ phase: 'ready', message: 'Map ready' });
     }
     if (!snapIndex) rebuildSnapIndex();
+  };
+  map.on('style.load', () => {
+    styleLoaded = true;
+    basemapSourceIds = Object.keys(map.getStyle().sources);
+    invalidateSnapIndex();
+    configureBuildings();
+    createEditor();
+    // MapLibre can emit style.load before its style is queryable during a full
+    // external-style replacement. Retry on source completion as well as idle rather than
+    // dropping committed geometry until the next React state change.
+    pendingStyleGeometryHydration = !hydrateCommittedGeometry();
+    refreshReadiness();
   });
+  map.on('sourcedata', refreshReadiness);
+  map.on('idle', refreshReadiness);
   map.on('movestart', invalidateSnapIndex);
   map.on('moveend', () => {
     const center = map.getCenter();

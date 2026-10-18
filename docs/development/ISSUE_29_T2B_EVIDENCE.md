@@ -54,6 +54,13 @@ provider credentials, spatial methods or runtime dependencies.
   ordinary strokes. Controller style readiness now follows `style.load`/replacement,
   independently of source-worker idleness. The failing ordinary-line source assertion
   passed after the bounded controller correction.
+- Fresh Code Review of the first head found two REQUIRED issues. Both received
+  failing browser reproducers before remediation: controller `idle` delivery was
+  suppressed to reproduce startup/snapping stuck in Loading; a stream of native
+  color input/change events reproduced multiple history entries. Readiness now uses
+  completed committed-geometry hydration and per-basemap source completion events,
+  without waiting for animated application sources or `idle`. Provider errors retain
+  priority. Color is a local native-input draft committed once on blur/Enter.
 
 ## Reproducible browser evidence
 
@@ -81,10 +88,12 @@ The product scenarios cover:
   unsupported polar display diagnosis retaining valid movements and imported-line
   conversion refusal; 24-movement cap with no partial edit.
 - Desktop/narrow screenshots, native labeled controls and keyboard traversal.
+- No-idle startup and canonical vertex snapping with animated movements; one Undo
+  entry for a finalized multi-event color-picker gesture, with no intermediate write.
 
 Supplementary local screenshots: `output/playwright/traffic-product-desktop.png` and
 `output/playwright/traffic-product-narrow.png`. Full browser log:
-`.cache/t2b-browser-full.log` (generated/ignored). Test results and exact-head CI/review
+`.cache/t2b-browser-final.log` (generated/ignored). Test results and exact-head CI/review
 provenance are recorded on the PR for the final revision.
 
 ## Limitations and acceptance boundary
@@ -98,6 +107,10 @@ provenance are recorded on the PR for the final revision.
 - Control-DOM observation supports no React frame churn; it is not a React profiler
   or GPU/worker performance benchmark. Accepted renderer tests cover scheduler bounds,
   lifecycle/listener cleanup, crossing/taper and pixel alignment independently.
+- Render-only MapLibre project/unproject coordinates are checked within 0.00001 CSS
+  px, not by exact WGS84 bit equality. Linux CI exposed a roughly 4e-12-degree
+  floating-point difference in that round trip; canonical persisted features retain
+  exact equality assertions. No production geometry change was needed.
 - Browser storage remains local and fallible. Accepted v1 migration/backup/CAS and
   recovery behavior is unchanged. No generic LineString export, routing, scenario,
   traffic metric, simulation or new schema is added.
