@@ -3,7 +3,7 @@ import {
   createEmptyProjectDocument,
   parseProjectDocumentJson,
   serializeProjectDocument,
-  type ProjectDocumentV1,
+  type ProjectDocumentV2,
 } from '../src/project/projectDocument';
 import {
   createProjectHistory,
@@ -19,7 +19,7 @@ import {
 const time = '2026-09-27T00:00:00.000Z';
 const later = '2026-09-27T00:00:01.000Z';
 const fresh = () => createEmptyProjectDocument({ id: 'fresh-project', createdAt: time });
-const edit = (document: ProjectDocumentV1) => executeProjectCommand(
+const edit = (document: ProjectDocumentV2) => executeProjectCommand(
   createProjectHistory(document), { type: 'createPoint', coordinates: [100.5, 13.75] }, later,
 ).present;
 
@@ -94,7 +94,7 @@ for (const code of ['unavailable', 'blocked', 'open', 'read', 'invalid-record'] 
 
 for (const record of [
   '{bad',
-  JSON.stringify({ ...fresh(), schemaVersion: 2 }),
+  JSON.stringify({ ...fresh(), schemaVersion: 3 }),
   JSON.stringify({ ...fresh(), past: [{ secret: 'must not load' }] }),
 ]) {
   const storage = new Storage(record);

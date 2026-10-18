@@ -253,7 +253,7 @@ test('hosted app commits authored Point drags once and preserves history and rec
   expect(typeof savedRecord).toBe('string');
   const corruptRecords = [
     '{corrupt project',
-    JSON.stringify({ ...(JSON.parse(savedRecord as string) as object), schemaVersion: 2 }),
+    JSON.stringify({ ...(JSON.parse(savedRecord as string) as object), schemaVersion: 3 }),
   ];
   for (const invalidRecord of corruptRecords) {
     const recoveryProjectId = (await readActiveProjectRecord(page)).projectId;

@@ -1,4 +1,5 @@
 import { ProjectStorageError, type ProjectStorageAdapter } from './projectPersistence';
+import { parseProjectDocumentJson, parseProjectDocumentV1Json, serializeProjectDocument } from './projectDocument';
 import {
   ACTIVE_PROJECT_ID_KEY,
   LEGACY_PROJECT_RECORD_KEY,
@@ -13,6 +14,7 @@ export const PROJECT_STORE_NAME = 'project-state';
 // Kept as a named compatibility constant for #5C fixtures. Runtime writes use
 // projectRecordKey(projectId), and legacy code only reads this key for migration.
 export const PROJECT_RECORD_KEY = LEGACY_PROJECT_RECORD_KEY;
+export function migrationBackupKey(projectId: string): string { return `migration-backup:v1:${projectId}`; }
 
 function openDatabase(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
@@ -60,7 +62,7 @@ function transactionError(transaction: IDBTransaction, requestError?: DOMExcepti
 export class IndexedDbProjectStorage implements ProjectStorageAdapter {
   private readonly key: string;
 
-  constructor(projectId: string) {
+  constructor(private readonly projectId: string) {
     this.key = projectRecordKey(projectId);
   }
 
@@ -95,24 +97,68 @@ export class IndexedDbProjectStorage implements ProjectStorageAdapter {
     }
   }
 
-  async save(serializedProject: string): Promise<void> {
+  async save(serializedProject: string, expectedRaw: string | null): Promise<void> {
+    const candidate = parseProjectDocumentJson(serializedProject);
+    if (candidate.metadata.id !== this.projectId || serializedProject !== serializeProjectDocument(candidate)) {
+      throw new ProjectStorageError('invalid-record');
+    }
+    // Parse the expectation before opening a transaction; no async gaps inside it.
+    if (expectedRaw !== null && parseProjectDocumentJson(expectedRaw).metadata.id !== this.projectId) {
+      throw new ProjectStorageError('invalid-record');
+    }
+    const upgrading = expectedRaw !== null && JSON.parse(expectedRaw).schemaVersion === 1;
+    if (upgrading) parseProjectDocumentV1Json(expectedRaw);
     const database = await openDatabase();
     try {
       await new Promise<void>((resolve, reject) => {
         let transaction: IDBTransaction;
         let requestError: DOMException | null = null;
+        let failure: ProjectStorageError | null = null;
         try {
           transaction = database.transaction(PROJECT_STORE_NAME, 'readwrite');
-          const request = transaction.objectStore(PROJECT_STORE_NAME).put(serializedProject, this.key);
-          request.onerror = () => { requestError = request.error; };
+          const store = transaction.objectStore(PROJECT_STORE_NAME);
+          const record = store.get(this.key);
+          const count = store.count(this.key);
+          const backupCount = upgrading ? store.count(migrationBackupKey(this.projectId)) : null;
+          let recordReady = false;
+          let countReady = false;
+          let backupReady = !upgrading;
+          const write = () => {
+            if (!recordReady || !countReady || !backupReady) return;
+            if ((expectedRaw === null ? count.result !== 0 : count.result !== 1 || record.result !== expectedRaw)) {
+              failure = new ProjectStorageError('conflict');
+              transaction.abort();
+              return;
+            }
+            if (backupCount && backupCount.result !== 0) {
+              failure = new ProjectStorageError('backup-exists');
+              transaction.abort();
+              return;
+            }
+            try {
+              if (upgrading) {
+                const backup = store.add(expectedRaw, migrationBackupKey(this.projectId));
+                backup.onerror = () => { requestError = backup.error; };
+              }
+              const request = store.put(serializedProject, this.key);
+              request.onerror = () => { requestError = request.error; };
+            } catch (error) {
+              failure = error instanceof DOMException && error.name === 'QuotaExceededError'
+                ? new ProjectStorageError('quota') : new ProjectStorageError('write');
+              transaction.abort();
+            }
+          };
+          record.onsuccess = () => { recordReady = true; write(); };
+          count.onsuccess = () => { countReady = true; write(); };
+          if (backupCount) backupCount.onsuccess = () => { backupReady = true; write(); };
         } catch {
           reject(new ProjectStorageError('write'));
           return;
         }
         // A successful put request is not durable until its transaction completes.
         transaction.oncomplete = () => resolve();
-        transaction.onerror = () => reject(transactionError(transaction, requestError));
-        transaction.onabort = () => reject(transactionError(transaction, requestError));
+        transaction.onerror = () => reject(failure ?? transactionError(transaction, requestError));
+        transaction.onabort = () => reject(failure ?? transactionError(transaction, requestError));
       });
     } finally {
       database.close();

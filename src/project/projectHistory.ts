@@ -13,14 +13,25 @@ import { applyWorkspaceGeometry, createWorkspaceGeometry, nextFeatureId } from '
 import {
   createProjectDocument,
   decodeProjectDocument,
-  type ProjectDocumentV1,
+  type ProjectDocumentV2,
 } from './projectDocument';
 import { pointPresentationFor, type PointPresentation } from '../map/pointPresentation';
 import type { GeometrySnapshot } from '../features/featureModel';
+import {
+  DEFAULT_TRAFFIC_MOVEMENT_STYLE,
+  validateTrafficMovementStylePatch,
+  type TrafficMovementDirection,
+  type TrafficMovementStyleV2,
+  type TrafficMovementV2,
+} from './trafficMovement';
 
 export const PROJECT_HISTORY_MAX_SNAPSHOTS = 20;
 
 export type ProjectCommand =
+  | { type: 'convertToTrafficMovement'; id: string }
+  | { type: 'unconvertTrafficMovement'; id: string }
+  | { type: 'setTrafficMovementDirection'; id: string; direction: TrafficMovementDirection }
+  | { type: 'updateTrafficMovementStyle'; id: string; patch: Partial<TrafficMovementStyleV2> }
   | { type: 'createPoint'; coordinates: Wgs84Point }
   | { type: 'createGeometry'; geometry: GeometrySnapshot }
   | { type: 'applyGeometry'; id: string; geometry: GeometrySnapshot }
@@ -34,48 +45,51 @@ export type ProjectCommand =
   | { type: 'movePoint'; id: string; coordinates: Wgs84Point };
 
 export interface ProjectTransaction {
-  draft: ProjectDocumentV1;
+  draft: ProjectDocumentV2;
 }
 
 export interface ProjectHistoryState {
-  present: ProjectDocumentV1;
-  past: readonly ProjectDocumentV1[];
-  future: readonly ProjectDocumentV1[];
+  present: ProjectDocumentV2;
+  past: readonly ProjectDocumentV2[];
+  future: readonly ProjectDocumentV2[];
   transaction: ProjectTransaction | null;
 }
 
-function projectContentEqual(left: ProjectDocumentV1, right: ProjectDocumentV1): boolean {
-  // All documents entering history have passed the v1 decoder, which returns a
+function projectContentEqual(left: ProjectDocumentV2, right: ProjectDocumentV2): boolean {
+  // All documents entering history have passed the versioned decoder, which returns a
   // canonical property and array order suitable for deterministic comparison.
   return JSON.stringify(left) === JSON.stringify(right);
 }
 
-function documentWithTimestamp(document: ProjectDocumentV1, updatedAt: string): ProjectDocumentV1 {
+function documentWithTimestamp(document: ProjectDocumentV2, updatedAt: string): ProjectDocumentV2 {
   return createProjectDocument({
     metadata: { ...document.metadata, updatedAt },
     layers: document.layers,
     features: document.features,
     pointPresentations: document.presentation.points,
+    trafficMovements: document.trafficMovements,
   });
 }
 
 function documentWithParts(
-  document: ProjectDocumentV1,
+  document: ProjectDocumentV2,
   parts: {
-    layers?: readonly ProjectDocumentV1['layers'][number][];
+    layers?: readonly ProjectDocumentV2['layers'][number][];
     features?: readonly SpatialFeature[];
     pointPresentations?: Readonly<Record<string, PointPresentation>>;
+    trafficMovements?: Readonly<Record<string, TrafficMovementV2>>;
   },
-): ProjectDocumentV1 {
+): ProjectDocumentV2 {
   return createProjectDocument({
     metadata: document.metadata,
     layers: parts.layers ?? document.layers,
     features: parts.features ?? document.features,
     pointPresentations: parts.pointPresentations ?? document.presentation.points,
+    trafficMovements: parts.trafficMovements ?? document.trafficMovements,
   });
 }
 
-function requiredFeature(document: ProjectDocumentV1, id: string): SpatialFeature {
+function requiredFeature(document: ProjectDocumentV2, id: string): SpatialFeature {
   const feature = document.features.find(candidate => candidate.id === id);
   if (!feature) throw new Error(`Feature "${id}" no longer exists in the current project.`);
   return feature;
@@ -97,10 +111,10 @@ function copyPointPresentations(
 }
 
 function applyPointPresentation(
-  document: ProjectDocumentV1,
+  document: ProjectDocumentV2,
   id: string,
   patch: Partial<PointPresentation>,
-): ProjectDocumentV1 {
+): ProjectDocumentV2 {
   const feature = requiredFeature(document, id);
   if (feature.type !== 'Point') throw new Error('Point presentation can only be changed for Point features.');
   const presentations = copyPointPresentations(document.presentation.points);
@@ -113,7 +127,7 @@ function applyPointPresentation(
   return documentWithParts(document, { pointPresentations: presentations });
 }
 
-function movePoint(document: ProjectDocumentV1, id: string, coordinates: Wgs84Point): ProjectDocumentV1 {
+function movePoint(document: ProjectDocumentV2, id: string, coordinates: Wgs84Point): ProjectDocumentV2 {
   const target = requiredFeature(document, id);
   if (target.type !== 'Point') throw new Error('Only Point features support the Point-coordinate move command.');
   const validated = validateWgs84Point(coordinates);
@@ -126,10 +140,36 @@ function movePoint(document: ProjectDocumentV1, id: string, coordinates: Wgs84Po
 
 /**
  * Applies one pure project edit and validates its complete candidate against
- * the frozen Project Document v1 contract before returning it.
+ * the frozen Project Document v2 contract before returning it.
  */
-export function applyProjectCommand(document: ProjectDocumentV1, command: ProjectCommand): ProjectDocumentV1 {
+export function applyProjectCommand(document: ProjectDocumentV2, command: ProjectCommand): ProjectDocumentV2 {
   switch (command.type) {
+    case 'convertToTrafficMovement': {
+      const feature = requiredFeature(document, command.id);
+      if (feature.type !== 'LineString' || feature.lineage !== 'authored') throw new Error('Only authored LineStrings can become Traffic Movements.');
+      if (Object.hasOwn(document.trafficMovements, command.id)) throw new Error('Feature is already a Traffic Movement.');
+      return documentWithParts(document, { trafficMovements: {
+        ...document.trafficMovements,
+        [command.id]: { direction: 'forward', style: { ...DEFAULT_TRAFFIC_MOVEMENT_STYLE } },
+      } });
+    }
+    case 'unconvertTrafficMovement': {
+      requiredFeature(document, command.id);
+      if (!Object.hasOwn(document.trafficMovements, command.id)) return document;
+      const movements = { ...document.trafficMovements };
+      delete movements[command.id];
+      return documentWithParts(document, { trafficMovements: movements });
+    }
+    case 'setTrafficMovementDirection':
+    case 'updateTrafficMovementStyle': {
+      if (!Object.hasOwn(document.trafficMovements, command.id)) throw new Error('Feature is not a Traffic Movement.');
+      const previous = document.trafficMovements[command.id]!;
+      if (command.type === 'updateTrafficMovementStyle') validateTrafficMovementStylePatch(command.patch);
+      const movement = command.type === 'setTrafficMovementDirection'
+        ? { ...previous, direction: command.direction }
+        : { ...previous, style: { ...previous.style, ...command.patch } };
+      return documentWithParts(document, { trafficMovements: { ...document.trafficMovements, [command.id]: movement } });
+    }
     case 'createPoint': {
       const point = createAuthoredPoint(
         nextFeatureId(document.features, 'point'),
@@ -164,7 +204,9 @@ export function applyProjectCommand(document: ProjectDocumentV1, command: Projec
       );
       const presentations = copyPointPresentations(document.presentation.points);
       delete presentations[command.id];
-      return documentWithParts(document, { features: remaining, pointPresentations: presentations });
+      const movements = { ...document.trafficMovements };
+      delete movements[command.id];
+      return documentWithParts(document, { features: remaining, pointPresentations: presentations, trafficMovements: movements });
     }
     case 'renameFeature': {
       requiredFeature(document, command.id);
@@ -199,7 +241,7 @@ export function applyProjectCommand(document: ProjectDocumentV1, command: Projec
 
 function committedState(
   state: ProjectHistoryState,
-  candidate: ProjectDocumentV1,
+  candidate: ProjectDocumentV2,
   updatedAt: string,
 ): ProjectHistoryState {
   const present = documentWithTimestamp(candidate, updatedAt);
@@ -212,11 +254,11 @@ function committedState(
   };
 }
 
-export function createProjectHistory(document: ProjectDocumentV1): ProjectHistoryState {
+export function createProjectHistory(document: ProjectDocumentV2): ProjectHistoryState {
   return { present: decodeProjectDocument(document), past: [], future: [], transaction: null };
 }
 
-export function currentProjectDocument(state: ProjectHistoryState): ProjectDocumentV1 {
+export function currentProjectDocument(state: ProjectHistoryState): ProjectDocumentV2 {
   return state.transaction?.draft ?? state.present;
 }
 
@@ -283,7 +325,7 @@ export function redoProject(state: ProjectHistoryState, updatedAt: string): Proj
   };
 }
 
-export function replaceProject(_state: ProjectHistoryState, document: ProjectDocumentV1): ProjectHistoryState {
+export function replaceProject(_state: ProjectHistoryState, document: ProjectDocumentV2): ProjectHistoryState {
   return { present: decodeProjectDocument(document), past: [], future: [], transaction: null };
 }
 

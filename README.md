@@ -2,7 +2,7 @@
 
 Static-first map workspace. This revision carries the modular shell from Issue #18,
 the Point/layer/GeoJSON slice from Issue #19, the bounded geometry-editor slice
-from Issue #20, the Project Document v1 contract from Issue #5A, v1-backed runtime
+from Issue #20, the Project Document contract from Issue #5A and #29 T2A, runtime
 history from Issue #5B, local IndexedDB persistence from Issue #5C, and the
 representative Chromium CI smoke from Issue #6 Phase B2. Issue #21 adds
 transactional dragging for authored Points. The #5D browser-local workflow adds
@@ -58,8 +58,8 @@ Pages configuration remains a separate human-controlled deployment gate.
   named label positions. It is part of the current Project Document state, never
   changes canonical geometry, buffer input, or provenance, and is not included in
   GeoJSON export.
-- Project Document v1 is the single source for current metadata, ordered layers,
-  features, and PointPresentation. Every accepted edit is validated against v1 before
+- Project Document v2 is the single source for current metadata, ordered layers,
+  features, PointPresentation, and Traffic Movement domain records. Every accepted edit is validated against v2 before
   commit. Undo/Redo keeps at most 20 project snapshots; create/import/delete, geometry
   Apply, rename, visibility, PointPresentation, and buffer creation each form one action.
   Feature rename commits on blur or Enter. Selection, tools, drawing/edit drafts, camera,
@@ -98,7 +98,7 @@ implement the prototype's history behavior or UI.
 
 Space Syntax, routing/accessibility, synthetic isochrones, elevation, and OD
 analytics remain unavailable. No analytical engine is migrated or reactivated.
-Committed Project Document v1 state is saved in browser IndexedDB after a 500 ms
+Committed Project Document v2 state is saved in browser IndexedDB after a 500 ms
 debounce. The header reports Loading, Unsaved, Saving, Saved, or Error. Save now
 flushes the current document to IndexedDB; it is not a native file export. New
 and Open flush the current project before changing projects, and active geometry
@@ -107,8 +107,8 @@ cancelled. Open and reload restore the selected project with fresh, empty
 Undo/Redo history; active drawings, selection, tools, and map state do not return.
 
 The workflow uses the existing `city-map-tools` IndexedDB version 1 and
-`project-state` object store. Each `project:<projectId>` value is canonical
-Project Document v1 JSON, while `active-project-id` identifies the browser's
+`project-state` object store. Each `project:<projectId>` value is strict
+Project Document v1 or v2 JSON, while `active-project-id` identifies the browser's
 selected project. A valid old `last-accepted-project` record migrates losslessly
 in one transaction after strict v1 validation. Invalid or future records remain
 untouched and require an explicit recovery action before a new project can be
@@ -116,7 +116,22 @@ started. If IndexedDB is unavailable, project actions report failure. There is
 no project deletion, portable/native project package workflow (#13), or
 multi-tab conflict resolution; editing the same project in multiple tabs is not
 a supported conflict-resolution workflow. Provider API keys remain in runtime
-memory and are not saved in project records. The UI still has no generic GIS
+memory and are not saved in project records. V1 reads preserve the exact stored
+text until a real committed edit. The first edited save atomically stores the
+original under `migration-backup:v1:<projectId>` and writes v2; Save now alone
+does not upgrade v1. Every project save compares its expected raw record before
+writing. A conflict or existing backup blocks the save and keeps unsaved work in
+memory. Backups are never silently overwritten or deleted. Close older application
+tabs and reload before editing after an upgrade: older tabs lack this write guard.
+See [Project Document v2](docs/architecture/project-document-v2.md).
+
+Issue #29 T2A adds strict authored-LineString Traffic Movement semantics, pure
+Convert/Unconvert/Direction/Style commands and Undo/Redo, bounded to 24 annotations.
+These communicate schematic author intent only; visual animation rates are not
+vehicle speeds. The pure adapter is not connected to the production map. T2B still
+owns the Convert UI, inspector and renderer product integration. T1A/T1B remain
+accepted rendering/layout infrastructure rather than a complete user-facing feature.
+The UI still has no generic GIS
 import/export or full icon catalogue.
 
 Issue #41 adds a pure WGS84 ellipsoidal geodesic kernel for future measurement

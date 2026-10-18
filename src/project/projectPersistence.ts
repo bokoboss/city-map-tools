@@ -1,15 +1,15 @@
 import {
   parseProjectDocumentJson,
   serializeProjectDocument,
-  type ProjectDocumentV1,
+  type ProjectDocumentV2,
 } from './projectDocument';
 
 export interface ProjectStorageAdapter {
   load(): Promise<string | null>;
-  save(serializedProject: string): Promise<void>;
+  save(serializedProject: string, expectedRaw: string | null): Promise<void>;
 }
 
-export type ProjectStorageErrorCode = 'unavailable' | 'blocked' | 'open' | 'read' | 'invalid-record' | 'quota' | 'abort' | 'write';
+export type ProjectStorageErrorCode = 'unavailable' | 'blocked' | 'open' | 'read' | 'invalid-record' | 'quota' | 'abort' | 'write' | 'conflict' | 'backup-exists';
 
 export class ProjectStorageError extends Error {
   constructor(readonly code: ProjectStorageErrorCode) {
@@ -52,6 +52,8 @@ function readErrorMessage(error: unknown): string {
 
 function writeErrorMessage(error: unknown): string {
   if (error instanceof ProjectStorageError) {
+    if (error.code === 'conflict') return 'Stored project changed in another session. Your unsaved work remains in memory. Close old tabs and recover this work before reloading; no stored record was overwritten.';
+    if (error.code === 'backup-exists') return 'A v1 migration backup already exists. Saving is blocked to preserve both records; your unsaved work remains in memory.';
     if (error.code === 'quota') return 'Browser storage quota was exceeded. Current work remains in memory; free browser storage before making another edit to retry.';
     if (error.code === 'blocked') return 'Project storage is blocked by another tab. Current work remains in memory; close the other tab before making another edit to retry.';
     if (error.code === 'abort') return 'Project storage transaction was aborted. Current work remains in memory; another edit will retry.';
@@ -62,10 +64,11 @@ function writeErrorMessage(error: unknown): string {
 }
 
 export class ProjectPersistence {
-  private current: ProjectDocumentV1;
+  private current: ProjectDocumentV2;
   private currentText: string;
   private savedText: string | null = null;
-  private bootstrapPromise: Promise<ProjectDocumentV1> | null = null;
+  private savedRaw: string | null = null;
+  private bootstrapPromise: Promise<ProjectDocumentV2> | null = null;
   private timer: unknown = null;
   private inFlight = false;
   private drainPromise: Promise<void> | null = null;
@@ -78,7 +81,7 @@ export class ProjectPersistence {
   private status: PersistenceStatus = { state: 'Loading', message: 'Restoring the last saved project.' };
 
   constructor(
-    initial: ProjectDocumentV1,
+    initial: ProjectDocumentV2,
     private readonly storage: ProjectStorageAdapter,
     private readonly scheduler: PersistenceScheduler = browserScheduler,
   ) {
@@ -87,18 +90,19 @@ export class ProjectPersistence {
   }
 
   getStatus(): PersistenceStatus { return this.status; }
-  getCurrent(): ProjectDocumentV1 { return this.current; }
+  getCurrent(): ProjectDocumentV2 { return this.current; }
 
   /** Adopt a record already read and strictly validated by the project catalogue. */
-  restoreStored(serializedProject: string): ProjectDocumentV1 {
+  restoreStored(serializedProject: string): ProjectDocumentV2 {
     if (this.bootstrapPromise) throw new Error('Project persistence has already been started.');
     const restored = parseProjectDocumentJson(serializedProject);
     if (restored.metadata.id !== this.current.metadata.id) {
       throw new Error('Stored Project Document id does not match its project-bound storage adapter.');
     }
     this.current = restored;
-    this.currentText = serializedProject;
-    this.savedText = serializedProject;
+    this.currentText = serializeProjectDocument(restored);
+    this.savedText = this.currentText;
+    this.savedRaw = serializedProject;
     this.bootstrapPromise = Promise.resolve(restored);
     this.report('Saved', 'Current project is saved.');
     return restored;
@@ -115,13 +119,13 @@ export class ProjectPersistence {
     for (const listener of this.listeners) listener(this.status);
   }
 
-  bootstrap(): Promise<ProjectDocumentV1> {
+  bootstrap(): Promise<ProjectDocumentV2> {
     if (this.bootstrapPromise) return this.bootstrapPromise;
     this.bootstrapPromise = this.loadInitial();
     return this.bootstrapPromise;
   }
 
-  private async loadInitial(): Promise<ProjectDocumentV1> {
+  private async loadInitial(): Promise<ProjectDocumentV2> {
     let stored: string | null;
     try {
       stored = await this.storage.load();
@@ -143,6 +147,7 @@ export class ProjectPersistence {
       this.current = parseProjectDocumentJson(stored);
       this.currentText = serializeProjectDocument(this.current);
       this.savedText = this.currentText;
+      this.savedRaw = stored;
       this.report('Saved', 'Last saved project restored.');
     } catch (error) {
       this.paused = true;
@@ -152,7 +157,7 @@ export class ProjectPersistence {
     return this.current;
   }
 
-  commit(document: ProjectDocumentV1): void {
+  commit(document: ProjectDocumentV2): void {
     if (this.disposed) throw new Error('This project persistence session is closed.');
     if (!this.bootstrapPromise || this.status.state === 'Loading') {
       throw new Error('Project editing is unavailable until storage restoration finishes.');
@@ -212,7 +217,7 @@ export class ProjectPersistence {
       this.inFlight = true;
       this.report('Saving', 'Saving the current project.');
       try {
-        await this.storage.save(writing);
+        await this.storage.save(writing, this.savedRaw);
       } catch (error) {
         this.writeFailure = error;
         if (this.timer !== null) this.scheduler.clear(this.timer);
@@ -224,6 +229,7 @@ export class ProjectPersistence {
         this.inFlight = false;
       }
       this.savedText = writing;
+      this.savedRaw = writing;
       if (this.currentText === writing) {
         this.report('Saved', 'Current project is saved.');
       } else {

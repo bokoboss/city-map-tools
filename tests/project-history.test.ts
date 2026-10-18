@@ -16,7 +16,7 @@ import {
   PROJECT_DOCUMENT_MAX_TEXT_LENGTH,
   createProjectDocument,
   serializeProjectDocument,
-  type ProjectDocumentV1,
+  type ProjectDocumentV2,
 } from '../src/project/projectDocument';
 import {
   PROJECT_HISTORY_MAX_SNAPSHOTS,
@@ -65,7 +65,7 @@ function ownPresentations(entries: readonly [string, PointPresentation][]): Reco
 function documentWith(
   features: readonly SpatialFeature[] = [],
   pointPresentations: Readonly<Record<string, PointPresentation>> = Object.create(null),
-): ProjectDocumentV1 {
+): ProjectDocumentV2 {
   return createProjectDocument({
     metadata: { id: 'history-project', name: 'History fixture', createdAt, updatedAt: createdAt },
     layers: createDefaultLayers(),
@@ -74,7 +74,7 @@ function documentWith(
   });
 }
 
-function projectContent(document: ProjectDocumentV1): unknown {
+function projectContent(document: ProjectDocumentV2): unknown {
   return {
     ...document,
     metadata: { ...document.metadata, updatedAt: '<revision timestamp>' },
@@ -85,7 +85,7 @@ function commandTime(index: number): string {
   return time(index + 1);
 }
 
-function assertUndoRedo(document: ProjectDocumentV1, command: ProjectCommand): void {
+function assertUndoRedo(document: ProjectDocumentV2, command: ProjectCommand): void {
   const initial = createProjectHistory(document);
   const edited = executeProjectCommand(initial, command, commandTime(0));
   assert.notStrictEqual(edited, initial, `${command.type} must commit one project edit`);
@@ -286,12 +286,13 @@ console.log('PASS Project Document feature-count overflow rejects atomically bef
 function rawProjectLength(features: readonly SpatialFeature[]): number {
   return JSON.stringify({
     format: 'city-map-tools-project',
-    schemaVersion: 1,
+    schemaVersion: 2,
     metadata: { id: 'history-project', name: 'History fixture', createdAt, updatedAt: createdAt },
     spatialReference: { crs: 'EPSG:4326', axisOrder: 'longitude-latitude', units: 'degrees' },
     layers: createDefaultLayers(),
     features,
     presentation: { points: Object.create(null) },
+    trafficMovements: Object.create(null),
   }).length;
 }
 
@@ -334,7 +335,7 @@ assert.ok(aggregateLength > PROJECT_DOCUMENT_MAX_TEXT_LENGTH - targetDelta - 4,
 const aggregateHistory = createProjectHistory(aggregateDocument);
 assert.throws(() => executeProjectCommand(aggregateHistory, {
   type: 'createPoint', coordinates: [100.6, 13.8],
-}, commandTime(0)), /normalized serialized JSON exceeds the 2000000-character limit/);
+}, commandTime(0)), /normalized serialized JSON exceeds the 2500000-character limit/);
 assert.equal(aggregateHistory.present.features.length, bulkFeatures.length);
 assert.equal(aggregateHistory.past.length, 0);
 assert.equal(aggregateHistory.future.length, 0);

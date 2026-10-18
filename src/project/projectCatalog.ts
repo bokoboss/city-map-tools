@@ -2,7 +2,7 @@ import {
   createEmptyProjectDocument,
   parseProjectDocumentJson,
   serializeProjectDocument,
-  type ProjectDocumentV1,
+  type ProjectDocumentV2,
 } from './projectDocument';
 
 export const LEGACY_PROJECT_RECORD_KEY = 'last-accepted-project';
@@ -34,7 +34,7 @@ export interface ProjectCatalogItem {
 }
 
 export interface StoredProject {
-  document: ProjectDocumentV1;
+  document: ProjectDocumentV2;
   serialized: string;
   projects: ProjectCatalogItem[];
   activeProjectId: string;
@@ -69,11 +69,11 @@ const browserIdentity: ProjectCatalogIdentity = {
   now: () => new Date().toISOString(),
 };
 
-function documentFromRecord(projectId: string, value: unknown): { document: ProjectDocumentV1; serialized: string } {
+function documentFromRecord(projectId: string, value: unknown): { document: ProjectDocumentV2; serialized: string } {
   if (typeof value !== 'string') {
-    throw new ProjectCatalogError(`Stored project "${projectId}" is not a Project Document v1 JSON string.`);
+    throw new ProjectCatalogError(`Stored project "${projectId}" is not a Project Document JSON string.`);
   }
-  let document: ProjectDocumentV1;
+  let document: ProjectDocumentV2;
   try {
     document = parseProjectDocumentJson(value);
   } catch (error) {
@@ -212,7 +212,7 @@ export class ProjectCatalog {
             null,
           );
         }
-        let document: ProjectDocumentV1;
+        let document: ProjectDocumentV2;
         try {
           document = parseProjectDocumentJson(legacy);
         } catch (error) {
@@ -293,7 +293,7 @@ export class ProjectCatalog {
     };
   }
 
-  private makeProject(name: string): { document: ProjectDocumentV1; serialized: string } {
+  private makeProject(name: string): { document: ProjectDocumentV2; serialized: string } {
     const projectName = name.trim().length > 0 ? name : 'Untitled project';
     const createdAt = this.identity.now();
     const document = createEmptyProjectDocument({

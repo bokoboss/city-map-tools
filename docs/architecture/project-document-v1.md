@@ -1,5 +1,10 @@
 # Project Document v1
 
+This is the preserved v1 contract. Its explicit API lives in
+`src/project/projectDocumentV1.ts`. Current writes/history use
+[Project Document v2](project-document-v2.md); the version-dispatch API retains
+strict v1 compatibility and lazy migration.
+
 Issue #5A freezes a small native project contract. It is a pure domain boundary;
 browser persistence and project workflow remain behind separate adapters and do
 not change the Project Document v1 shape.
