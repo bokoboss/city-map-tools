@@ -98,6 +98,12 @@ The product scenarios cover:
 - Exact-crossing map selection and generic/directional layer order before and after
   full Voyager/OSM style replacements.
 
+Linux CI also exposed an existing smoke-fixture teardown race: a tile route read
+`APIResponse.body()` after the request context was disposed. The smoke fixture now
+loads the fixed tile bytes before registering the route, preserving identical tile
+content without an asynchronous request-context dependency during map remount/teardown.
+This is test-only; no product change or test assertion was removed.
+
 Supplementary local screenshots: `output/playwright/traffic-product-desktop.png` and
 `output/playwright/traffic-product-narrow.png`. Full browser log:
 `.cache/t2b-browser-final.log` (generated/ignored). Test results and exact-head CI/review
