@@ -9,9 +9,10 @@
 - Product North Star: `PRODUCT_DIRECTION.md`
 
 ## Current accepted baseline
-- Accepted **product-code baseline**: `5013c0647b94cdf57b05b47df5784bd763e37e35`
-- Baseline date: 2026-10-03, project timezone UTC+07:00
-- This baseline is merge commit PR #55 / Issue #29 T1A: bounded MapLibre-native directional renderer infrastructure/proof, accepted at PR head `1021fb9ac158348985e369dc0f77eb922f6a533b`.
+- Accepted **product-code baseline**: `2d6d46bf1e37b60b60fd6be5e86b54e8e8fc132b`
+- Baseline date: 2026-10-18, project timezone UTC+07:00
+- This baseline is merge commit PR #57 / Issue #29 T1B: bounded shared-corridor detection and presentation-only display-track layout, accepted at PR head `73c1837686f2fb0d31bfdd053a45719949f6dd6e`.
+- It also includes PR #55 / Issue #29 T1A: bounded MapLibre-native directional renderer infrastructure/proof, accepted at PR head `1021fb9ac158348985e369dc0f77eb922f6a533b`.
 - It also includes PR #53 / Issue #5D: browser-local multi-project New/Open/Save workflow, loss-preserving legacy migration, recovery controls, and StrictMode-safe catalogue bootstrap, accepted at PR head `4d2ce745439bcdc54026f96e36218ed5af1b8a1e`.
 - It also includes PR #50 / Issue #43: typed OSM/CARTO basemap/provider capability contracts and credential-safe runtime BYOK behavior, accepted at PR head `5bf6bf84daa82d8eba6af91bfa995f6465b38994` after bounded credential/security remediation.
 - It also includes PR #46 / Issue #42: indexed screen-space CAD snapping for authored geometry, including the bounded diagonal/zig-zag segment-index remediation accepted at PR head `f33dff43c5eeaf6d779c4ef6f4d94dc9ac46dc44`.
@@ -31,16 +32,27 @@
   - #41 geodesic kernel;
   - #42 indexed CAD snapping;
   - #43 provider/basemap capability and runtime-BYOK contracts;
-  - #29 T1A bounded directional renderer proof.
+  - #29 T1A bounded directional renderer proof;
+  - #29 T1B conservative shared-corridor display-layout kernel.
 - Durable program record: Issue #1.
 - Product direction: `PRODUCT_DIRECTION.md`.
 
 ## Recently accepted product-authoring work
 
+### Issue #29 T1B — shared-corridor display-layout kernel
+- PR #57 merged to `main` as `2d6d46bf1e37b60b60fd6be5e86b54e8e8fc132b`.
+- Accepted PR head: `73c1837686f2fb0d31bfdd053a45719949f6dd6e`; control-plane acceptance comment `6247448431`.
+- Conservative projected/display-space matching uses 8 CSS px resampling, 12 px proximity, 15-degree axial orientation, at least 48 px contiguous shared run, 14 px nominal display-track spacing and 40 px taper. These are not traffic lane widths or engineering geometry.
+- Deterministic display-only bundle ordering preserves opposite-direction and true crossing semantics. Partial shared segments taper; canonical WGS84 paths remain unchanged. Static/animated arrows and line strokes share the final render-only display path.
+- Bounds: at most 8,192 layout samples, 131,072 candidate checks, 131,072 profile checks, 64 detailed warnings plus fallback diagnostic. Layout computation is camera/input-driven, not per animation frame. The T1A two-source/two-layer/one-scheduler resource model remains unchanged.
+- Three REQUIRED review findings were remediated: generated display extent, folded duplicate correspondences, and per-input manual-offset collapse. Unrenderable paths are omitted with an ID-specific diagnostic while valid tracks remain; fallback reuses already-verified base paths. The initially reported ±1e8 offset hypothesis was not reproducible and is documented accurately; the 10px right-angle manual-offset collapse was reproduced and fixed.
+- Exact-head CI run #76 passed build and browser-smoke. Local evidence: 20 named kernel fixtures, five focused directional browser tests and 18/18 full browser regressions. Fresh exact-head independent review found no issue, and all PR threads were resolved.
+- T1B is accepted rendering/layout infrastructure, not a production Traffic Movement authoring UI or persisted semantic contract. Issue #29 remains OPEN for T2.
+
 ### Issue #29 T1A — bounded directional renderer proof
 - PR #55 merged to `main` as `5013c0647b94cdf57b05b47df5784bd763e37e35`.
 - Accepted PR head: `1021fb9ac158348985e369dc0f77eb922f6a533b`.
-- T1A is renderer infrastructure/proof only; Issue #29 remains open. Automatic shared-corridor layout remains T1B, while persisted Traffic Movement semantics/UI/history remain T2.
+- T1A is renderer infrastructure/proof only. T1B display-layout infrastructure is now accepted as PR #57; persisted Traffic Movement semantics/UI/history remain T2.
 - Canonical WGS84 LineStrings remain unchanged. Forward/reverse traversal, explicit lateral display tracks, static/animated arrows, and animation phase are presentation-only.
 - Renderer resources are bounded and shared: two GeoJSON sources, one LineLayer, one SymbolLayer, one generated SDF arrow image, and one scheduler independent of movement/arrow count.
 - Current T1A caps are 24 simultaneous renderer inputs, the existing 1,000-vertex LineString bound, and 512 total arrow Points. Scheduler updates are bounded to a minimum 40 ms interval (maximum 25 updates/second); overflow increases visual spacing rather than dropping accepted paths.
@@ -102,7 +114,7 @@
 
 ## Current active / next work
 - R1B / Issue #5 and R2 / Issue #7 are closed as completed.
-- Issue #29 remains active. T1A directional renderer infrastructure is accepted; immediate next slice is T1B shared/near-collinear corridor detection plus deterministic presentation-only display-track layout, while preserving true crossings and canonical geometry.
+- Issue #29 remains active. T1A directional renderer and T1B shared-corridor display-layout infrastructure are accepted; immediate next gate is T2 persisted Traffic Movement semantics, authoring workflow, inspector, history and renderer integration, with careful schema/migration qualification before implementation.
 - After #29 reaches useful product integration, continue the core product-authoring set with Site Access Route (#30), cartographic presentation (#32), and Site Plan overlay (#33), subject to dependency reconciliation.
 
 ## Current implemented stack
@@ -110,7 +122,7 @@
 - MapLibre GL JS v6 for map/runtime.
 - Terra Draw + MapLibre adapter for supported transient geometry creation/editing.
 - Project-owned `SnapPolicy` with 12 CSS px tolerance and a 32 CSS px screen-space grid for accepted CAD snapping.
-- Project-owned bounded directional renderer infrastructure with two shared GeoJSON sources, two shared layers, one generated SDF arrow image, cached display-path sampling, explicit display tracks, and one 25-updates/second scheduler.
+- Project-owned bounded directional renderer infrastructure with two shared GeoJSON sources, two shared layers, one generated SDF arrow image, cached display-path sampling, deterministic automatic shared-corridor layout and one 25-updates/second scheduler.
 - `@turf/buffer` for bounded derived buffers.
 - `geographiclib-geodesic` for the protected WGS84 ellipsoidal geodesic kernel.
 - Native IndexedDB for browser-local multi-project catalogue, committed Project Document v1 autosave/recovery, and explicit active-project selection.
@@ -134,12 +146,12 @@
 - Authoritative project state, project commands, one-action history, transaction drafts, bounded 20-snapshot Undo/Redo.
 - Browser-local multi-project catalogue with explicit New/Open/Save-now, active-project persistence, loss-preserving legacy migration/recovery, and fresh history roots after project switching.
 - Native IndexedDB 500 ms committed-state autosave with Saved/Saving/Unsaved/Error state and strict recovery preservation.
-- Accepted directional-renderer infrastructure can render bounded transient WGS84 LineStrings as static/animated directional display tracks with forward/reverse traversal, reduced-motion fallback, visibility pause/resume, style rehydration, explicit presentation-only offsets and bounded cleanup; this is infrastructure, not yet the user-facing Traffic Movement feature.
+- Accepted T1A/T1B directional-renderer infrastructure renders bounded transient WGS84 LineStrings with forward/reverse traversal, reduced-motion/visibility/style lifecycle, explicit and automatic shared-corridor presentation-only offsets/tapers, preserved crossings and bounded cleanup. This is not yet the user-facing persisted Traffic Movement feature.
 - Deterministic pure tests, strict typecheck/build, and focused production-preview/hosted Chromium browser evidence.
 - WGS84 ellipsoidal inverse distance/bearing, line length, polygon perimeter, and absolute area kernel for later #14 measurement.
 
 ## Not yet implemented / not yet accepted
-- Full Traffic Movement product feature (#29): T1B automatic overlap/shared-corridor display-track layout and T2 persisted semantic/domain/UI/history integration remain outstanding.
+- Full Traffic Movement product feature (#29): T1A/T1B rendering and layout are accepted; T2 persisted semantic/domain/UI/history integration remains outstanding.
 - Site Access Route (#30), Scenario/Stage (#31), presentation system (#32), Site Plan overlay (#33), semantic traffic annotations (#34).
 - Live measurement UI (#14).
 - Data-driven Desire Line / OD (#11), including persistent transport/activity centroid semantics when that workflow is implemented.
@@ -183,7 +195,7 @@ Additional rules:
 - Project Document v1 is current persisted project truth for each browser-local project.
 - Current project state includes accepted layers/features/provenance/derived-buffer records and Point presentation.
 - Browser-local catalogue identity/active-project selection are persistence workflow metadata, not fields inside Project Document v1.
-- Selection, tool/mode, hover, draft/edit state, map runtime/camera, import status, animation phase, provider credential state, T1A directional renderer fixtures/display tracks, and other transient UI state are not persisted project truth.
+- Selection, tool/mode, hover, draft/edit state, map runtime/camera, import status, animation phase, provider credential state, T1A/T1B directional renderer fixtures/display tracks, and other transient UI state are not persisted project truth.
 - History is runtime-only and resets to a fresh root after reload/recovery/project switch.
 - Project files/persistence must contain no credentials/secrets.
 - Issue #5 owns the accepted browser-local project workflow; #13 owns broader portable/native interoperability packages where appropriate.
@@ -243,6 +255,6 @@ If a local Playwright Chromium binary is absent, project work should not silentl
 - Triage review findings as BLOCKER / REQUIRED / FOLLOW-UP and stop once closure conditions are met.
 
 ## Current objective
-1. Execute #29 T1B: detect obvious shared/near-collinear corridors and assign stable presentation-only display tracks while preserving real crossings and canonical geometry.
-2. Keep #29 T2 persisted Traffic Movement semantics/UI/history separate until T1B layout evidence is accepted.
+1. Qualify #29 T2 persisted Traffic Movement semantic/domain/UI/history integration against Project Document v1, schema migration/recovery, accepted editor and local-first contracts before code mutation.
+2. Preserve accepted #29 T1A/T1B renderer and display-layout invariants; keep T2 focused on the first usable authored Traffic Movement workflow.
 3. Carry the #5D in-flight-autosave browser regression as a non-blocking persistence/workflow hardening follow-up when that area is next touched.
