@@ -9,9 +9,10 @@
 - Product North Star: `PRODUCT_DIRECTION.md`
 
 ## Current accepted baseline
-- Accepted **product-code baseline**: `32ef67f0aefbc9d7bf869948c2d380eacf0c3c98`
+- Accepted **product-code baseline**: `76701288df72c1bca70755529a1dbbd0d16607a7`
 - Baseline date: 2026-10-18, project timezone UTC+07:00
-- This baseline is merge commit PR #59 / Issue #29 T2A: Project Document v2, safe lazy v1 migration and Traffic Movement domain/history commands, accepted at PR head `14f60e66a49a7cab84c989f6e2805b26cf3e2870`.
+- This baseline is merge commit PR #61 / Issue #29 T2B: user-facing Convert/Inspector and accepted directional renderer/project integration, accepted at PR head `8ca5ba08c3ddbbaf47616522e21e41992f4b28dd`.
+- It also includes PR #59 / Issue #29 T2A: Project Document v2, safe lazy v1 migration and Traffic Movement domain/history commands, accepted at PR head `14f60e66a49a7cab84c989f6e2805b26cf3e2870`.
 - It also includes PR #57 / Issue #29 T1B: bounded shared-corridor detection and presentation-only display-track layout, accepted at PR head `73c1837686f2fb0d31bfdd053a45719949f6dd6e`.
 - It also includes PR #55 / Issue #29 T1A: bounded MapLibre-native directional renderer infrastructure/proof, accepted at PR head `1021fb9ac158348985e369dc0f77eb922f6a533b`.
 - It also includes PR #53 / Issue #5D: browser-local multi-project New/Open/Save workflow, loss-preserving legacy migration, recovery controls, and StrictMode-safe catalogue bootstrap, accepted at PR head `4d2ce745439bcdc54026f96e36218ed5af1b8a1e`.
@@ -35,11 +36,20 @@
   - #43 provider/basemap capability and runtime-BYOK contracts;
   - #29 T1A bounded directional renderer proof;
   - #29 T1B conservative shared-corridor display-layout kernel;
-  - #29 T2A strict Project Document v2 domain/migration/history.
+  - #29 T2A strict Project Document v2 domain/migration/history;
+  - #29 T2B authored Traffic Movement Convert/Inspector and map/product workflow integration.
 - Durable program record: Issue #1.
 - Product direction: `PRODUCT_DIRECTION.md`.
 
 ## Recently accepted product-authoring work
+
+### Issue #29 T2B — user-facing Traffic Movement MVP / #29 closure
+- PR #61 merged to `main` as `76701288df72c1bca70755529a1dbbd0d16607a7`, accepted exact head `8ca5ba08c3ddbbaf47616522e21e41992f4b28dd`; control-plane acceptance comment `6250917568`.
+- An authored WGS84 LineString can be explicitly Converted/Unconverted through the selected Feature Inspector. Forward/Reverse and approved bounded visual controls use accepted v2 history; global animation Pause/Resume is transient and does not change saved style, history or project bytes.
+- Committed Project Document state drives the shared T1A/T1B movement renderer; editing drafts remain separate. Movement generic strokes are suppressed without removing canonical geometry from snapping/editor inputs; visual display-track map picking uses stable authored IDs and generic/directional layer order remains consistent across style rehydration.
+- Real production-App browser tests cover drawing/conversion, visual controls, pause/reduced-motion, Undo/Redo, Save/Open, v1 backup, shared paths/true crossings, geometry Apply/Cancel, hidden feature/layers, delete/restore, remount/project switching, narrow-screen/keyboard, no-idle snapping, color-picker single history action and full style replacement.
+- P1 worker-idle/readiness and P2 color-gesture/layer-order review findings were reproduced and fixed. Final exact-head Code Review found no findings; targeted independent controller/UX review passed on the accepted product-code revision before final fixture-only changes. Exact-head CI run #88 (`39131778786`) passed build and browser-smoke with 38/38 Chromium tests. No runtime dependency/schema/migration/CAS/provider credential change.
+- Issue #29 closed as completed after MVP audit comment `6250928779`. T3 semantic GeoJSON interoperability and static export/legend/cartography remain #13/#32. No traffic metrics, real-world CARTO service validation or portable browser-storage backup are claimed. Local screenshots were not independently opened during GitHub-only acceptance.
 
 ### Issue #29 T2A — Project Document v2 and safe legacy migration
 - PR #59 merged to `main` as `32ef67f0aefbc9d7bf869948c2d380eacf0c3c98`, accepted at head `14f60e66a49a7cab84c989f6e2805b26cf3e2870`; control-plane acceptance comment `6248626357`.
@@ -48,7 +58,7 @@
 - History supports Convert, Unconvert, Forward/Reverse and bounded visual style commands plus deletion/geometry-edit/Undo/Redo semantics. The pure `trafficMovementInputs` adapter maps approved visual rates and visibility; the production UI and renderer binding remain T2B, not T2A.
 - V2 caps at 24 annotations and 2,500,000 serialized characters (strict original v1 cap 2,000,000); existing IndexedDB database version 1, store and indexes remain unchanged. No new backend/runtime dependency.
 - Exact-head CI run #80 passed build and browser-smoke, with 30/30 browser regressions including 12 new actual-IndexedDB migration/CAS/failure/switch fixtures. Independent schema/data-loss review and exact-head Code/Security Review found no findings.
-- Operational limitation: already-open older app tabs lack the new CAS guard; users should close/reload old tabs before editing migrated projects. Backups are preserved without automatic restore/retention UI. Browser storage is not portable export or disaster-proof backup. Issue #29 remains OPEN for T2B.
+- Operational limitation: already-open older app tabs lack the new CAS guard; users should close/reload old tabs before editing migrated projects. Backups are preserved without automatic restore/retention UI. Browser storage is not portable export or disaster-proof backup. At T2A acceptance Issue #29 remained OPEN for T2B; Issue #29 was subsequently closed after PR #61.
 
 ### Issue #29 T1B — shared-corridor display-layout kernel
 - PR #57 merged to `main` as `2d6d46bf1e37b60b60fd6be5e86b54e8e8fc132b`.
@@ -124,9 +134,8 @@
 - Issue #42 is closed as completed.
 
 ## Current active / next work
-- R1B / Issue #5 and R2 / Issue #7 are closed as completed.
-- Issue #29 remains active. T1A/T1B renderer/layout and T2A Project Document v2/domain/history/loss-preserving migration are accepted; next slice is T2B user-facing Convert/Unconvert, selected inspector, animation pause and production renderer/project/editor integration, without another schema rewrite.
-- After #29 reaches useful product integration, continue the core product-authoring set with Site Access Route (#30), cartographic presentation (#32), and Site Plan overlay (#33), subject to dependency reconciliation.
+- R1B / Issue #5, R2 / Issue #7 and Traffic Movement MVP / Issue #29 are closed as completed.
+- Next qualify Site Access Route (#30), cartographic presentation (#32) and Site Plan overlay (#33) in the core authoring/presentation set, reconciling dependencies and preserving accepted #29 semantics/visual renderer. Do not silently fold #13 interoperability into the finished #29 MVP.
 
 ## Current implemented stack
 - Vite 6 + React + strict TypeScript + npm/ESM.
@@ -157,12 +166,12 @@
 - Authoritative project state, project commands, one-action history, transaction drafts, bounded 20-snapshot Undo/Redo.
 - Browser-local multi-project catalogue with explicit New/Open/Save-now, active-project persistence, loss-preserving legacy migration/recovery, and fresh history roots after project switching.
 - Native IndexedDB 500 ms committed-state autosave with Saved/Saving/Unsaved/Error state and strict recovery preservation.
-- Accepted T1A/T1B directional-renderer infrastructure renders bounded transient WGS84 LineStrings with forward/reverse traversal, reduced-motion/visibility/style lifecycle, shared-corridor offsets/tapers and bounded cleanup. T2A adds persisted Traffic Movement domain/history and pure render-input preparation, but the app does not yet expose the production Convert/inspector/renderer connection (T2B).
+- Traffic Movement MVP now exposes Convert/Unconvert, selected Inspector, visual styling and directional renderer from committed Project Document v2 with bounded animation and shared-corridor layout, project history/persistence, transient global pause, map selection and edit Apply/Cancel. Reduced-motion/hidden-page and style/project lifecycle preserve the accepted renderer contracts.
 - Deterministic pure tests, strict typecheck/build, and focused production-preview/hosted Chromium browser evidence.
 - WGS84 ellipsoidal inverse distance/bearing, line length, polygon perimeter, and absolute area kernel for later #14 measurement.
 
 ## Not yet implemented / not yet accepted
-- Full Traffic Movement product feature (#29): T1A/T1B renderer/layout and T2A persisted domain/history are accepted; T2B production user authoring/inspector/renderer integration and end-to-end UAT remain outstanding.
+- Traffic Movement MVP / #29 is accepted and closed. Future T3 semantic GeoJSON import/export and static/cartographic presentation belong to #13/#32.
 - Site Access Route (#30), Scenario/Stage (#31), presentation system (#32), Site Plan overlay (#33), semantic traffic annotations (#34).
 - Live measurement UI (#14).
 - Data-driven Desire Line / OD (#11), including persistent transport/activity centroid semantics when that workflow is implemented.
@@ -266,6 +275,6 @@ If a local Playwright Chromium binary is absent, project work should not silentl
 - Triage review findings as BLOCKER / REQUIRED / FOLLOW-UP and stop once closure conditions are met.
 
 ## Current objective
-1. Qualify and execute #29 T2B: connect accepted v2 Traffic Movement domain/history to an accessible Convert/Unconvert, inspector and project-aware directional renderer workflow with bounded browser UAT.
-2. Preserve accepted T1A/T1B layout and T2A migration/CAS behavior, including old-v1 recovery, reduced motion and runtime credential isolation. Keep T2B out of schema, import/export and engineering metrics.
-3. Existing #5D New/Open during an in-flight autosave follow-up received actual-IndexedDB T2A browser coverage (success/failure); retain regression coverage and revisit only if T2B materially changes project switching.
+1. Qualify #30 Site Access Route domain/UX/topology against accepted #29 Traffic Movement rendering and #5 project/history contracts; scope the first usable site-access authoring flow without hidden routing/network/simulation claims.
+2. Reconcile #32 cartographic presentation and #33 Site Plan overlay with #30 sequencing; avoid overbuilding before practical authoring and presentation UAT.
+3. Preserve #29 T1A/T1B/T2A/T2B, IndexedDB migration/CAS, #42 snapping, #43 runtime credential isolation and browser regression baseline. T3 GeoJSON interoperability/static export remains #13/#32, not unfinished #29 work.
