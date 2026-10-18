@@ -163,7 +163,7 @@ async function runCatalogTests(): Promise<void> {
 
   for (const invalid of [
     '{malformed',
-    JSON.stringify({ ...doc('future'), schemaVersion: 2 }),
+    JSON.stringify({ ...doc('future'), schemaVersion: 3 }),
     { not: 'a string' },
   ]) {
     const storage = new MemoryCatalogStorage([[LEGACY_PROJECT_RECORD_KEY, invalid]]);
@@ -197,7 +197,7 @@ async function runCatalogTests(): Promise<void> {
 
   {
     const active = text('valid');
-    const invalid = JSON.stringify({ ...doc('unreadable'), schemaVersion: 2 });
+    const invalid = JSON.stringify({ ...doc('unreadable'), schemaVersion: 3 });
     const storage = new MemoryCatalogStorage([
       [projectRecordKey('valid'), active],
       [projectRecordKey('unreadable'), invalid],
@@ -245,7 +245,7 @@ async function runCatalogTests(): Promise<void> {
     assert.deepEqual(storage.records, before, 'failed current flush leaves the active pointer and both projects unchanged');
     assert.equal(storage.events.includes('activate'), false);
 
-    const invalidTarget = JSON.stringify({ ...doc('target'), schemaVersion: 2 });
+    const invalidTarget = JSON.stringify({ ...doc('target'), schemaVersion: 3 });
     storage.records.set(projectRecordKey('target'), invalidTarget);
     const beforeInvalidOpen = new Map(storage.records);
     await assert.rejects(catalog(storage).openProject('target', async () => undefined), /schema version/i);

@@ -31,7 +31,7 @@ import {
   parseProjectDocumentJson,
   ProjectDocumentValidationError,
   serializeProjectDocument,
-} from '../src/project/projectDocument';
+} from '../src/project/projectDocumentV1';
 import { importGeoJsonText } from '../src/features/geojson';
 
 const createdAt = '2026-09-21T00:00:00.000Z';
@@ -75,6 +75,9 @@ assert.deepEqual(parsed.features, document.features);
 assert.deepEqual(parsed.presentation.points['point-1'], document.presentation.points['point-1']);
 assert.equal(serializeProjectDocument(parsed), encoded, 'valid current state serializes deterministically after parse');
 console.log('PASS Point, LineString, Polygon, derived buffer, layers, PointPresentation, and provenance round-trip');
+
+assert.throws(() => decodeProjectDocument({ ...document, '': 'unknown-field' }), /unsupported property/);
+assert.throws(() => decodeProjectDocument({ ...document, metadata: { ...document.metadata, '': 'unknown-field' } }), /unsupported property/);
 
 const ordinaryNamedSource = renameFeature(point, 'Road A');
 const ordinaryNamedBuffer = deriveBufferFeature(ordinaryNamedSource, 'buffer-road-a', 80);
@@ -502,7 +505,7 @@ function findExactBoundaryDocument(): Record<string, any> {
 
 const MAX_DESCRIPTION_LENGTH = 500;
 const exactBoundary = findExactBoundaryDocument();
-const exactBoundaryText = serializeProjectDocument(exactBoundary as never);
+export const exactBoundaryText = serializeProjectDocument(exactBoundary as never);
 assert.equal(exactBoundaryText.length, PROJECT_DOCUMENT_MAX_TEXT_LENGTH);
 assert.equal(serializeProjectDocument(parseProjectDocumentJson(exactBoundaryText)), exactBoundaryText);
 assert.ok(encoded.length < PROJECT_DOCUMENT_MAX_TEXT_LENGTH);

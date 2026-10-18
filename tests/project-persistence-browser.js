@@ -112,7 +112,7 @@ async (page) => {
   check(await page.getByLabel('Marker type', { exact: true }).inputValue() === 'pin', 'saved PointPresentation is restored');
 
   let recoveryIndex = 0;
-  for (const invalid of ['{bad', JSON.stringify({ ...savedDocument, schemaVersion: 2 }), { corrupt: true }, undefined]) {
+  for (const invalid of ['{bad', JSON.stringify({ ...savedDocument, schemaVersion: 3 }), { corrupt: true }, undefined]) {
     const invalidProjectId = (await readActive()).projectId;
     const invalidKey = `project:${invalidProjectId}`;
     await writeRecord(invalidProjectId, invalid);

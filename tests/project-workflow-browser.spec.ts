@@ -1,5 +1,5 @@
 import { expect, test, type Page, type Request } from '@playwright/test';
-import { createEmptyProjectDocument, serializeProjectDocument } from '../src/project/projectDocument';
+import { createEmptyProjectDocument, serializeProjectDocument } from '../src/project/projectDocumentV1';
 import {
   readActiveProjectRecord,
   readProjectRecord,
@@ -249,7 +249,7 @@ test('malformed legacy and future active project records stay intact through exp
     id: 'future-active-project',
     name: 'Future active project',
     createdAt: '2026-10-03T00:00:00.000Z',
-  }), schemaVersion: 2 });
+  }), schemaVersion: 3 });
   await writeProjectRecord(page, 'project:future-active-project', futureProject);
   await writeProjectRecord(page, 'active-project-id', 'future-active-project');
   await page.reload();
