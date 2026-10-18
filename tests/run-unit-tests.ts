@@ -9,3 +9,4 @@ import './project-catalog.test';
 import './geodesic.test';
 import './snap-policy.test';
 import './directional-renderer.test';
+import './directional-layout.test';

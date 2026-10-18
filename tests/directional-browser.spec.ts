@@ -1,7 +1,7 @@
 import { expect, test, type Page } from '@playwright/test';
 import { writeFile } from 'node:fs/promises';
 
-async function setup(page: Page, request: import('@playwright/test').APIRequestContext) {
+async function setup(page: Page, request: import('@playwright/test').APIRequestContext, manualFailureSize?: number) {
   const problems: string[] = [];
   page.on('pageerror', error => problems.push(error.message));
   page.on('console', message => { if (message.type() === 'error') problems.push(message.text()); });
@@ -32,7 +32,7 @@ async function setup(page: Page, request: import('@playwright/test').APIRequestC
     (window as any).proof = module.mountDirectionalProof(document.getElementById('proof-map'));
   });
   await expect.poll(() => page.evaluate(() => (window as any).proof.state())).toBe('ready');
-  expect(await page.evaluate(() => (window as any).proof.install())).toMatchObject({ ok: true });
+  expect(await page.evaluate(size => size === undefined ? (window as any).proof.install() : (window as any).proof.installManualFailure(size), manualFailureSize)).toMatchObject({ ok: true });
   await expect.poll(() => page.evaluate(() => (window as any).proof.diagnostics().layers)).toBe(2);
   return problems;
 }
@@ -43,6 +43,49 @@ async function alignment(page: Page) {
     return hits.length > 15 && hits.every((hit: any) => hit.line && hit.symbol);
   }), { timeout: 10000 }).toBe(true);
 }
+
+test('T1B isolates a collapsed manual path on initial input, resize and camera changes and recovers it', async ({ page, request }, testInfo) => {
+  const problems = await setup(page, request, 10);
+  const verify = async (omitted: boolean) => {
+    await expect.poll(() => page.evaluate(async () => {
+      const data = await (window as any).proof.data();
+      return data.lines.features.map((f: any) => f.id).sort();
+    })).toEqual(omitted ? ['survivor-a', 'survivor-b'] : ['manual-corner', 'survivor-a', 'survivor-b']);
+    const diagnostics = await page.evaluate(() => (window as any).proof.diagnostics());
+    const errors = diagnostics.limitations.filter((s: string) => s.startsWith('manual-corner:'));
+    if (omitted) {
+      expect(errors).toHaveLength(1);
+      expect(errors[0]).toContain('display path omitted (Offset path has no nonzero display segment.)');
+    } else expect(errors).toEqual([]);
+    await expect.poll(() => page.evaluate(async () => {
+      const hits = await (window as any).proof.renderedAlignment();
+      return ['survivor-a', 'survivor-b'].every(id => hits.some((hit: any) => hit.id === id && hit.line && hit.symbol)) &&
+        hits.every((hit: any) => hit.line && hit.symbol);
+    })).toBe(true);
+    expect(await page.evaluate(() => (window as any).proof.unchanged())).toBe(true);
+    expect(diagnostics).toMatchObject({ sources: 2, layers: 2, pendingFrames: 1, ownedListeners: 4 });
+    return diagnostics;
+  };
+  const initial = await verify(true);
+  expect(initial.inputRebuilds).toBe(1);
+  await page.evaluate(() => (window as any).proof.resizeManualFailure());
+  const resized = await verify(true);
+  expect(resized.projectionRebuilds).toBeGreaterThan(initial.projectionRebuilds);
+  await page.evaluate(() => (window as any).proof.scaleManualFailure(1));
+  const recovered = await verify(false);
+  expect(recovered.inputRebuilds).toBe(initial.inputRebuilds);
+  await page.evaluate(() => (window as any).proof.scaleManualFailure(0));
+  await verify(true);
+  expect(await page.evaluate(() => (window as any).proof.installManualFailure(20))).toMatchObject({ ok: true });
+  await verify(false);
+  await page.evaluate(() => (window as any).proof.scaleManualFailure(-1));
+  const moved = await verify(true);
+  expect(moved.projectionRebuilds).toBeGreaterThan(recovered.projectionRebuilds);
+  await testInfo.attach('manual-path-isolation', { body: JSON.stringify({ initial, resized, recovered, moved }), contentType: 'application/json' });
+  await page.screenshot({ path: testInfo.outputPath('t1b-manual-path-isolation.png') });
+  await page.evaluate(() => (window as any).proof.destroy());
+  expect(problems).toEqual([]);
+});
 
 test('T1A actual line/static/animated tracks, local bearings, crossing and immutable WGS84 fixtures', async ({ page, request }, testInfo) => {
   const problems = await setup(page, request);
@@ -105,6 +148,68 @@ test('T1A actual line/static/animated tracks, local bearings, crossing and immut
   expect(await page.evaluate(() => (window as any).proof.unchanged())).toBe(true);
   await testInfo.attach('architecture-diagnostics', { body: JSON.stringify({ before, after }), contentType: 'application/json' });
   await writeFile(testInfo.outputPath('architecture-diagnostics.json'), JSON.stringify({ before, after }, null, 2));
+  await page.evaluate(() => (window as any).proof.destroy());
+  expect(problems).toEqual([]);
+});
+
+test('T1B rendered partial-corridor tracks, taper, crossings, ordering, immutable inputs and bounded frame work', async ({ page, request }, testInfo) => {
+  const problems = await setup(page, request);
+  expect(await page.evaluate(() => (window as any).proof.installLayout())).toMatchObject({ ok: true });
+  await page.evaluate(() => (window as any).proof.static(true));
+  await alignment(page);
+  const tracks = () => page.evaluate(async () => {
+    const p = (window as any).proof;
+    return (await p.data()).lines.features.map((f: any) => ({ id: f.id, points: f.geometry.coordinates.map((c: any) => p.project(c)) }));
+  });
+  const lines = await tracks();
+  const approach = (id: string, x: number) => lines.find((line: any) => line.id === id).points.find((p: any) => Math.abs(p.x - x) < 0.05);
+  expect(approach('approach-a', 160).y).toBeCloseTo(106, 1);
+  expect(approach('approach-b', 160).y).toBeCloseTo(120, 1);
+  expect(approach('approach-c', 160).y).toBeCloseTo(134, 1);
+  expect(approach('approach-b', 480).y).toBeCloseTo(120, 1);
+  const tapered = lines.find((line: any) => line.id === 'approach-a').points.filter((p: any) => p.x > 300 && p.x < 332);
+  expect(tapered.length).toBeGreaterThan(2);
+  expect(tapered.every((p: any) => p.y > 106 && p.y < 120)).toBe(true);
+  expect(await page.evaluate(() => (window as any).proof.renderedCrossing())).toEqual(['cross-east', 'cross-north']);
+  await page.screenshot({ path: testInfo.outputPath('t1b-static.png') });
+  await page.evaluate(() => (window as any).proof.reverseLayout());
+  await alignment(page);
+  expect(await tracks()).toEqual(lines);
+  await page.evaluate(() => (window as any).proof.static(false));
+  await alignment(page);
+  const before = await page.evaluate(() => (window as any).proof.diagnostics());
+  await page.waitForTimeout(1050);
+  const after = await page.evaluate(() => (window as any).proof.diagnostics());
+  expect(after.updates - before.updates).toBeGreaterThan(5);
+  expect(after.layoutRebuilds).toBe(before.layoutRebuilds);
+  expect(after.layout).toEqual(before.layout);
+  expect(after.layout.sharedRuns).toBeGreaterThanOrEqual(5);
+  expect(after.layout.sampleCount).toBeLessThanOrEqual(8192);
+  expect(after.layout.candidateChecks).toBeLessThanOrEqual(131072);
+  expect(after.layout.profileChecks).toBeLessThanOrEqual(131072);
+  expect(after.layout.fallback).toBe(false);
+  expect(after).toMatchObject({ sources: 2, layers: 2, pendingFrames: 1, ownedListeners: 4 });
+  await page.evaluate(() => (window as any).proof.static(true));
+  const ordering = () => page.evaluate(async () => {
+    const p = (window as any).proof, data = await p.data();
+    return data.lines.features.filter((f: any) => f.id.startsWith('approach')).map((f: any) => ({ id: f.id, y: p.project(f.geometry.coordinates[0]).y })).sort((a: any, b: any) => a.y - b.y).map((f: any) => f.id);
+  });
+  expect(await ordering()).toEqual(['approach-a', 'approach-b', 'approach-c']);
+  await page.evaluate(() => (window as any).proof.panZoom());
+  await alignment(page);
+  expect(await ordering()).toEqual(['approach-a', 'approach-b', 'approach-c']);
+  for (const voyager of [true, false]) {
+    expect(await page.evaluate(v => (window as any).proof.switchStyle(v), voyager)).toBe(true);
+    await expect.poll(() => page.evaluate(() => (window as any).proof.state())).toBe('ready');
+    await alignment(page);
+    expect(await ordering()).toEqual(['approach-a', 'approach-b', 'approach-c']);
+  }
+  await page.evaluate(() => (window as any).proof.manualLayout());
+  await alignment(page);
+  expect(await ordering()).toEqual(['approach-b', 'approach-c', 'approach-a']);
+  expect(await page.evaluate(() => (window as any).proof.unchanged())).toBe(true);
+  await writeFile(testInfo.outputPath('t1b-diagnostics.json'), JSON.stringify({ before, after }, null, 2));
+  await testInfo.attach('t1b-diagnostics', { body: JSON.stringify({ before, after }), contentType: 'application/json' });
   await page.evaluate(() => (window as any).proof.destroy());
   expect(problems).toEqual([]);
 });

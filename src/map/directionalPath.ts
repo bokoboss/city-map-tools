@@ -16,6 +16,9 @@ export interface DirectionalInput {
   visualRatePixelsPerSecond: number;
   /** Positive = right of canonical first-to-last traversal, independent of direction. */
   displayOffsetPixels: number;
+  /** Transient T1B controls. Explicit nonzero base offsets opt out unless autoLayout is true. */
+  autoLayout?: boolean;
+  layoutOrder?: number;
 }
 
 export interface DisplayPoint { x: number; y: number }
@@ -37,6 +40,8 @@ export function snapshotInputs(inputs: readonly DirectionalInput[]): Directional
     if (input.direction !== 'forward' && input.direction !== 'reverse') throw new Error('Invalid renderer direction.');
     if (!/^#[0-9a-f]{6}$/i.test(input.color)) throw new Error('Renderer color must be a six-digit hex color.');
     if (typeof input.animationEnabled !== 'boolean') throw new Error('Invalid animation setting.');
+    if (input.autoLayout !== undefined && typeof input.autoLayout !== 'boolean') throw new Error('Invalid auto-layout setting.');
+    if (input.layoutOrder !== undefined && (!Number.isFinite(input.layoutOrder) || Math.abs(input.layoutOrder) > 1e6)) throw new Error('Invalid transient layout order.');
     const bounds: Array<[number, number, number]> = [
       [input.opacity, 0, 1], [input.lineWidthPixels, 1, 16], [input.arrowSizePixels, 8, 48],
       [input.arrowSpacingPixels, 24, 256], [input.visualRatePixelsPerSecond, 0, 120], [input.displayOffsetPixels, -64, 64],
