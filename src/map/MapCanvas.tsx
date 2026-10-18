@@ -4,6 +4,10 @@ import { basemaps } from './basemaps';
 import type { BasemapId } from './basemaps';
 import { createMap, initialMapState } from './createMap';
 import type { EditorMode } from './createMap';
+import type { ProjectDocumentV2 } from '../project/projectDocument';
+import type { ProjectCommand } from '../project/projectHistory';
+import { trafficMovementInputs } from '../project/trafficMovementInputs';
+import { TrafficMovementInspector } from './TrafficMovementInspector';
 import {
   POINT_LABEL_POSITIONS,
   POINT_MARKER_KINDS,
@@ -30,6 +34,10 @@ export interface OperationResult {
 }
 
 interface MapCanvasProps {
+  committedProject: ProjectDocumentV2;
+  arrowsPaused: boolean;
+  onArrowsPausedChange: (paused: boolean) => void;
+  onTrafficMovementCommand: (command: ProjectCommand) => OperationResult;
   features: readonly SpatialFeature[];
   layers: readonly FeatureLayer[];
   selectedFeatureId: string | null;
@@ -81,6 +89,10 @@ function provenanceDetails(provenance: Provenance, labels: { method: string; sou
 }
 
 export function MapCanvas({
+  committedProject,
+  arrowsPaused,
+  onArrowsPausedChange,
+  onTrafficMovementCommand,
   features,
   layers,
   selectedFeatureId,
@@ -128,6 +140,7 @@ export function MapCanvas({
   const [deleteConfirmationId, setDeleteConfirmationId] = useState<string | null>(null);
   const [bufferRadius, setBufferRadius] = useState('100');
   const [featureNameDraft, setFeatureNameDraft] = useState('');
+  const [movementNotice, setMovementNotice] = useState('');
 
   modeRef.current = mode;
   pointSelectRef.current = onPointSelect;
@@ -144,6 +157,7 @@ export function MapCanvas({
     try {
       controller.current = createMap(container.current, {
         onState: setState,
+        onDirectionalStatus: setMovementNotice,
         onPointSelect: id => pointSelectRef.current(id),
         onPointDragStart: id => {
           const result = pointDragStartRef.current(id);
@@ -197,6 +211,14 @@ export function MapCanvas({
       controller.current = null;
     };
   }, [onModeChange]);
+
+  useEffect(() => {
+    controller.current?.setDirectionalInputs(trafficMovementInputs(committedProject), { isolateDisplayFailures: true });
+  }, [committedProject, onModeChange]);
+
+  useEffect(() => {
+    controller.current?.setDirectionalPaused(arrowsPaused);
+  }, [arrowsPaused, onModeChange]);
 
   useEffect(() => {
     if (mode !== 'editing') controller.current?.setEditorMode(mode);
@@ -337,6 +359,15 @@ export function MapCanvas({
   return (
     <section className="map-workspace" aria-label="Map workspace">
       <aside className="map-controls" aria-label="Layer, data, and inspector controls">
+        <section className="movement-workspace" aria-label="Movement animation controls">
+          <h2>Traffic Movement</h2>
+          <p className="control-help">Authored schematic direction. Visual presentation only; no traffic speed, volume or simulation.</p>
+          <button type="button" aria-pressed={arrowsPaused} onClick={() => onArrowsPausedChange(!arrowsPaused)}>
+            {arrowsPaused ? 'Resume animated arrows' : 'Pause animated arrows'}
+          </button>
+          <p className="control-help">Temporary pause for this project session. Saved animation settings stay unchanged. Reduced motion and hidden tabs also pause animation.</p>
+          {movementNotice && <p role="status" className="movement-notice">{movementNotice}</p>}
+        </section>
         <section className="data-actions" aria-label="Point GeoJSON data actions">
           <h2>Data</h2>
           <div className="file-actions">
@@ -421,6 +452,17 @@ export function MapCanvas({
           {selectedFeature.description !== undefined && <div className="inspector-field"><span>Description</span><p>{selectedFeature.description}</p></div>}
           <div className="inspector-field"><span>Geometry</span><output>{selectedFeature.type}: {geometrySummary(selectedFeature)}</output></div>
           <div className="inspector-field"><span>Lineage</span><output>{selectedFeature.lineage}</output></div>
+          {selectedFeature.type === 'LineString' && <TrafficMovementInspector
+            key={selectedFeature.id}
+            feature={selectedFeature}
+            movements={committedProject.trafficMovements}
+            disabled={interactionLocked || mode !== 'select'}
+            onCommand={command => {
+              const result = onTrafficMovementCommand(command);
+              setEditorStatus(result.message);
+              return result;
+            }}
+          />}
           {selectedFeature.provenance.sourceLineageClaim && <div className="inspector-field"><span>Source lineage claim (untrusted)</span><output>{selectedFeature.provenance.sourceLineageClaim.lineage}</output></div>}
           <div className="inspector-field"><span>Validation status</span><output>{selectedFeature.validationStatus}</output></div>
           {selectedFeature.provenance.derivedFrom && <div className="inspector-field">

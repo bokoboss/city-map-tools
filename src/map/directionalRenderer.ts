@@ -38,7 +38,7 @@ function arrowImage() {
 }
 
 /** Map controller owns style hydration; this module owns camera, motion and visibility listeners. */
-export function createDirectionalRenderer(map: MapLibreMap) {
+export function createDirectionalRenderer(map: MapLibreMap, onLimitations?: (messages: string[]) => void) {
   let inputs: DirectionalInput[] = [];
   let key = '[]';
   let tracks: Track[] = [];
@@ -152,6 +152,10 @@ export function createDirectionalRenderer(map: MapLibreMap) {
     (map.getSource(DIRECTIONAL_IDS.tracks) as GeoJSONSource | undefined)?.setData(lines);
     publishArrows(clock.elapsed());
     syncClock();
+    onLimitations?.(limitations());
+  }
+  function limitations() {
+    return [...projectionErrors, ...(layout?.warnings ?? []), ...(layout?.suppressedWarnings ? [`${layout.suppressedWarnings} additional layout warning occurrences omitted from bounded details.`] : []), ...(arrowLimited ? [`Arrow cap ${MOVEMENT_LIMITS.arrows}: display spacing increased; all accepted paths retained.`] : [])];
   }
   const visibilityChanged = () => {
     if (document.hidden) clock.pause();
@@ -211,6 +215,7 @@ export function createDirectionalRenderer(map: MapLibreMap) {
       inputRebuilds++;
       if (inputs.length === 0) {
         clock.pause(); removeResources(); tracks = []; lines = { type: 'FeatureCollection', features: [] }; arrowFeatures = 0; arrowLimited = false; projectionErrors = []; layout = null; styleReady = false;
+        onLimitations?.([]);
       } else if (styleReady) refreshProjection();
       else rebuildStyle();
       return { ok: true, message: 'Transient inputs accepted. Inspect diagnostics for layout/projection/arrow-spacing fallback.' };
@@ -219,6 +224,20 @@ export function createDirectionalRenderer(map: MapLibreMap) {
     suspendStyle() { styleReady = false; clock.pause(); },
     pause() { manuallyPaused = true; syncClock(); },
     resume() { manuallyPaused = false; syncClock(); },
+    displayDistance(id: string, point: { x: number; y: number }): number {
+      if (!styleReady || destroyed) return Infinity;
+      const track = tracks.find(track => track.input.id === id);
+      if (!track) return Infinity;
+      let distance = Infinity;
+      for (let i = 1; i < track.path.points.length; i++) {
+        const a = track.path.points[i - 1]!;
+        const b = track.path.points[i]!;
+        const dx = b.x - a.x, dy = b.y - a.y;
+        const t = Math.max(0, Math.min(1, ((point.x - a.x) * dx + (point.y - a.y) * dy) / (dx * dx + dy * dy)));
+        distance = Math.min(distance, Math.hypot(point.x - a.x - t * dx, point.y - a.y - t * dy));
+      }
+      return distance;
+    },
     diagnostics() {
       return { ...clock.diagnostics(), inputRebuilds, projectionRebuilds, layoutRebuilds: projectionRebuilds, layout, sourceUpdates, arrowFeatures,
         arrowUpdateMsMean: sourceUpdates ? arrowUpdateMsTotal / sourceUpdates : 0, arrowUpdateMsMax,
@@ -227,7 +246,7 @@ export function createDirectionalRenderer(map: MapLibreMap) {
         sources: destroyed ? 0 : [DIRECTIONAL_IDS.tracks, DIRECTIONAL_IDS.arrows].filter(id => map.getSource(id)).length,
         layers: destroyed ? 0 : [DIRECTIONAL_IDS.line, DIRECTIONAL_IDS.symbol].filter(id => map.getLayer(id)).length,
         ownedListeners: destroyed ? 0 : 4,
-        limitations: [...projectionErrors, ...(layout?.warnings ?? []), ...(layout?.suppressedWarnings ? [`${layout.suppressedWarnings} additional layout warning occurrences omitted from bounded details.`] : []), ...(arrowLimited ? [`Arrow cap ${MOVEMENT_LIMITS.arrows}: display spacing increased; all accepted paths retained.`] : [])] };
+        limitations: limitations() };
     },
     destroy() {
       if (destroyed) return;

@@ -116,6 +116,12 @@ h1 { font-size: 21px; margin: 0; letter-spacing: -0.4px; }
 }
 .map-controls label { display: block; font-size: 13px; font-weight: 650; margin-bottom: 8px; }
 .map-controls select, .map-controls input { width: 100%; }
+.movement-workspace, .movement-presentation { margin-bottom: 16px; }
+.movement-presentation fieldset { min-width: 0; margin: 12px 0; padding: 10px; border: 1px solid var(--border); }
+.movement-presentation label { margin-top: 10px; }
+.movement-presentation .presentation-checkbox { display: flex; align-items: center; gap: 8px; }
+.map-controls .movement-presentation input[type="checkbox"] { width: auto; }
+.movement-notice { overflow-wrap: anywhere; }
 .map-controls h2 { font-size: 14px; margin: 0 0 10px; }
 .data-actions, .layer-panel, .inspector, .map-options { padding-bottom: 18px; margin-bottom: 18px; border-bottom: 1px solid var(--border-subtle); }
 .mode-buttons, .file-actions { display: flex; gap: 8px; }
