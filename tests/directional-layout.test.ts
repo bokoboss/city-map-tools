@@ -173,4 +173,28 @@ const valid = { id: 'valid', coordinates: [[100, 13], [100.001, 13]] as const, d
 assert.throws(() => snapshotInputs([{ ...valid, layoutOrder: NaN }]));
 assert.throws(() => snapshotInputs([{ ...valid, layoutOrder: 1e6 + 1 }]));
 assert.throws(() => snapshotInputs([{ ...valid, autoLayout: 'yes' as any }]));
+check('manual offset beyond the input extent does not reproduce the review hypothesis', () => {
+  for (const edge of [-1e8, 1e8]) {
+    const source = input('boundary', [[edge, 0], [edge, 240]], { baseOffset: edge > 0 ? -64 : 64 });
+    const base = buildDisplayPath(source.points, source.baseOffset);
+    assert.ok(Math.abs(base.points[0]!.x) > 1e8);
+    assert.deepEqual(layoutDirectionalPaths([source]).paths.get(source.id), base);
+  }
+});
+check('a collapsed manual path is omitted without losing valid tracks or retrying it in fallback', () => {
+  const collapsed = input('collapsed', [[0, 0], [10, 0], [10, 10]], { baseOffset: 10 });
+  assert.equal(buildDisplayPath(collapsed.points, 0).length, 20);
+  assert.throws(() => buildDisplayPath(collapsed.points, 10), /Offset path has no nonzero display segment/);
+  const good = input('good', [[100, 100], [340, 100]], { baseOffset: -14 });
+  for (const extra of [[], [input('huge', [[0, 0], [1e7, 0]])]]) {
+    const source = [good, collapsed, ...extra], before = JSON.stringify(source);
+    const result = layoutDirectionalPaths(source);
+    assert.equal(result.paths.has('collapsed'), false);
+    assert.deepEqual(result.paths.get('good'), buildDisplayPath(good.points, good.baseOffset));
+    assert.ok(result.diagnostics.warnings.some(w => w.includes('collapsed') && w.includes('omitted') && w.includes('Offset path has no nonzero display segment')));
+    assert.equal(result.diagnostics.fallback, extra.length > 0);
+    if (extra.length) assert.deepEqual(result.paths.get('huge'), buildDisplayPath(extra[0]!.points, 0));
+    assert.equal(JSON.stringify(source), before);
+  }
+});
 fixtures.forEach(name => console.log(`PASS T1B ${name}`));

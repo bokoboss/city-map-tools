@@ -26,6 +26,7 @@ export function mountDirectionalProof(container: HTMLDivElement) {
   });
   let fixtures: DirectionalInput[] = [];
   let original = '';
+  let manualFailureZoom = 0;
   const mapListeners: Array<{ type: string; callback: unknown }> = [];
   const removedMapListeners = new Set<unknown>();
   const mapOn = map.on;
@@ -110,6 +111,21 @@ export function mountDirectionalProof(container: HTMLDivElement) {
       return controller.setDirectionalInputs(fixtures);
     },
     reverseLayout() { fixtures = fixtures.map(input => ({ ...input, direction: input.direction === 'forward' ? 'reverse' : 'forward' })); return controller.setDirectionalInputs(fixtures); },
+    installManualFailure(size: number) {
+      manualFailureZoom = map.getZoom();
+      const straight = fromScreen([[80, 220], [680, 220]]);
+      fixtures = [
+        { ...common, id: 'survivor-a', coordinates: straight, displayOffsetPixels: -14 },
+        { ...common, id: 'survivor-b', coordinates: straight, color: '#d45500', displayOffsetPixels: 14 },
+        { ...common, id: 'manual-corner', coordinates: fromScreen([[400, 320], [400 + size, 320], [400 + size, 320 + size]]), displayOffsetPixels: 10 },
+      ];
+      original = JSON.stringify(fixtures.map(input => input.coordinates));
+      installing = true;
+      try { return controller.setDirectionalInputs(fixtures); }
+      finally { installing = false; document.addEventListener = add; window.matchMedia = matchMedia; }
+    },
+    scaleManualFailure(delta: number) { map.jumpTo({ zoom: manualFailureZoom + delta }); },
+    resizeManualFailure() { container.style.height = '620px'; map.resize(); },
     manualLayout() { fixtures = fixtures.map(input => input.id === 'approach-a' ? { ...input, layoutOrder: 10, displayOffsetPixels: 20, autoLayout: true } : input); return controller.setDirectionalInputs(fixtures); },
     panZoom() { map.jumpTo({ center: [map.getCenter().lng + 0.0001, map.getCenter().lat], zoom: map.getZoom() + 0.1 }); },
     renderedCrossing() {

@@ -124,7 +124,9 @@ export function createDirectionalRenderer(map: MapLibreMap) {
     layout = result.diagnostics;
     const projected: Array<{ input: DirectionalInput; path: DisplayPath; coordinates: [number, number][] }> = [];
     for (const { input } of canonical) {
-      try { const path = result.paths.get(input.id)!; projected.push({ input, path, coordinates: path.points.map(unproject) }); }
+      const path = result.paths.get(input.id);
+      if (!path) continue; // The layout diagnostic already explains this movement's omission.
+      try { projected.push({ input, path, coordinates: path.points.map(unproject) }); }
       catch { projectionErrors.push(`${input.id}: display track cannot be unprojected at this camera; change the view.`); }
     }
     const budget = arrowCounts(projected.map(track => track.path), projected.map(track => track.input.arrowSpacingPixels));

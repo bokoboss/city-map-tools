@@ -36,17 +36,24 @@ export function layoutDirectionalPaths(inputs: readonly LayoutInput[]) {
   };
   const ordered = [...inputs].sort(compare);
   const paths = new Map<string, DisplayPath>();
-  const cached: Cached[] = ordered.map(input => {
+  const cached: Cached[] = [];
+  for (const input of ordered) {
     if (input.points.length > MOVEMENT_LIMITS.vertices || !Number.isFinite(input.layoutOrder ?? 0)) throw new Error('Invalid bounded layout input.');
-    const path = buildDisplayPath(input.points, 0);
-    paths.set(input.id, buildDisplayPath(input.points, input.baseOffset));
-    return { input, path, samples: [] };
-  });
+    try {
+      const path = buildDisplayPath(input.points, 0);
+      paths.set(input.id, buildDisplayPath(input.points, input.baseOffset));
+      cached.push({ input, path, samples: [] });
+    } catch (error) {
+      warn(`${input.id}: display path omitted (${error instanceof Error ? error.message : 'display path unavailable'}); change the view or manual offset.`);
+    }
+  }
+  // Reuse only successfully constructed base paths; fallback must not retry a failed offset.
+  const basePaths = new Map(paths);
   const fallback = (reason: string) => {
     diagnostics.fallback = true;
     diagnostics.sharedRuns = 0;
     diagnostics.warnings.push(`${reason} Auto-layout declined for: ${ordered.filter(enabled).map(input => input.id).join(', ')}. Use transient manual offsets or a smaller display extent.`);
-    return { paths: new Map(cached.map(c => [c.input.id, buildDisplayPath(c.input.points, c.input.baseOffset)])), diagnostics };
+    return { paths: basePaths, diagnostics };
   };
   // Preflight the entire allocation, including canonical corners, before sampling long/off-screen paths.
   const needed = cached.reduce((sum, c) => sum + (enabled(c.input) ? Math.ceil(c.path.length / LAYOUT_POLICY.step) + c.path.points.length : 0), 0);

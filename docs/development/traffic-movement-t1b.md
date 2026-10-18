@@ -57,7 +57,7 @@ Diagnostics expose layout rebuilds, sample/candidate/profile checks, local match
 
 ## Fixture evidence
 
-Pure command: `npx tsx tests/directional-layout.test.ts`. Eighteen named fixtures pass, including the fifteen mandatory behaviors and added correspondence/budget/manual-input/extent assertions.
+Pure command: `npx tsx tests/directional-layout.test.ts`. Twenty named fixtures pass, including the fifteen mandatory behaviors and added correspondence/budget/manual-input/extent/failure-isolation assertions.
 
 | Required fixture | Evidence |
 | --- | --- |
@@ -81,7 +81,7 @@ Additional fixtures cover near-identical but non-coincident centerlines, stagger
 
 Independent review also found a REQUIRED P1 asymmetry when the folded movement owns the reference frame. The regression now permutes both folded IDs, input order and explicit reference order, and requires unchanged display paths plus an affected-pair warning. The correction declines overlapping pair intervals and duplicate local correspondences; it adds no topology or broader conflation.
 
-Browser proof: `npm run test:directional:browser` passes 4/4 (three retained T1A cases plus T1B). Full suite: `npm run test:browser:ci` passes 17/17, including provider/credential, project workflow/recovery, snapping, geodesic bundle, authoring/history and T1A lifecycle gates. Chromium uses the existing ignored `.cache/ms-playwright` cache. Synthetic OSM tiles/styles and the synthetic CARTO credential qualify deterministic renderer behavior only, not live provider service validity.
+Browser proof: `npm run test:directional:browser` passes 5/5 (three retained T1A cases plus two T1B cases). Full suite: `npm run test:browser:ci` passes 18/18, including provider/credential, project workflow/recovery, snapping, geodesic bundle, authoring/history and T1A lifecycle gates. Chromium uses the existing ignored `.cache/ms-playwright` cache. Synthetic OSM tiles/styles and the synthetic CARTO credential qualify deterministic renderer behavior only, not live provider service validity.
 
 - [Static actual-render screenshot](evidence/t1b-static.png): visibly separate shared approaches/opposite tracks/curves, tapered divergence, preserved true crossing.
 - [Runtime diagnostic observation](evidence/t1b-diagnostics.json): sample/candidate/profile counts and resources before/after 1,050ms of animation. Timing is synchronous arrow sampling plus `setData`, excluding asynchronous worker/GPU cost.
@@ -89,6 +89,18 @@ Browser proof: `npm run test:directional:browser` passes 4/4 (three retained T1A
 The sandboxed browser attempt could not access localhost sockets and left preview resources briefly occupied. Cancelling that attempt and running the same project-local browser command with authorized localhost access resolved the environment boundary; no firewall, global browser, PATH, service or system setting was changed.
 
 ## Validation and review state
+
+### Continuation after control-plane HOLD (2026-10-18)
+
+Starting local/remote PR #57 head was `4cadc46084b1ceb13fa1948370be96aa598f52cd`, with clean staged/unstaged/untracked state; fetched main remained `af91d27b46c5d6f5c27abb7b8c28bbc0a0121ddd`. All 29 pinned workflow hashes matched. Work remained STANDARD under [HOLD comment 6247275518](https://github.com/bokoboss/city-map-tools/pull/57#issuecomment-6247275518).
+
+Review comment `4177070783` identified unguarded base-path construction, but its exact boundary hypothesis does **not** reproduce: a vertical path at either ±1e8 with an outward 64px manual offset returns an x coordinate of ±100000064 without throwing. `buildDisplayPath` validates its input points before applying an offset; it does not validate shifted output against the extent again. The regression records that distinction without changing those semantics.
+
+A genuine allowed-input failure was reproduced before editing: `(0,0) → (10,0) → (10,10)` has a valid 20px projected centerline, but an allowed +10px manual offset collapses its three shifted vertices to one point. `buildDisplayPath` throws `Offset path has no nonzero display segment.` The new regression failed at the original eager base-path call, aborting the entire mixed-input layout update.
+
+The bounded correction catches per-movement centerline/base-path construction failures, emits an ID-specific omission diagnostic, and excludes only that movement from layout/rendering. Verified base paths are cached once and reused by global fallback, so fallback cannot retry the same failed construction. The renderer skips omitted IDs without adding a false unprojection error. Inputs remain retained for recovery on later camera/input changes. No sampler, frozen heuristic, domain contract or dependency changes.
+
+Pure regressions prove the non-throwing boundary case and real collapse case, preservation of other manual tracks, canonical immutability, and omission even when a large valid input forces global fallback. The native browser regression starts with the collapsed movement in the renderer's first input, then exercises resize, zoom recovery, a later zoom-induced collapse and normal manual tracks. It checks actual rendered line/symbol hits for surviving movements, correct diagnostics and their recovery, unchanged coordinates, and the original shared resources/scheduler. Prior generated-extent and folded-reference remediations remain green. Exact remediation SHA, CI and fresh review outcomes are recorded on the existing PR; no merge is authorized.
 
 `npm ci --cache .cache/npm --no-audit --no-fund`, focused kernel fixtures, `npm test`, `npm run typecheck`, `npm run build`, `git diff --check`, focused browser and complete browser suites passed locally on Node 24.14.0. The existing Vite large-chunk advisory remains. CI independently uses Node 22.
 
