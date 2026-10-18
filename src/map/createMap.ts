@@ -481,6 +481,8 @@ export function createMap(container: HTMLDivElement, callbacks: MapCallbacks) {
 
   const ensureGeometryLayers = (): boolean => {
     if (!styleLoaded) return false;
+    // Style hydration and later conversion must share the same draw/pick order.
+    const beforeMovement = map.getLayer(DIRECTIONAL_IDS.line) ? DIRECTIONAL_IDS.line : undefined;
     if (!map.getSource(geometrySourceId)) {
       map.addSource(geometrySourceId, { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
     }
@@ -494,7 +496,7 @@ export function createMap(container: HTMLDivElement, callbacks: MapCallbacks) {
           'fill-color': ['get', 'color'],
           'fill-opacity': ['case', ['get', 'selected'], 0.46, 0.22],
         },
-      });
+      }, beforeMovement);
     }
     if (!map.getLayer(polygonOutlineLayerId)) {
       map.addLayer({
@@ -506,7 +508,7 @@ export function createMap(container: HTMLDivElement, callbacks: MapCallbacks) {
           'line-color': ['get', 'color'],
           'line-width': ['case', ['get', 'selected'], 4, 2],
         },
-      });
+      }, beforeMovement);
     }
     if (!map.getLayer(lineLayerId)) {
       map.addLayer({
@@ -518,7 +520,7 @@ export function createMap(container: HTMLDivElement, callbacks: MapCallbacks) {
           'line-color': ['get', 'color'],
           'line-width': ['case', ['get', 'selected'], 5, 3],
         },
-      });
+      }, beforeMovement);
     }
     return true;
   };

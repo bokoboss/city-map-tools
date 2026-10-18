@@ -61,6 +61,11 @@ provider credentials, spatial methods or runtime dependencies.
   completed committed-geometry hydration and per-basemap source completion events,
   without waiting for animated application sources or `idle`. Provider errors retain
   priority. Color is a local native-input draft committed once on blur/Enter.
+- A later exact-head review found generic layers could hydrate above directional
+  layers, unlike conversion after startup. An exact-crossing click test reproduced
+  movement selection changing after a full style replacement. Generic layers now
+  insert before the directional line whenever it exists, keeping draw order and
+  rendered tie-breaking stable through startup/conversion/style replacement.
 
 ## Reproducible browser evidence
 
@@ -90,6 +95,8 @@ The product scenarios cover:
 - Desktop/narrow screenshots, native labeled controls and keyboard traversal.
 - No-idle startup and canonical vertex snapping with animated movements; one Undo
   entry for a finalized multi-event color-picker gesture, with no intermediate write.
+- Exact-crossing map selection and generic/directional layer order before and after
+  full Voyager/OSM style replacements.
 
 Supplementary local screenshots: `output/playwright/traffic-product-desktop.png` and
 `output/playwright/traffic-product-narrow.png`. Full browser log:

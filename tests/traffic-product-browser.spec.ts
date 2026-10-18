@@ -340,6 +340,46 @@ test('production color picker input stream commits one history action at finaliz
   await expect(color).toHaveValue('#440000');
 });
 
+test('production exact-crossing selection and directional layer order survive full style replacement', async ({ page, request }) => {
+  await start(page, request);
+  const doc = await stored(page);
+  const paths = await page.evaluate(() => {
+    const map = (window as any).trafficProbe.map();
+    return [[[200, 300], [600, 300]], [[400, 180], [400, 420]]].map(path => path.map(([x, y]) => {
+      const p = map.unproject([x, y]); return [p.lng, p.lat];
+    }));
+  });
+  doc.features = paths.map((path: [number, number][], i: number) => createAuthoredLineString(`cross-${i}`, path, i + 1));
+  await writeProjectRecord(page, `project:${doc.metadata.id}`, JSON.stringify(doc));
+  await page.reload();
+  await expect(page.locator('.map-status strong')).toHaveText('Ready');
+  await page.locator('.feature-row').first().click();
+  await page.getByRole('button', { name: 'Convert to Traffic Movement', exact: true }).click();
+  await page.getByRole('button', { name: 'Pause animated arrows', exact: true }).click();
+  const verify = async () => {
+    await rendered(page);
+    const box = (await page.locator('.maplibregl-canvas').boundingBox())!;
+    await expect.poll(() => page.evaluate(() => {
+      const map = (window as any).trafficProbe.map();
+      return map.queryRenderedFeatures([400, 300], { layers: ['city-map-lines', 'city-map-directional-line'] }).length;
+    })).toBe(2);
+    await page.mouse.click(box.x + 400, box.y + 300);
+    await expect(page.locator('.inspector-id')).toHaveText('cross-0');
+    const order = await page.evaluate(() => (window as any).trafficProbe.map().getStyle().layers.map((l: any) => l.id));
+    expect(order.indexOf('city-map-directional-line')).toBeGreaterThan(order.indexOf('city-map-lines'));
+    expect(order.indexOf('city-map-directional-line')).toBeGreaterThan(order.indexOf('city-map-polygons-fill'));
+    expect(order.indexOf('city-map-directional-symbol')).toBeGreaterThan(order.indexOf('city-map-directional-line'));
+  };
+  await verify();
+  await page.getByLabel('CARTO Basemaps API key', { exact: true }).fill('local-test-placeholder');
+  await page.getByRole('button', { name: 'Use key and switch to Voyager', exact: true }).click();
+  await expect(page.locator('.map-status strong')).toHaveText('Ready');
+  await verify();
+  await page.getByLabel('Provider', { exact: true }).selectOption('osm');
+  await expect(page.locator('.map-status strong')).toHaveText('Ready');
+  await verify();
+});
+
 test('production reduced motion, hidden page and global pause are transient with no React frame churn', async ({ page, request }) => {
   await page.emulateMedia({ reducedMotion: 'reduce' });
   await start(page, request);
